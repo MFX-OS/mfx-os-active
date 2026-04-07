@@ -2,9 +2,10 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { executeTool } = require('../../agents/core/toolExecutor');
+const { executeApprovedActions } = require('../../agents/core/toolExecutor');
 
-const handler = onRequest({ cors: true, region: 'us-central1' }, async (req, res) => {
+const CORS_ORIGINS = ["https://mfx-2026.web.app","https://mfx-2026.firebaseapp.com","http://localhost:5000"];
+const handler = onRequest({ cors: CORS_ORIGINS, region: 'us-central1' }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   // Verify auth
@@ -74,7 +75,7 @@ const handler = onRequest({ cors: true, region: 'us-central1' }, async (req, res
     let executionResult = null;
     if (rec.autoAction && rec.autoAction.tool) {
       try {
-        executionResult = await executeTool(rec.autoAction.tool, rec.autoAction.params || {}, uid);
+        executionResult = await executeApprovedActions(recommendationId, [rec.autoAction], uid);
         await recRef.update({ executionStatus: 'completed', executionResult });
       } catch (execErr) {
         console.error('Auto-action execution failed:', execErr);

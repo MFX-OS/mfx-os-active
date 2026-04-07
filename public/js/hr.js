@@ -58,13 +58,13 @@ var state = {tab:'dashboard',subTab:'profile',employees:[],selectedId:null,editI
 
 function loadData(){
   try{
-    var raw = localStorage.getItem(STORE_KEY);
+    var raw = sessionStorage.getItem(STORE_KEY);
     if(raw){state.employees=JSON.parse(raw);if(state.employees.length)return;}
   }catch(e){}
   state.employees = makeSeed();
   saveData();
 }
-function saveData(){localStorage.setItem(STORE_KEY,JSON.stringify(state.employees));}
+function saveData(){sessionStorage.setItem(STORE_KEY,JSON.stringify(state.employees));}
 function empName(e){return e.firstName+' '+e.lastName;}
 function empInitials(e){return (e.firstName[0]||'')+(e.lastName[0]||'');}
 function hueFromId(id){var h=0;for(var i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))%360;return h;}

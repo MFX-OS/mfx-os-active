@@ -14,5 +14,9 @@
       }
     }
   },
-  "etags": {}
+  "etags": {
+    "mfx-2026": {
+      "extensionInstances": {}
+    }
+  }
 }

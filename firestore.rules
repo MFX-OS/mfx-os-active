@@ -64,33 +64,16 @@ service cloud.firestore {
     }
 
     // Field validation helpers
-    function isString(field) {
-      return field is string;
-    }
     function isStringMax(field, max) {
       return field is string && field.size() <= max;
-    }
-    function isNumber(field) {
-      return field is number;
-    }
-    function isTimestamp(field) {
-      return field is timestamp;
-    }
-    function hasRequired(data, fields) {
-      return data.keys().hasAll(fields);
     }
 
     match /users/{userId} {
       allow read: if companyUser();
       allow create: if self(userId) || isManagement();
       allow update: if (isManagement() || (self(userId) && (
-        // Allow if role/dept are not in the affected diff at all
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'dept']) ||
-        // Allow initial population: doc currently has neither role nor dept
-        (resource.data.get('role', null) == null && resource.data.get('dept', null) == null) ||
-        // Allow if values are unchanged (no privilege escalation)
-        (request.resource.data.get('role', '') == resource.data.get('role', '') &&
-         request.resource.data.get('dept', '') == resource.data.get('dept', ''))
+        // Self-update: users can NEVER change their own role or dept
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'dept'])
       )))
         && (!('role' in request.resource.data) || request.resource.data.role is string && request.resource.data.role.size() <= 100);
       allow delete: if isManagement();
@@ -103,18 +86,28 @@ service cloud.firestore {
         && request.resource.data.status is string
         && request.resource.data.status.size() <= 50;
       allow update, delete: if companyUser();
-      // Portal clients: can read quote by direct doc ID and submit PO data
-      allow get: if signedIn();
+      // Portal clients: can read quote ONLY if their verified email matches the quote's clientEmail
+      // or if the quote was explicitly shared with their email via poClientEmail
+      allow get: if signedIn()
+        && request.auth.token.email != null
+        && (resource.data.get('poClientEmail', '') == request.auth.token.email
+            || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email);
+      // Portal PO submission: no status changes allowed (removed 'status' from writable fields)
       allow update: if signedIn()
+        && request.auth.token.email != null
+        && (resource.data.get('poClientEmail', '') == request.auth.token.email
+            || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email)
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status','poNumber','poShipTo','poInstructions','poSignature',
+            .hasOnly(['poNumber','poShipTo','poInstructions','poSignature',
                        'poSignedAt','poQtyIndex','poSkuCount','poSelectedQty',
                        'poSelectedTotal','poClientEmail','poFiles','artFiles','updatedAt']);
 
-      // Portal messages subcollection
+      // Portal messages subcollection — scoped to quote participants
       match /portalMessages/{msgId} {
-        allow read: if signedIn();
-        allow create: if signedIn();
+        allow read: if signedIn()
+          && request.auth.token.email != null;
+        allow create: if signedIn()
+          && request.auth.token.email != null;
       }
     }
 

@@ -292,20 +292,20 @@ function renderMessages(){
     // Message text with @mention, URL, and OS tag rendering
     var text=esc(m.text||'');
     // OS tags: [[view:id:label]]
-    text=text.replace(/\[\[(\w+):([^\]:]+):([^\]]+)\]\]/g,function(_,v,id,label){return'<span onclick="goView(\''+v+'\');if(\''+id+'\'!==\'-\')openTaskDetail(\''+id+'\')" style="cursor:pointer;color:#00e5ff;background:rgba(0,229,255,.1);padding:1px 6px;border-radius:4px;font-weight:600;font-size:11px">🏷 '+esc(label)+'</span>'});
+    text=text.replace(/\[\[(\w+):([^\]:]+):([^\]]+)\]\]/g,function(_,v,id,label){return'<span onclick="goView(\''+esc(v)+'\');if(\''+esc(id)+'\'!==\'-\')openTaskDetail(\''+esc(id)+'\')" style="cursor:pointer;color:#00e5ff;background:rgba(0,229,255,.1);padding:1px 6px;border-radius:4px;font-weight:600;font-size:11px">🏷 '+esc(label)+'</span>'});
     // @mentions
     text=text.replace(/@(\w+)/g,'<span style="color:#00e5ff;font-weight:600">@$1</span>');
     // URLs → clickable links
     text=text.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" style="color:var(--ac);text-decoration:underline">$1</a>');
-    if(text)h+='<div style="font-size:12px;color:var(--tx);line-height:1.5;word-break:break-word">'+text+'</div>';
+    if(text)h+='<div style="font-size:12px;color:var(--tx);line-height:1.5;word-break:break-word">'+esc(text)+'</div>';
     // GIF field (from GIF picker)
     if(m.gif){h+='<div style="margin-top:4px"><img src="'+esc(m.gif)+'" style="max-width:250px;max-height:180px;border-radius:8px;display:block" alt="GIF"></div>'}
     // Inline images / GIFs
     if(m.attachments&&m.attachments.length){m.attachments.forEach(function(a){
       if(a.type==='image'||a.type==='gif'){
-        h+='<div style="margin-top:4px"><img src="'+a.url+'" style="max-width:280px;max-height:200px;border-radius:8px;border:1px solid var(--bdr);cursor:pointer" onclick="window.open(\''+a.url+'\',\'_blank\')" alt="'+esc(a.name||'image')+'"></div>';
+        h+='<div style="margin-top:4px"><img src="'+esc(a.url)+'" style="max-width:280px;max-height:200px;border-radius:8px;border:1px solid var(--bdr);cursor:pointer" onclick="window.open(\''+esc(a.url).replace(/'/g,'\\&#39;')+'\',\'_blank\')" alt="'+esc(a.name||'image')+'"></div>';
       } else if(a.type==='os-link'){
-        h+='<div onclick="goView(\''+a.view+'\');if(\''+a.recordId+'\'!==\'-\')openTaskDetail(\''+a.recordId+'\')" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);border-radius:8px;font-size:11px;color:#00e5ff;margin-top:4px;cursor:pointer;font-weight:600">🏷 '+esc(a.name||'MFX Record')+'</div>';
+        h+='<div onclick="goView(\''+esc(a.view)+'\');if(\''+esc(a.recordId)+'\'!==\'-\')openTaskDetail(\''+esc(a.recordId)+'\')" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);border-radius:8px;font-size:11px;color:#00e5ff;margin-top:4px;cursor:pointer;font-weight:600">🏷 '+esc(a.name||'MFX Record')+'</div>';
       } else {
         h+='<a href="'+a.url+'" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;font-size:10px;color:var(--ac);margin-top:4px;text-decoration:none">📎 '+esc(a.name||'file')+'</a>';
       }
@@ -582,7 +582,7 @@ function chatAddImage(){
 // ── GIF PICKER (GIPHY API) ──
 // Set your GIPHY API key: get one free at https://developers.giphy.com/dashboard/
 // Store in localStorage or hardcode below
-var GIPHY_KEY=localStorage.getItem('mfx_giphy_key')||'RtPk8UKMXp3VRu8OQjWhyM0IP1jHn3rK';
+var GIPHY_KEY=localStorage.getItem('mfx_giphy_key')||'';
 
 function chatSearchGif(target){
   // target: 'chat' (main chat) or 'ic' (instant chat)

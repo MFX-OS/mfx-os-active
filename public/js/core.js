@@ -75,6 +75,8 @@ function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/<
 function mfxUnlockPrompt(){}
 function mfxLockMenu(){}
 function _mfxApplyUnlock(){
+  // Gate behind authenticated role — not callable from console by unauthenticated users
+  if(!window.MFX||!window.MFX.role||window.MFX.role==='viewer'){return;}
   // Show advanced tabs
   document.querySelectorAll('.tab.adv').forEach(function(t){t.style.display='';});
   // Inject full colored department menu into hamburger

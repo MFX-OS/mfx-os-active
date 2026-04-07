@@ -1,6 +1,6 @@
 /* ======================================================================
    MFX OS — Full Hamburger Menu Builder
-   Unlocked via password "2057". Returns complete colored department HTML.
+   Returns complete colored department HTML.
    ====================================================================== */
 
 window._buildFullHamMenu = function _buildFullHamMenu() {

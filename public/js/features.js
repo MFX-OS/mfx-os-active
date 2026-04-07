@@ -34,15 +34,15 @@ var other=t.participants.filter(function(p){return p!==me})[0]||'Unknown';
 var unread=t.lastSender!==me&&!t.readBy?.includes(me);
 h+='<div class="card'+(unread?' glow-pulse':'')+'" style="padding:10px;cursor:pointer;'+(unread?'border-left:3px solid var(--ac)':'')+'" onclick="openDMThread(\''+t.id+'\')">';
 h+='<div style="display:flex;justify-content:space-between;align-items:center">';
-h+='<strong style="color:'+(unread?'var(--ac)':'var(--tx)')+';font-size:12px">'+other+'</strong>';
+h+='<strong style="color:'+(unread?'var(--ac)':'var(--tx)')+';font-size:12px">'+esc(other)+'</strong>';
 h+='<span style="font-size:8px;color:var(--tx3)">'+(t.lastMessageAt?fD(t.lastMessageAt.toDate?t.lastMessageAt.toDate().toISOString():t.lastMessageAt):'')+'</span>';
 h+='</div>';
-h+='<div style="font-size:10px;color:var(--tx2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(t.lastMessage||'')+'</div>';
+h+='<div style="font-size:10px;color:var(--tx2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(t.lastMessage||'')+'</div>';
 if(unread)h+='<div style="width:8px;height:8px;background:var(--ac);border-radius:50%;position:absolute;top:8px;right:8px"></div>';
 h+='</div>';
 });
 el.innerHTML=h;
-}).catch(function(e){el.innerHTML='<div style="color:var(--rd);font-size:10px">'+e.message+'</div>'});
+}).catch(function(e){el.innerHTML='<div style="color:var(--rd);font-size:10px">'+esc(e.message)+'</div>'});
 }
 
 window.newDM=function(){
@@ -58,7 +58,7 @@ fetchUsers.then(function(users){
   (users||[]).forEach(function(u){
     var name=u.name||u.displayName||u.email||'';
     var uid=u.id||u.uid||name;
-    if(name&&name!==me){sel.innerHTML+='<option value="'+uid+'" data-name="'+name+'">'+name+'</option>';}
+    if(name&&name!==me){sel.innerHTML+='<option value="'+esc(uid)+'" data-name="'+esc(name)+'">'+esc(name)+'</option>';}
   });
   if(!sel.innerHTML)sel.innerHTML='<option value="">No users found</option>';
 }).catch(function(){
@@ -116,7 +116,7 @@ msgs.forEach(function(m){
 var isMe=m.from===me;
 h+='<div style="display:flex;justify-content:'+(isMe?'flex-end':'flex-start')+';margin-bottom:6px">';
 h+='<div style="max-width:80%;padding:8px 12px;border-radius:'+(isMe?'12px 12px 0 12px':'12px 12px 12px 0')+';background:'+(isMe?'linear-gradient(135deg,var(--ac),#0891b2)':'var(--bg3)')+';color:'+(isMe?'#000':'var(--tx)')+';font-size:12px;line-height:1.4">';
-h+=m.text;
+h+=esc(m.text);
 h+='<div style="font-size:8px;opacity:.6;margin-top:2px;text-align:right">'+(m.timestamp?fD(m.timestamp.toDate?m.timestamp.toDate().toISOString():m.timestamp):'now')+'</div>';
 h+='</div></div>';
 });

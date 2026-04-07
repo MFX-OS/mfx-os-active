@@ -986,6 +986,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--sans);font-size:
 </div>
 
 <script>
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 // ─── NAV ───
 const titles = {
   'haccp-dash':'HACCP Dashboard','haccp-hazards':'Hazard Analysis','haccp-ccps':'Critical Control Points',
@@ -1023,20 +1024,20 @@ function renderCCPs(){
     <div class="card" style="margin-bottom:14px">
       <div class="card-header">
         <div style="display:flex;align-items:center;gap:12px">
-          <span class="chip" style="color:var(--cyan);border-color:rgba(0,212,245,0.3)">${c.id}</span>
-          <div><div style="font-size:14px;font-weight:500;color:var(--text0)">${c.step}</div><div style="font-size:12px;color:var(--text2)">${c.hazard}</div></div>
+          <span class="chip" style="color:var(--cyan);border-color:rgba(0,212,245,0.3)">${esc(c.id)}</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text0)">${esc(c.step)}</div><div style="font-size:12px;color:var(--text2)">${esc(c.hazard)}</div></div>
         </div>
         <span class="badge ${c.status==='green'?'badge-green':c.status==='amber'?'badge-amber':'badge-rose'}">${c.status==='green'?'COMPLIANT':c.status==='amber'?'REVIEW':'DEVIATION'}</span>
       </div>
       <div class="grid-2" style="gap:10px;font-size:13px">
-        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">CRITICAL LIMIT</div><div style="color:var(--rose)">${c.limit}</div></div>
-        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">MONITORING DEVICE</div><div>${c.device}</div></div>
-        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">MONITORING PROCEDURE</div><div>${c.monitor}</div></div>
-        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">FREQUENCY</div><div>${c.freq}</div></div>
-        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">RESPONSIBLE</div><div>${c.who}</div></div>
-        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">LAST MONITORING</div><div style="font-family:var(--mono);font-size:12px">${c.last} — ${c.lastVal}</div></div>
+        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">CRITICAL LIMIT</div><div style="color:var(--rose)">${esc(c.limit)}</div></div>
+        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">MONITORING DEVICE</div><div>${esc(c.device)}</div></div>
+        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">MONITORING PROCEDURE</div><div>${esc(c.monitor)}</div></div>
+        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">FREQUENCY</div><div>${esc(c.freq)}</div></div>
+        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">RESPONSIBLE</div><div>${esc(c.who)}</div></div>
+        <div><div style="font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:2px">LAST MONITORING</div><div style="font-family:var(--mono);font-size:12px">${esc(c.last)} — ${esc(c.lastVal)}</div></div>
       </div>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><span style="font-size:10px;font-family:var(--mono);color:var(--text2)">CORRECTIVE ACTION: </span><span style="font-size:12px;color:var(--text1)">${c.ca}</span></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><span style="font-size:10px;font-family:var(--mono);color:var(--text2)">CORRECTIVE ACTION: </span><span style="font-size:12px;color:var(--text1)">${esc(c.ca)}</span></div>
     </div>`).join('');
 }
 

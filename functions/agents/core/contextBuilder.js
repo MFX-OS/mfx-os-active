@@ -1,6 +1,7 @@
 'use strict';
 const { getFirestore } = require('firebase-admin/firestore');
 const C = require('../../shared/collectionNames');
+const redaction = require('../policies/redactionRules');
 
 // Build context for an agent by reading relevant collections
 async function buildContext(agentName, opts) {
@@ -17,7 +18,7 @@ async function buildContext(agentName, opts) {
       if (read.orderBy) query = query.orderBy(read.orderBy[0], read.orderBy[1] || 'desc');
       if (read.limit) query = query.limit(read.limit);
       const snap = await query.get();
-      context.data[read.key] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      context.data[read.key] = snap.docs.map(d => redaction.redactFromPrompt({ id: d.id, ...d.data() }, read.collection));
     } catch (e) {
       context.data[read.key] = [];
       console.warn(`Context read failed for ${read.key}:`, e.message);
@@ -77,11 +78,7 @@ function getContextReads(agentName, opts) {
       { key: 'openNCRs', collection: C.NCRS, where: [['status', '!=', 'closed']], limit: 20 },
       { key: 'vendorPOs', collection: C.VENDOR_POS, orderBy: ['createdAt'], limit: 20 }
     ],
-    trainingAgent: [
-      { key: 'trainingRecords', collection: C.TRAINING_RECORDS, limit: 200 },
-      { key: 'trainingPrograms', collection: C.TRAINING_PROGRAMS, limit: 50 },
-      { key: 'employees', collection: C.EMPLOYEES, limit: 200 }
-    ]
+    // trainingAgent: removed — no specialist file exists
   };
 
   return READS[agentName] || [];

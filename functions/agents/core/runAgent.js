@@ -11,7 +11,8 @@ async function runAgent(agentName, triggerType, opts, userId) {
   const db = getFirestore();
   const startTime = Date.now();
 
-  // Validate agent exists and is enabled
+  // Validate agent name format and exists
+  if (!/^[a-zA-Z]+$/.test(agentName)) throw new Error(`Invalid agent name: ${agentName}`);
   const agentConfig = getAgent(agentName);
   if (!agentConfig) throw new Error(`Unknown agent: ${agentName}`);
 

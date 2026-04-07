@@ -1,9 +1,9 @@
-var CACHE_NAME = 'mfx-mnnxn9ay';
+var CACHE_NAME = 'mfx-mnp0cs7g';
 var STATIC_ASSETS = [
   '/',
   '/index.html',
   '/css/theme.css',
-  '/js/mfx-bundle.b9477dc9.js',
+  '/js/mfx-bundle.b471bab9.js',
   '/manifest.json'
 ];
 
@@ -217,9 +217,11 @@ self.addEventListener('message', function(e) {
   if (e.data && e.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  if (e.data && e.data.type === 'CACHE_URLS') {
-    caches.open(CACHE_NAME).then(function(cache) {
-      cache.addAll(e.data.urls || []);
+  if (e.data && e.data.type === 'CACHE_URLS' && e.source) {
+    // Only accept CACHE_URLS from same-origin clients
+    var urls = (e.data.urls || []).filter(function(u) {
+      try { return new URL(u, self.location.origin).origin === self.location.origin; } catch(_) { return false; }
     });
+    if (urls.length) caches.open(CACHE_NAME).then(function(cache) { cache.addAll(urls); });
   }
 });

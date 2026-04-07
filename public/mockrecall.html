@@ -356,6 +356,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 </div>
 
 <script>
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 // ═══════════════════════════════════════
 // DATA / SCENARIOS
 // ═══════════════════════════════════════
@@ -582,11 +583,11 @@ function renderStepNav() {
   document.getElementById('step-nav').innerHTML=html;
   // lot sidebar
   const s=state.scenario;
-  document.getElementById('sidebar-brief').innerHTML=`<b>Trigger:</b> ${s.trigger.substring(0,180)}...`;
+  document.getElementById('sidebar-brief').innerHTML=`<b>Trigger:</b> ${esc(s.trigger.substring(0,180))}...`;
   let lotHtml='';
   Object.entries(s.lot).forEach(([k,v])=>{
     const labels={number:'Lot #',product:'Product',produced:'Produced',qty:'Quantity',press:'Press',substrate:'Substrate',subLot:'Sub Lot',ink:'Ink',inkLot:'Ink Lot',released:'Released',shipped:'Shipped',customer:'Customer'};
-    if(labels[k]) lotHtml+=`<div class="lot-field"><span class="lot-key">${labels[k]}</span><span class="lot-val" style="max-width:140px;text-align:right;font-size:10px">${v}</span></div>`;
+    if(labels[k]) lotHtml+=`<div class="lot-field"><span class="lot-key">${labels[k]}</span><span class="lot-val" style="max-width:140px;text-align:right;font-size:10px">${esc(String(v))}</span></div>`;
   });
   document.getElementById('sidebar-lot').innerHTML=lotHtml;
 }
@@ -600,7 +601,7 @@ function addLog(type, msg) {
   const sec=(state.elapsed%60).toString().padStart(2,'0');
   const line=document.createElement('div');
   line.className=`log-line ${type}`;
-  line.innerHTML=`<span class="log-ts">[${min}:${sec}]</span>${msg}`;
+  line.innerHTML=`<span class="log-ts">[${min}:${sec}]</span>${esc(msg)}`;
   el.appendChild(line);
   el.scrollTop=el.scrollHeight;
 }

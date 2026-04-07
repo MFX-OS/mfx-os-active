@@ -161,8 +161,8 @@ async function checkRateLimit(uid, action, maxPerWindow, windowMs) {
     });
     return result;
   } catch (err) {
-    console.warn("Rate limit check failed, allowing:", err.message);
-    return true; // fail open
+    console.warn("Rate limit check failed, denying:", err.message);
+    return false; // fail closed
   }
 }
 
@@ -916,6 +916,11 @@ exports.transitionStatus = onRequest(
       if (!collection || !docId || !newStatus) {
         return sendJson(res, 400, { error: "collection, docId, and newStatus required" });
       }
+      // Restrict to known collections only
+      const ALLOWED_COLLECTIONS = ['quotes','salesOrders','vendorPOs','jobTickets','ncrs','requests','prepressInbox','tasks'];
+      if (!ALLOWED_COLLECTIONS.includes(collection)) {
+        return sendJson(res, 400, { error: "Invalid collection: " + collection });
+      }
 
       // Determine which state machine to use
       const machineKey = machine || collection;
@@ -1084,6 +1089,71 @@ exports.transitionStatus = onRequest(
 
     } catch (err) {
       console.error("transitionStatus error", err);
+      sendJson(res, 500, { error: err.message });
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// PORTAL PO SUBMIT — Transition quote to 'won' when client signs PO
+// Allows any authenticated user (portal clients) — scoped to quotes only
+// ═══════════════════════════════════════════════════════════════════
+const CORS_PORTAL = ["https://mfx-2026.web.app","https://mfx-2026.firebaseapp.com","http://localhost:5000"];
+
+exports.portalSubmitPO = onRequest(
+  { memory: "256MiB", timeoutSeconds: 30, cors: CORS_PORTAL },
+  async (req, res) => {
+    if (!ensurePost(req, res)) return;
+    const actor = await requireAnyUser(req, res);
+    if (!actor) return;
+    if (!(await enforceRateLimit(req, res, actor.uid, "portalSubmitPO", 5, 60000))) return;
+    try {
+      const { quoteId } = req.body || {};
+      if (!quoteId || typeof quoteId !== "string") {
+        return sendJson(res, 400, { error: "Missing quoteId" });
+      }
+
+      const quoteRef = db.collection("quotes").doc(quoteId);
+      const snap = await quoteRef.get();
+      if (!snap.exists) return sendJson(res, 404, { error: "Quote not found" });
+
+      const quote = snap.data();
+
+      // Verify the caller's email matches the quote's client email
+      const callerEmail = String(actor.email || "").toLowerCase();
+      const quoteClientEmail = String(quote.poClientEmail || "").toLowerCase();
+      const quoteCustEmail = String((quote.fields || {}).custEmail || "").toLowerCase();
+      if (callerEmail !== quoteClientEmail && callerEmail !== quoteCustEmail) {
+        return sendJson(res, 403, { error: "Email mismatch — not authorized for this quote" });
+      }
+
+      // Only allow transition if PO data is present
+      if (!quote.poSignature || !quote.poNumber) {
+        return sendJson(res, 400, { error: "PO signature and number required before marking as won" });
+      }
+
+      // Only transition from 'sent' → 'won'
+      if (quote.status !== "sent") {
+        return sendJson(res, 400, { error: "Quote must be in 'sent' status (current: " + quote.status + ")" });
+      }
+
+      await quoteRef.update({
+        status: "won",
+        closedAt: new Date().toISOString(),
+        wonDate: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      await logServerEvent("portal.po_submitted", {
+        quoteId,
+        quoteNum: quote.quoteNum || "",
+        company: (quote.fields || {}).custCo || "",
+        clientEmail: callerEmail
+      });
+
+      sendJson(res, 200, { success: true, status: "won" });
+    } catch (err) {
+      console.error("portalSubmitPO error", err);
       sendJson(res, 500, { error: err.message });
     }
   }

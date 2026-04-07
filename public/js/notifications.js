@@ -829,7 +829,7 @@
           // Navigate to the right place
           if (notif && notif.sourceView === 'editor' && notif.sourceId && typeof openEditor === 'function') {
             openEditor(notif.sourceId);
-          } else if (notif && notif.sourceUrl) {
+          } else if (notif && notif.sourceUrl && /^https?:\/\//.test(notif.sourceUrl)) {
             window.open(notif.sourceUrl, '_blank');
           } else if (notif && notif.sourceView) {
             goView(notif.sourceView);
@@ -895,7 +895,7 @@
       var _flashClickHandler = function(e) {
         if (!e.target.closest('.mfx-notif-flash-close')) {
           if (notification.sourceView) goView(notification.sourceView);
-          else if (notification.sourceUrl) window.open(notification.sourceUrl, '_blank');
+          else if (notification.sourceUrl && /^https?:\/\//.test(notification.sourceUrl)) window.open(notification.sourceUrl, '_blank');
           window._closeFlash(flashId);
         }
       };

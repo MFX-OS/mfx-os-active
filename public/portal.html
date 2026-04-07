@@ -176,12 +176,13 @@ function loadQuote(){
   var docId=params.get('id');
   var qNum=params.get('q');
   if(!docId&&!qNum){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
-  // Check if returning from magic link (legacy support)
+  // Check if returning from email verification link
   if(auth.isSignInWithEmailLink(window.location.href)){
-    var email=localStorage.getItem('mfxPortalEmail');
+    var email=localStorage.getItem('mfxPortalPendingEmail')||localStorage.getItem('mfxPortalEmail');
     if(!email)email=prompt('Please confirm your email address:');
     auth.signInWithEmailLink(email,window.location.href).then(function(result){
       localStorage.removeItem('mfxPortalEmail');
+      localStorage.removeItem('mfxPortalPendingEmail');
       CLIENT_EMAIL=result.user.email;
       var cleanParams=[];
       if(params.get('id'))cleanParams.push('id='+params.get('id'));
@@ -227,17 +228,39 @@ function portalSignIn(){
     document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Please enter a valid email address</div>';return;
   }
   var btn=document.getElementById('portalBtn');
-  btn.textContent='Loading...';btn.disabled=true;
-  // Sign in anonymously, store email for identification
-  auth.signInAnonymously().then(function(){
-    CLIENT_EMAIL=email;
-    localStorage.setItem('mfxPortalClientEmail',email);
-    doLoadQuote();
+  btn.textContent='Sending verification...';btn.disabled=true;
+
+  // Check if user is returning from email link
+  if(auth.isSignInWithEmailLink && auth.isSignInWithEmailLink(window.location.href)){
+    var savedEmail=localStorage.getItem('mfxPortalPendingEmail')||email;
+    auth.signInWithEmailLink(savedEmail, window.location.href).then(function(){
+      CLIENT_EMAIL=savedEmail;
+      localStorage.removeItem('mfxPortalPendingEmail');
+      localStorage.setItem('mfxPortalClientEmail',savedEmail);
+      doLoadQuote();
+    }).catch(function(e){
+      btn.textContent='View Quote';btn.disabled=false;
+      document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Verification failed: '+escPortal(e.message)+'</div>';
+    });
+    return;
+  }
+
+  // Send email verification link
+  var actionCodeSettings={
+    url: window.location.href,
+    handleCodeInApp: true
+  };
+  auth.sendSignInLinkToEmail(email, actionCodeSettings).then(function(){
+    localStorage.setItem('mfxPortalPendingEmail', email);
+    btn.textContent='Check your email';
+    document.getElementById('portalStatus').innerHTML='<div style="color:var(--accent)">We sent a verification link to <strong>'+escPortal(email)+'</strong>. Click it to view the quote.</div>';
   }).catch(function(e){
     btn.textContent='View Quote';btn.disabled=false;
-    document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Error: '+e.message+'</div>';
+    document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Error: '+escPortal(e.message)+'</div>';
   });
 }
+
+function escPortal(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
 function doLoadQuote(){
   var params=new URLSearchParams(window.location.search);
@@ -283,17 +306,17 @@ function renderPortalData(){
     if(label==='Flex Team')el.textContent=f.estimator||'—';
   });
   var prepFor=document.querySelector('.qcard-head div[style*="text-align:right"]');
-  if(prepFor){prepFor.innerHTML='<div style="font-size:10px;color:var(--sub)">Prepared for</div><div style="font-size:14px;font-weight:700;color:var(--h1)">'+(f.custCo||'—')+'</div><div style="font-size:10px;color:var(--sub)">'+(f.custAttn||'')+'</div>'}
+  if(prepFor){prepFor.innerHTML='<div style="font-size:10px;color:var(--sub)">Prepared for</div><div style="font-size:14px;font-weight:700;color:var(--h1)">'+escPortal(f.custCo||'—')+'</div><div style="font-size:10px;color:var(--sub)">'+escPortal(f.custAttn||'')+'</div>'}
   var shipInput=document.querySelector('input[value="Los Angeles, CA"]');
   if(shipInput)shipInput.value=f.shipTo||f.cityState||'';
   // Specs tags
   var specsEl=document.querySelector('.specs');
   if(specsEl){specsEl.innerHTML=
-    '<div class="spec-tag stg"><span class="lab">Size</span><span class="val">'+(f.sA||'?')+'" x '+(f.sar||'?')+'"</span></div>'
-    +'<div class="spec-tag stg"><span class="lab">Shape</span><span class="val">'+(f.shapeType||'—')+'</span></div>'
-    +'<div class="spec-tag stg"><span class="lab">Colors</span><span class="val">'+(f.colors||'—')+'</span></div>'
-    +'<div class="spec-tag stb"><span class="lab">Material</span><span class="val">'+(f.face||'—')+'</span></div>'
-    +(f.laminate?'<div class="spec-tag sto"><span class="lab">Lam</span><span class="val">'+f.laminate+'</span></div>':'')
+    '<div class="spec-tag stg"><span class="lab">Size</span><span class="val">'+escPortal(f.sA||'?')+'" x '+escPortal(f.sar||'?')+'"</span></div>'
+    +'<div class="spec-tag stg"><span class="lab">Shape</span><span class="val">'+escPortal(f.shapeType||'—')+'</span></div>'
+    +'<div class="spec-tag stg"><span class="lab">Colors</span><span class="val">'+escPortal(f.colors||'—')+'</span></div>'
+    +'<div class="spec-tag stb"><span class="lab">Material</span><span class="val">'+escPortal(f.face||'—')+'</span></div>'
+    +(f.laminate?'<div class="spec-tag sto"><span class="lab">Lam</span><span class="val">'+escPortal(f.laminate)+'</span></div>':'')
   }
   // Render pricing — full matrix with qty rows × SKU columns
   var pricingData=q.pricedQtys||[];
@@ -381,7 +404,7 @@ function renderPortalData(){
   // Show logged-in user
   if(CLIENT_EMAIL){
     var hdrContact=document.querySelector('.hdr-contact');
-    if(hdrContact)hdrContact.innerHTML='<div style="font-size:10px;color:var(--sub)">Signed in as</div><b style="font-size:11px">'+CLIENT_EMAIL+'</b><br><a href="#" onclick="auth.signOut();location.reload();return false" style="font-size:10px">Sign out</a>';
+    if(hdrContact)hdrContact.innerHTML='<div style="font-size:10px;color:var(--sub)">Signed in as</div><b style="font-size:11px">'+escPortal(CLIENT_EMAIL)+'</b><br><a href="#" onclick="auth.signOut();location.reload();return false" style="font-size:10px">Sign out</a>';
   }
 }
 
@@ -438,7 +461,7 @@ function handleFiles(files,type){
           var barWrap=document.querySelector('#'+itemId+' .upload-bar');
           if(barWrap)setTimeout(function(){barWrap.style.display='none'},1000);
           var linkDiv=document.createElement('div');
-          linkDiv.innerHTML='<a href="'+data.driveLink+'" target="_blank" style="font-size:9px;color:var(--accent)">📁 '+data.folder+'</a>';
+          linkDiv.innerHTML='<a href="'+escPortal(data.driveLink)+'" target="_blank" style="font-size:9px;color:var(--accent)">📁 '+escPortal(data.folder)+'</a>';
           document.getElementById(itemId).appendChild(linkDiv);
           arr.push({name:data.name,url:data.driveLink,driveId:data.driveId,driveLink:data.driveLink,uploadedAt:new Date().toISOString()});
         }else{
@@ -491,7 +514,7 @@ function loadMessages(){
       var isClient=m.from==='client';
       var div=document.createElement('div');
       div.className='msg '+(isClient?'client':'mfx');
-      div.innerHTML='<div class="msg-meta"><b>'+m.name+'</b> · '+(isClient?'Client':'Microflex')+' · '+(m.timestamp?new Date(m.timestamp.toDate()).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'')+'</div>'+m.text;
+      div.innerHTML='<div class="msg-meta"><b>'+escPortal(m.name)+'</b> · '+(isClient?'Client':'Microflex')+' · '+(m.timestamp?new Date(m.timestamp.toDate()).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'')+'</div>'+escPortal(m.text);
       el.appendChild(div);
     });
     el.scrollTop=el.scrollHeight;
@@ -518,8 +541,8 @@ function submitPO(){
   var shipTo=document.querySelectorAll('.field input')[1].value;
   var instructions=document.querySelector('.field textarea').value;
   var sigName=document.getElementById('sigInput').value;
+  // Save PO fields (no status change — server handles transition to 'won')
   db.collection('quotes').doc(QUOTE_ID).update({
-    status:'won',
     poNumber:poNum,
     poShipTo:shipTo,
     poInstructions:instructions,
@@ -534,6 +557,14 @@ function submitPO(){
     artFiles:UPLOADED_ART_FILES,
     updatedAt:new Date().toISOString()
   }).then(function(){
+    // Trigger server-side status transition to 'won' via portal-safe endpoint
+    getAuthToken().then(function(token){
+      fetch('/api/portalSubmitPO',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify({quoteId:QUOTE_ID})
+      }).catch(function(e){console.warn('Portal PO submit:',e.message)});
+    }).catch(function(){});
     db.collection('activity').add({
       type:'po.approved',
       quoteId:QUOTE_ID,

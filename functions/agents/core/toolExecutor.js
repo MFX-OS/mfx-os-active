@@ -8,8 +8,14 @@ async function executeApprovedActions(recommendationId, actions, executedBy) {
   const db = getFirestore();
   const results = [];
 
+  const ALLOWED_TOOLS = ['getInventory','draftEmail','draftNotification','getTrainingExpirations','createPassportTool','getJobTicket','draftTask','draftChatAlert','getQuote','assembleJobPacketTool','transitionStatusTool','getPassport','createRecommendation'];
+
   for (const action of actions) {
     try {
+      if (!ALLOWED_TOOLS.includes(action.tool)) {
+        results.push({ tool: action.tool, status: 'error', error: 'Tool not allowed' });
+        continue;
+      }
       const tool = require(`../tools/${action.tool}`);
       if (!tool || typeof tool.execute !== 'function') {
         results.push({ tool: action.tool, status: 'error', error: 'Tool not found' });

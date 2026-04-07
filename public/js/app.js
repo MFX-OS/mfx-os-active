@@ -313,7 +313,7 @@ if(fbDb){var cutoff=new Date(Date.now()-8*60*60*1000);
 fbDb.collection('users').get().then(function(snap){
 var sEl=document.getElementById('jtStaff');if(!sEl)return;
 var online=[];snap.docs.forEach(function(d){var u=d.data();var nm=u.displayName||u.email||'';if(!nm)return;var ls=u.lastSeen?new Date(u.lastSeen.seconds*1000):null;if(ls&&ls>cutoff)online.push(nm)});
-if(online.length){sEl.innerHTML='<div style="margin-bottom:4px;font-weight:600;color:'+c+'">'+online.length+' checked in</div>'+online.map(function(n){return'<div style="padding:2px 0;display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gn);display:inline-block"></span>'+n+'</div>'}).join('')}
+if(online.length){sEl.innerHTML='<div style="margin-bottom:4px;font-weight:600;color:'+c+'">'+online.length+' checked in</div>'+online.map(function(n){return'<div style="padding:2px 0;display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gn);display:inline-block"></span>'+esc(n)+'</div>'}).join('')}
 else{sEl.innerHTML='<div style="color:var(--tx3)">No staff checked in yet</div>'}}).catch(function(){})}
 
 // ── Async: Active Tickets + Pods + Schedule ──
@@ -324,7 +324,7 @@ var tEl=document.getElementById('jtTickets');
 if(tEl){var tickets=items.filter(function(t){return!t.completed&&t.type==='task'});
 if(tickets.length){tEl.innerHTML='<div style="margin-bottom:4px;font-weight:600;color:'+c+'">'+tickets.length+' open</div>'+tickets.slice(0,8).map(function(t){
 var pri=t.priority?'<span style="color:'+(t.priority==='urgent'?'var(--rd)':t.priority==='high'?'var(--or)':'var(--tx3)')+';font-size:8px;font-weight:700">'+t.priority.toUpperCase()+' </span>':'';
-return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);cursor:pointer" onclick="openTaskDetail(\''+t.id+'\')">'+pri+t.title+'</div>'}).join('')}
+return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);cursor:pointer" onclick="openTaskDetail(\''+esc(t.id)+'\')">'+pri+esc(t.title)+'</div>'}).join('')}
 else{tEl.innerHTML='<div style="color:var(--tx3)">No open tickets</div>'}}
 
 // Pods — group by assignee
@@ -352,7 +352,7 @@ psEl.innerHTML='<div style="display:flex;gap:12px"><div><div style="font-size:18
 if(fbDb){fbDb.collection('activity').orderBy('timestamp','desc').limit(8).get().then(function(snap){
 var fEl=document.getElementById('jtFeed');if(!fEl)return;
 var acts=snap.docs.map(function(d){return d.data()});
-if(acts.length){fEl.innerHTML=acts.map(function(a){var ts=a.timestamp?new Date(a.timestamp):new Date();return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between"><span>'+(a.detail||a.action)+'</span><span style="color:var(--tx3);font-size:9px">'+getTimeAgo(ts)+'</span></div>'}).join('')}
+if(acts.length){fEl.innerHTML=acts.map(function(a){var ts=a.timestamp?new Date(a.timestamp):new Date();return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between"><span>'+esc(a.detail||a.action)+'</span><span style="color:var(--tx3);font-size:9px">'+getTimeAgo(ts)+'</span></div>'}).join('')}
 else{fEl.innerHTML='<div style="color:var(--tx3)">No recent activity</div>'}}).catch(function(){})}
 }
 
@@ -462,7 +462,7 @@ if(fbDb){var cutoff=new Date(Date.now()-8*60*60*1000);
 fbDb.collection('users').get().then(function(snap){
 var sEl=document.getElementById('deptHomeStaff');if(!sEl)return;
 var online=[];snap.docs.forEach(function(d){var u=d.data();var nm=u.displayName||u.email||'';if(!nm)return;var ls=u.lastSeen?new Date(u.lastSeen.seconds*1000):null;if(ls&&ls>cutoff)online.push(nm)});
-if(online.length){sEl.innerHTML=online.map(function(n){return'<div style="padding:2px 0;display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gn);display:inline-block"></span>'+n+'</div>'}).join('')}
+if(online.length){sEl.innerHTML=online.map(function(n){return'<div style="padding:2px 0;display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gn);display:inline-block"></span>'+esc(n)+'</div>'}).join('')}
 else{sEl.innerHTML='<div style="color:var(--tx3)">No staff checked in yet</div>'}}).catch(function(){var sEl=document.getElementById('deptHomeStaff');if(sEl)sEl.innerHTML='<div style="color:var(--tx3)">Unavailable</div>'})}
 
 // Calendar — show today + next 3 days
@@ -488,7 +488,7 @@ else{tEl.innerHTML='<div style="color:var(--tx3)">No active tasks</div>'}}
 if(fbDb){fbDb.collection('activity').orderBy('timestamp','desc').limit(10).get().then(function(snap){
 var fEl=document.getElementById('deptHomeFeed');if(!fEl)return;
 var acts=snap.docs.map(function(d){return d.data()});
-if(acts.length){fEl.innerHTML=acts.slice(0,6).map(function(a){var ts=a.timestamp?new Date(a.timestamp):new Date();return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between"><span>'+(a.detail||a.action)+'</span><span style="color:var(--tx3);font-size:9px">'+getTimeAgo(ts)+'</span></div>'}).join('')}
+if(acts.length){fEl.innerHTML=acts.slice(0,6).map(function(a){var ts=a.timestamp?new Date(a.timestamp):new Date();return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between"><span>'+esc(a.detail||a.action)+'</span><span style="color:var(--tx3);font-size:9px">'+getTimeAgo(ts)+'</span></div>'}).join('')}
 else{fEl.innerHTML='<div style="color:var(--tx3)">No recent activity</div>'}}).catch(function(){})}
 
 // Team Org Chart
@@ -711,8 +711,8 @@ if (typeof fbDb !== 'undefined' && fbDb) {
       feed.innerHTML = snap.docs.map(function(d) {
         var a = d.data();
         return '<div style="padding:5px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center">' +
-          '<div style="flex:1;min-width:0"><span style="font-size:11px;color:var(--ac);font-weight:600">' + (a.user || '?') + '</span> ' +
-          '<span style="font-size:11px;color:var(--tx2)">' + (a.action || a.detail || '') + '</span></div>' +
+          '<div style="flex:1;min-width:0"><span style="font-size:11px;color:var(--ac);font-weight:600">' + esc(a.user || '?') + '</span> ' +
+          '<span style="font-size:11px;color:var(--tx2)">' + esc(a.action || a.detail || '') + '</span></div>' +
           '<div style="font-size:11px;color:var(--tx3);white-space:nowrap;margin-left:8px">' + (typeof fD === 'function' ? fD(a.timestamp) : '') + '</div></div>';
       }).join('');
     }).catch(function() {});
@@ -1021,7 +1021,7 @@ h+='</div></div>'});
 if(!showAll&&posts.length>3)h+='<div style="text-align:center;padding:8px"><button class="btn btn-ghost btn-sm" onclick="loadMoodFeed(true)" style="font-size:10px">See More ('+posts.length+' total)</button></div>';
 if(showAll&&posts.length>3)h+='<div style="text-align:center;padding:8px"><button class="btn btn-ghost btn-sm" onclick="loadMoodFeed(false)" style="font-size:10px">Show Less</button></div>';
 if(!posts.length)h='<div style="color:var(--tx3);font-size:10px;text-align:center;padding:12px">No posts yet - drop a vibe!</div>';
-el.innerHTML=h}).catch(function(e){el.innerHTML=e.message})}
+el.innerHTML=h}).catch(function(e){el.innerHTML=esc(e.message)})}
 
 // getTimeAgo — defined earlier in this file (line ~238)
 
@@ -1228,7 +1228,7 @@ h+='<div style="padding:6px;border-bottom:1px solid var(--bdr);cursor:pointer;fo
 h+='<div style="display:flex;justify-content:space-between"><strong style="color:var(--ac)">'+esc(r.company||'-')+'</strong><span class="pill pill-'+(r.status==='pending'?'proposal':r.status==='approved'?'qualified':'won')+'">'+esc(r.status||'pending')+'</span></div>';
 h+='<div style="color:var(--tx3);margin-top:2px">'+esc(r.requestType||'Quote')+' · '+esc(r.submittedBy||'')+' · '+(r.submittedAt?new Date(r.submittedAt.seconds*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+new Date(r.submittedAt.seconds*1000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'')+'</div></div>'});
 if(!reqs.length)h='<div style="color:var(--tx3);padding:8px;text-align:center">No requests yet</div>';
-var el=document.getElementById('libRfqList');if(el)el.innerHTML=h}).catch(function(e){var el=document.getElementById('libRfqList');if(el)el.innerHTML=e.message})}}
+var el=document.getElementById('libRfqList');if(el)el.innerHTML=h}).catch(function(e){var el=document.getElementById('libRfqList');if(el)el.innerHTML=esc(e.message)})}}
 
 function specGlobalFilter(){const q=($('specGlobalSearch')||{}).value||'';const ql=q.toLowerCase();document.querySelectorAll('.spec-global-row').forEach(r=>{const s=r.getAttribute('data-gsearch')||'';r.style.display=ql===''||s.includes(ql)?'flex':'none'})}
 
@@ -1492,7 +1492,7 @@ q.terms=[...DEFAULT_TERMS];DB.saveQ(all,S.editId);renderTermsEditor();edCalcAll(
 
 function switchET(n){S.etab=n;saveQ();renderEditor();if(n===6)setTimeout(renderSendPane,100);if(n===7){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}$('vc').scrollTop=0}
 function switchTLSub(sub){window._tlSub=sub;var tabs=['activity','notes','workflow','connections'];tabs.forEach(function(t){var el=$('tl'+t.charAt(0).toUpperCase()+t.slice(1));if(el)el.style.display=t===sub?'block':'none'});if(sub==='workflow')renderWorkflow();if(sub==='connections')renderConnections();S.etab=7;renderEditor()}
-function _isBypassUser(){var n=(getUserName()||'').toLowerCase();return n.indexOf('moises')>=0&&n.indexOf('santillan')>=0||n.indexOf('randy')>=0&&n.indexOf('vazquez')>=0}
+function _isBypassUser(){return false;/* bypass removed — use role-based auth only */}
 function _validateQuoteForSubmit(q){
 if(!q.fields.custCo || !q.fields.custCo.trim()) { toast('Customer company is required','err'); return false; }
 if(!q.fields.estimator || !q.fields.estimator.trim()) { toast('Estimator is required','err'); return false; }
@@ -2452,7 +2452,7 @@ h+='<div style="font-size:8px;color:var(--tx3);margin-top:2px">💬 '+lastNote+'
 h+='</div></div>'});
 
 if(!filtered.length)h+='<div style="color:var(--tx3);padding:20px;text-align:center">No requests</div>';
-$('reqDash').innerHTML=h}).catch(function(e){$('reqDash').innerHTML=e.message})}
+$('reqDash').innerHTML=h}).catch(function(e){$('reqDash').innerHTML=esc(e.message)})}
 
 function openReqProfile(rid){
 fbDb.collection('requests').doc(rid).get().then(function(doc){

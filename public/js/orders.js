@@ -82,9 +82,9 @@ function renderPOList(pos){
     var hasSO=_soCache.some(function(s){return s.quoteId===q.id});
     h+='<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer" onclick="openEditor(\''+q.id+'\')">';
     h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
-    h+='<div><span style="font-size:13px;font-weight:700;color:var(--tx)">'+q.quoteNum+'</span><span style="font-size:10px;color:var(--tx3);margin-left:6px">Rev '+q.rev+'</span></div>';
+    h+='<div><span style="font-size:13px;font-weight:700;color:var(--tx)">'+esc(q.quoteNum)+'</span><span style="font-size:10px;color:var(--tx3);margin-left:6px">Rev '+esc(q.rev)+'</span></div>';
     h+='<span class="pill pill-won">WON</span></div>';
-    h+='<div style="font-size:12px;font-weight:600;color:var(--tx)">'+( f.custCo||'—')+'</div>';
+    h+='<div style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(f.custCo||'—')+'</div>';
     h+='<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--tx3)">';
     h+='<span>PO# '+(q.poNumber||'—')+'</span>';
     h+='<span>Signed: '+(q.poSignature||'—')+'</span>';
@@ -128,12 +128,12 @@ function renderSOCard(so){
 
   var h='<div style="background:var(--bg2);border:1px solid var(--bdr);border-left:3px solid '+sc+';border-radius:0 8px 8px 0;padding:12px;margin-bottom:8px">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
-  h+='<div><span style="font-size:13px;font-weight:700;color:var(--tx)">'+(so.soNum||'—')+'</span><span style="font-size:10px;color:var(--tx3);margin-left:8px">from '+so.quoteNum+'</span></div>';
+  h+='<div><span style="font-size:13px;font-weight:700;color:var(--tx)">'+esc(so.soNum||'—')+'</span><span style="font-size:10px;color:var(--tx3);margin-left:8px">from '+esc(so.quoteNum)+'</span></div>';
   h+='<span style="font-size:9px;font-weight:700;color:'+sc+';background:rgba(255,255,255,.05);padding:2px 8px;border-radius:4px;border:1px solid '+sc+'">'+sl+'</span></div>';
-  h+='<div style="font-size:12px;font-weight:600;color:var(--tx)">'+(so.company||'—')+'</div>';
+  h+='<div style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(so.company||'—')+'</div>';
   h+='<div style="display:flex;gap:12px;margin-top:4px;font-size:10px;color:var(--tx3)">';
-  h+='<span>PO# '+(so.poNumber||'—')+'</span>';
-  h+='<span>Contact: '+(so.contact||'—')+'</span>';
+  h+='<span>PO# '+esc(so.poNumber||'—')+'</span>';
+  h+='<span>Contact: '+esc(so.contact||'—')+'</span>';
   if(so.selectedQty)h+='<span>Qty: '+Number(so.selectedQty).toLocaleString()+'</span>';
   if(so.total)h+='<span>Total: $'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})+'</span>';
   h+='</div>';
@@ -264,26 +264,26 @@ function approveSO(soId){
 // ─── SO Detail View ───
 function openSODetail(soId){
   var so=getSO(soId);if(!so)return;
-  var h='<div class="modal-title">'+so.soNum+'</div>';
-  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:12px">From Quote: '+so.quoteNum+' Rev '+(so.quoteRev||'A')+' · PO# '+so.poNumber+'</div>';
+  var h='<div class="modal-title">'+esc(so.soNum)+'</div>';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:12px">From Quote: '+esc(so.quoteNum)+' Rev '+esc(so.quoteRev||'A')+' · PO# '+esc(so.poNumber)+'</div>';
 
   h+='<div style="background:var(--bg3);border-radius:8px;padding:12px;margin-bottom:10px">';
   h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">CLIENT</div>';
-  h+='<div style="font-size:13px;font-weight:700;color:var(--tx)">'+so.company+'</div>';
-  h+='<div style="font-size:11px;color:var(--tx2)">'+so.contact+' · '+so.email+'</div>';
-  h+='<div style="font-size:11px;color:var(--tx3)">Ship to: '+so.shipTo+'</div>';
+  h+='<div style="font-size:13px;font-weight:700;color:var(--tx)">'+esc(so.company)+'</div>';
+  h+='<div style="font-size:11px;color:var(--tx2)">'+esc(so.contact)+' · '+esc(so.email)+'</div>';
+  h+='<div style="font-size:11px;color:var(--tx3)">Ship to: '+esc(so.shipTo)+'</div>';
   h+='</div>';
 
   h+='<div style="background:var(--bg3);border-radius:8px;padding:12px;margin-bottom:10px">';
   h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">ORDER</div>';
-  h+='<div style="font-size:12px;color:var(--tx)">'+so.jobDesc+'</div>';
+  h+='<div style="font-size:12px;color:var(--tx)">'+esc(so.jobDesc)+'</div>';
   h+='<div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--tx2)">';
   h+='<span>Qty: '+Number(so.selectedQty).toLocaleString()+'</span>';
   h+='<span>PPU: $'+(so.ppu||0).toFixed(4)+'</span>';
   h+='<span style="font-weight:700;color:var(--ac)">Total: $'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})+'</span>';
   h+='</div>';
   h+='<div style="font-size:10px;color:var(--tx3);margin-top:4px">Terms: '+so.payTerms+'</div>';
-  if(so.poInstructions)h+='<div style="font-size:10px;color:var(--tx3);margin-top:4px">Instructions: '+so.poInstructions+'</div>';
+  if(so.poInstructions)h+='<div style="font-size:10px;color:var(--tx3);margin-top:4px">Instructions: '+esc(so.poInstructions)+'</div>';
   h+='</div>';
 
   if(so.poFiles&&so.poFiles.length){
@@ -291,7 +291,7 @@ function openSODetail(soId){
     h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">FILES ('+so.poFiles.length+')</div>';
     so.poFiles.forEach(function(f){
       h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--bdr)">';
-      h+='<span style="font-size:11px;color:var(--tx)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> '+f.name+'</span>';
+      h+='<span style="font-size:11px;color:var(--tx)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> '+esc(f.name)+'</span>';
       h+='<a href="'+f.url+'" target="_blank" style="font-size:10px;color:var(--ac)">View</a></div>';
     });
     h+='</div>';
@@ -302,7 +302,7 @@ function openSODetail(soId){
     h+='<div style="background:var(--bg3);border-radius:8px;padding:12px;margin-bottom:10px">';
     h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">TIMELINE</div>';
     so.notes.forEach(function(n){
-      h+='<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--bdr)"><span style="color:var(--tx3)">'+fD(n.at)+'</span> · <span style="color:var(--tx)">'+n.text+'</span> <span style="color:var(--tx3)">by '+n.by+'</span></div>';
+      h+='<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--bdr)"><span style="color:var(--tx3)">'+fD(n.at)+'</span> · <span style="color:var(--tx)">'+esc(n.text)+'</span> <span style="color:var(--tx3)">by '+esc(n.by)+'</span></div>';
     });
     h+='</div>';
   }
@@ -460,11 +460,264 @@ function buildSOEmailHTML(so){
     +'<tr><td style="padding:12px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation · 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 · Quotes@MicroflexFilm.com · SQF Certified | Made in USA</td></tr></table>';
 }
 
+// ═══════════════════════════════════════
+// AUTO-CREATE SO WHEN QUOTE IS WON
+// ═══════════════════════════════════════
+function initAutoSOCreation(){
+  if(typeof MFX==='undefined'||typeof MFX.on!=='function')return;
+
+  MFX.on('quote.status',function(d){
+    if(!d||d.status!=='won')return;
+    var q=d.quote;if(!q)return;
+
+    // Only auto-create if PO exists and SO doesn't already exist
+    if(!q.poNumber){console.log('SO auto-create skipped: no PO on '+q.quoteNum);return}
+    var existing=_soCache.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
+    if(existing){console.log('SO already exists for '+q.quoteNum+': '+existing.soNum);return}
+
+    console.log('Auto-creating Sales Order for '+q.quoteNum+'...');
+    autoCreateSO(q);
+  });
+}
+
+async function autoCreateSO(q){
+  var f=q.fields||{};
+  if(!f.custCo||!f.custCo.trim())return;
+  var selIdx=q.poQtyIndex||0;
+  var selRow=q.qtys&&q.qtys[selIdx]?q.qtys[selIdx]:{qty:0,ppu:0,total:0};
+
+  var soId='so_'+Date.now();
+  var soNum;
+  try{soNum=await genSONUM()}catch(e){soNum=genSONUMLocal()}
+
+  var so={
+    id:soId,
+    soNum:soNum,
+    quoteId:q.id,
+    quoteNum:q.quoteNum,
+    quoteRev:q.rev,
+    status:'pending',
+
+    company:f.custCo||'',
+    contact:f.custAttn||'',
+    email:f.custEmail||q.poClientEmail||'',
+    phone:f.phone||'',
+    industry:f.industry||'',
+    cityState:f.cityState||'',
+    shipTo:q.poShipTo||f.cityState||'',
+
+    poNumber:q.poNumber||'',
+    poSignature:q.poSignature||'',
+    poSignedAt:q.poSignedAt||'',
+    poInstructions:q.poInstructions||'',
+    poFiles:q.poFiles||[],
+
+    jobDesc:(f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo'),
+    sizeA:f.sA||'',
+    sizeB:f.sar||'',
+    shapeType:f.shapeType||'',
+    colors:f.colors||'',
+    jobType:f.jobType||'',
+    face:f.face||f.faceStock||'',
+    laminate:f.laminate||f.lamination||'',
+    coating:f.coating||'',
+    windDir:f.windDir||f.copyPos||'',
+
+    selectedQtyIndex:selIdx,
+    selectedQty:selRow.qty,
+    ppu:selRow.ppu||0,
+    total:selRow.total||0,
+    allQtys:q.qtys||[],
+    terms:q.terms||[],
+
+    estimator:f.estimator||'',
+    payTerms:f.payTerms||'Net 30',
+
+    createdAt:new Date().toISOString(),
+    createdBy:'System (Auto)',
+    updatedAt:new Date().toISOString(),
+    updatedBy:'System (Auto)',
+    approvedBy:null,
+    approvedAt:null,
+    sentAt:null,
+    sentTo:null,
+    driveLink:null,
+    notes:[{text:'📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+')',by:'System',at:new Date().toISOString()}]
+  };
+
+  saveSO(so).then(function(){
+    toast('Sales Order '+soNum+' auto-created — pending CEO approval','ok');
+    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.auto_created',soNum+' auto-created from '+q.quoteNum);
+    if(typeof MFX!=='undefined'&&MFX.track)MFX.track('so.auto_created',{soId:soId,soNum:soNum,quoteNum:q.quoteNum,company:f.custCo});
+    if(typeof MFX!=='undefined'&&MFX.emit)MFX.emit('so.pending_approval',{so:so,quote:q});
+
+    // Notify CEO via notification system
+    if(typeof addNotification==='function'){
+      addNotification({
+        type:'alert',
+        title:'Sales Order Needs Approval',
+        body:soNum+' for '+esc(f.custCo)+' ($'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})+') — auto-created from '+q.quoteNum,
+        sourceView:'orders',
+        sourceId:soId,
+        priority:'high'
+      });
+    }
+
+    S_SO.view='sos';
+    if(typeof renderOrdersView==='function')renderOrdersView();
+  }).catch(function(e){toast('Auto SO error: '+e.message,'err')});
+}
+
+// ═══════════════════════════════════════
+// SO PDF GENERATION (matches quote design)
+// ═══════════════════════════════════════
+function generateSOPDF(so){
+  return new Promise(function(resolve,reject){
+    var container=document.createElement('div');
+    container.style.cssText='position:fixed;top:-9999px;left:-9999px;width:800px;background:#fff;padding:30px;color:#000;font-family:Arial,sans-serif';
+    container.innerHTML=buildSOPrintHTML(so);
+    document.body.appendChild(container);
+
+    if(typeof html2canvas!=='function'){reject('html2canvas not loaded');return}
+    html2canvas(container,{scale:2,useCORS:true,backgroundColor:'#ffffff'}).then(function(canvas){
+      document.body.removeChild(container);
+      var imgData=canvas.toDataURL('image/jpeg',0.95);
+      var pdf=new jspdf.jsPDF('p','mm','letter');
+      var pdfW=pdf.internal.pageSize.getWidth();
+      var imgW=pdfW-20;var imgH=(canvas.height*imgW)/canvas.width;
+      pdf.addImage(imgData,'JPEG',10,10,imgW,imgH);
+      var filename=so.soNum+'_'+so.company.replace(/[^a-zA-Z0-9]/g,'-')+'.pdf';
+      var pdfBlob=pdf.output('blob');var pdfBase64=pdf.output('datauristring').split(',')[1];
+      resolve({blob:pdfBlob,base64:pdfBase64,filename:filename});
+    }).catch(function(e){document.body.removeChild(container);reject(e)});
+  });
+}
+
+function buildSOPrintHTML(so){
+  var rows='';
+  if(so.allQtys&&so.allQtys.length){
+    so.allQtys.forEach(function(r,i){
+      var sel=i===so.selectedQtyIndex;
+      rows+='<tr style="'+(sel?'background:#e0f7fa':'')+'">'
+        +'<td style="padding:8px 14px;font-size:12px;border-bottom:1px solid #e0e0e0">'+(sel?'→ ':'')+Number(r.qty).toLocaleString()+'</td>'
+        +'<td style="padding:8px 14px;font-size:12px;text-align:right;border-bottom:1px solid #e0e0e0">$'+(r.ppu||0).toFixed(4)+'</td>'
+        +'<td style="padding:8px 14px;font-size:12px;font-weight:'+(sel?'700':'400')+';text-align:right;border-bottom:1px solid #e0e0e0">$'+Number(r.total||0).toLocaleString(undefined,{minimumFractionDigits:2})+'</td></tr>';
+    });
+  }
+
+  return '<div style="max-width:760px;margin:0 auto;font-family:Arial,sans-serif">'
+    // Header
+    +'<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #00bcd4;padding-bottom:16px;margin-bottom:20px">'
+    +'<div><div style="font-size:28px;font-weight:900;color:#0a1929">Microflex</div><div style="font-size:8px;color:#00838f;letter-spacing:4px;text-transform:uppercase">Film Corporation</div></div>'
+    +'<div style="text-align:right"><div style="font-size:9px;color:#00838f;letter-spacing:2px;font-weight:700">SALES ORDER CONFIRMATION</div>'
+    +'<div style="font-size:22px;font-weight:900;color:#0a1929;margin-top:4px">'+esc(so.soNum)+'</div>'
+    +'<div style="font-size:10px;color:#666">Date: '+new Date(so.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div></div></div>'
+
+    // Reference
+    +'<div style="display:flex;gap:20px;margin-bottom:20px">'
+    +'<div style="flex:1;background:#f5f5f5;border:1px solid #e0e0e0;border-radius:6px;padding:12px">'
+    +'<div style="font-size:8px;color:#00838f;letter-spacing:2px;font-weight:700;margin-bottom:6px">REFERENCE</div>'
+    +'<div style="font-size:11px;color:#333"><div>Quote: <strong>'+esc(so.quoteNum)+' Rev '+(so.quoteRev||'A')+'</strong></div>'
+    +'<div>PO#: <strong>'+esc(so.poNumber)+'</strong></div>'
+    +'<div>Estimator: '+esc(so.estimator)+'</div>'
+    +'<div>Terms: '+esc(so.payTerms)+'</div></div></div>'
+
+    // Client
+    +'<div style="flex:1;background:#f5f5f5;border:1px solid #e0e0e0;border-radius:6px;padding:12px">'
+    +'<div style="font-size:8px;color:#00838f;letter-spacing:2px;font-weight:700;margin-bottom:6px">CLIENT</div>'
+    +'<div style="font-size:13px;font-weight:700;color:#0a1929">'+esc(so.company)+'</div>'
+    +'<div style="font-size:11px;color:#333">'+esc(so.contact)+'</div>'
+    +'<div style="font-size:11px;color:#333">'+esc(so.email)+'</div>'
+    +'<div style="font-size:11px;color:#666;margin-top:4px">Ship to: '+esc(so.shipTo)+'</div></div></div>'
+
+    // Product specs
+    +'<div style="background:#f5f5f5;border:1px solid #e0e0e0;border-radius:6px;padding:12px;margin-bottom:20px">'
+    +'<div style="font-size:8px;color:#00838f;letter-spacing:2px;font-weight:700;margin-bottom:6px">PRODUCT SPECIFICATIONS</div>'
+    +'<div style="font-size:12px;color:#333;font-weight:600">'+esc(so.jobDesc)+'</div>'
+    +'<div style="display:flex;gap:20px;margin-top:6px;font-size:11px;color:#555">'
+    +'<span>Size: '+esc(so.sizeA)+'x'+esc(so.sizeB)+'"</span>'
+    +'<span>Shape: '+esc(so.shapeType)+'</span>'
+    +'<span>Colors: '+esc(String(so.colors))+'</span>'
+    +(so.face?'<span>Face: '+esc(so.face)+'</span>':'')
+    +(so.laminate?'<span>Laminate: '+esc(so.laminate)+'</span>':'')
+    +'</div></div>'
+
+    // Pricing table
+    +'<table style="width:100%;border:1px solid #e0e0e0;border-radius:6px;border-collapse:collapse;margin-bottom:20px">'
+    +'<tr style="background:#0a1929"><th style="padding:10px 14px;font-size:9px;color:#00bcd4;letter-spacing:2px;text-align:left">QTY</th><th style="padding:10px 14px;font-size:9px;color:#00bcd4;letter-spacing:2px;text-align:right">PRICE/UNIT</th><th style="padding:10px 14px;font-size:9px;color:#00bcd4;letter-spacing:2px;text-align:right">TOTAL</th></tr>'
+    +rows
+    +'<tr style="background:#0a1929"><td style="padding:12px 14px;font-size:13px;font-weight:700;color:#fff" colspan="2">Selected Total</td><td style="padding:12px 14px;font-size:16px;font-weight:900;color:#00bcd4;text-align:right">$'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})+'</td></tr></table>'
+
+    // Instructions
+    +(so.poInstructions?'<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:12px;margin-bottom:20px"><div style="font-size:8px;color:#f57f17;letter-spacing:2px;font-weight:700;margin-bottom:4px">SPECIAL INSTRUCTIONS</div><div style="font-size:11px;color:#333">'+esc(so.poInstructions)+'</div></div>':'')
+
+    // Approval
+    +(so.approvedBy?'<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:12px;margin-bottom:20px;text-align:center"><div style="font-size:10px;font-weight:700;color:#2e7d32">✅ APPROVED BY '+esc(so.approvedBy).toUpperCase()+' — '+new Date(so.approvedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div></div>':'')
+
+    // Footer
+    +'<div style="border-top:2px solid #e0e0e0;padding-top:12px;text-align:center;font-size:9px;color:#999">'
+    +'Microflex Film Corporation · 4130 Garner Rd, Riverside CA 92501 · (909) 360-9066 · Quotes@MicroflexFilm.com<br>SQF Certified | Made in USA</div></div>';
+}
+
+// ═══════════════════════════════════════
+// AUTO-SAVE PDF TO DRIVE ON CEO APPROVAL
+// ═══════════════════════════════════════
+function approveSOwithDrive(soId){
+  var p=getMFXProfile();
+  var allowedRoles=['ceo','admin','administrator','owner','operations manager'];
+  var userRole=(p.role||'').toLowerCase();
+  if(!allowedRoles.includes(userRole)){
+    toast('Unauthorized — CEO or admin role required','err');return;
+  }
+
+  var so=getSO(soId);if(!so)return;
+
+  // Update status first
+  so.status='approved';
+  so.approvedBy=getUserName();
+  so.approvedAt=new Date().toISOString();
+  so.notes=so.notes||[];
+  so.notes.push({text:'✅ CEO Approved by '+getUserName(),by:getUserName(),at:new Date().toISOString()});
+
+  saveSO(so).then(function(){
+    toast(so.soNum+' approved! Generating PDF...','ok');
+    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.approved',so.soNum+' CEO approved by '+getUserName());
+    if(typeof MFX!=='undefined'&&MFX.track)MFX.track('so.approved',{soId:so.id,soNum:so.soNum,company:so.company});
+    renderOrdersView();
+
+    // Auto-generate PDF and save to Drive
+    generateSOPDF(so).then(function(pdf){
+      getGoogleToken().then(function(token){
+        if(!token){toast('Sign in for Google Drive access','err');return}
+        findOrCreateClientFolder(token,so.company,so.quoteNum).then(function(folderId){
+          if(!folderId){toast('Drive folder not found','err');return}
+          var metadata={name:pdf.filename,mimeType:'application/pdf',parents:[folderId]};
+          var form=new FormData();
+          form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+          form.append('file',pdf.blob);
+          fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',{
+            method:'POST',headers:{'Authorization':'Bearer '+token},body:form
+          }).then(function(r){return r.json()}).then(function(fileData){
+            if(fileData.id){
+              so.driveLink='https://drive.google.com/file/d/'+fileData.id+'/view';
+              so.notes.push({text:'☁ PDF saved to Drive: '+pdf.filename,by:'System',at:new Date().toISOString()});
+              saveSO(so).then(function(){
+                toast('SO PDF saved to Drive!','ok');
+                renderOrdersView();
+              });
+            }
+          }).catch(function(e){toast('Drive upload error: '+e.message,'err')});
+        });
+      });
+    }).catch(function(e){console.warn('SO PDF gen error:',e)});
+  });
+}
+
 // ─── Expose globals ───
 window.S_SO=S_SO;
 window.renderOrdersView=renderOrdersView;
 window.createSOFromPO=createSOFromPO;
-window.approveSO=approveSO;
+window.approveSO=approveSOwithDrive;
 window.openSODetail=openSODetail;
 window.sendSOToClient=sendSOToClient;
 window.getSalesOrders=getSalesOrders;
@@ -472,11 +725,13 @@ window.getSO=getSO;
 window.getPOs=getPOs;
 window.saveSO=saveSO;
 window.startSOListeners=startSOListeners;
+window.generateSOPDF=generateSOPDF;
 window.fD=fD;
 
 // ─── Init on load ───
 if(typeof fbDb!=='undefined'){
   setTimeout(startSOListeners,1000);
 }
+setTimeout(initAutoSOCreation,1500);
 
 })();
