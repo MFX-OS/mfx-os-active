@@ -1,0 +1,18 @@
+{
+  "registers": [
+    "requests",
+    "prepressInbox",
+    "jobTickets",
+    "approvalRecords",
+    "plateIncidents",
+    "prepressQueue",
+    "exceptionOverrides",
+    "ppdEvents",
+    "blueprints",
+    "ppdEstimates",
+    "ppdTemplates",
+    "equipmentProfiles",
+    "qcProcedures",
+    "returnMaterials"
+  ]
+}

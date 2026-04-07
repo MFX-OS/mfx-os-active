@@ -1,0 +1,16 @@
+{
+  "types": [
+    "Rush override",
+    "Release override",
+    "Data correction",
+    "Execution bypass"
+  ],
+  "requiredFields": [
+    "type",
+    "owner",
+    "status",
+    "reason",
+    "createdAt"
+  ],
+  "defaultStatus": "open"
+}

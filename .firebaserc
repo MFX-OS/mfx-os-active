@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "mfx-2026"
+  },
+  "targets": {
+    "mfx-2026": {
+      "hosting": {
+        "os": [
+          "mfx-2026"
+        ],
+        "finance": [
+          "mfx-2026-finance"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

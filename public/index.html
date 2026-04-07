@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes">
+<meta name="theme-color" content="#060d14">
+<title>MFX OS</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="MFX OS — Microflex Film Corporation Manufacturing Operations System. Quotes, orders, pre-press, production, quality, logistics.">
+<meta property="og:title" content="MFX OS">
+<meta property="og:description" content="Manufacturing Operations System for Microflex Film Corporation">
+<meta property="og:image" content="/icon-512.png">
+<noscript><div style="padding:40px;text-align:center;color:#fff;background:#060d14;min-height:100vh"><h1>MFX OS</h1><p>JavaScript is required to run MFX OS.</p></div></noscript>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@200;300;400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<!-- Sentry Error Tracking — loaded externally for CSP compliance -->
+<script src="js/sentry-loader.js"></script>
+<!-- Export libs loaded on demand (defer to not block initial paint) -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+<!-- INTRO SCREEN — Flex AI intro sequence -->
+<div id="introScreen" style="position:fixed;inset:0;z-index:9500;background:#060d14;cursor:pointer;overflow:hidden">
+<canvas id="introCanvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+</div>
+
+<!-- AUTH SCREEN -->
+<div id="loginScreen" style="display:none;height:100vh;width:100vw;position:fixed;inset:0;z-index:9000;background:#030810;overflow:hidden;font-family:Inter,-apple-system,sans-serif">
+
+<!-- Scanline -->
+<div style="position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.4),transparent);animation:mfx-scan 3s linear infinite;z-index:2;pointer-events:none"></div>
+
+<!-- Corner brackets -->
+<div style="position:absolute;top:20px;left:20px;width:28px;height:28px;border-top:1px solid rgba(0,229,255,.25);border-left:1px solid rgba(0,229,255,.25)"></div>
+<div style="position:absolute;top:20px;right:20px;width:28px;height:28px;border-top:1px solid rgba(0,229,255,.25);border-right:1px solid rgba(0,229,255,.25)"></div>
+<div style="position:absolute;bottom:20px;left:20px;width:28px;height:28px;border-bottom:1px solid rgba(0,229,255,.25);border-left:1px solid rgba(0,229,255,.25)"></div>
+<div style="position:absolute;bottom:20px;right:20px;width:28px;height:28px;border-bottom:1px solid rgba(0,229,255,.25);border-right:1px solid rgba(0,229,255,.25)"></div>
+
+<!-- Version tag -->
+<div style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);font-size:7px;color:rgba(0,229,255,.15);letter-spacing:3px;text-transform:uppercase">v3.0 · Built for speed</div>
+
+<!-- LAYOUT WRAPPER — transitions from centered to split -->
+<div id="loginLayout" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transition:all .7s cubic-bezier(.4,0,.2,1)">
+
+  <!-- LEFT: LOGO BLOCK -->
+  <div id="loginLogoBlock" style="display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all .7s cubic-bezier(.4,0,.2,1);padding:0 40px">
+    <div id="loginWordmark" style="opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease">
+      <div style="font-family:Outfit,Inter,sans-serif;font-size:clamp(44px,8vw,72px);font-weight:900;color:#e0f2fe;letter-spacing:-1.5px;line-height:1;text-align:center;animation:mfx-glow 3s ease-in-out infinite,mfx-flicker 5s ease-in-out 2s infinite">Microflex</div>
+      <div id="loginDivBar" style="overflow:hidden;height:3px;margin:10px auto 11px;width:0;transition:width .6s ease .1s"><div style="height:3px;background:linear-gradient(90deg,transparent,#00e5ff,#00e5ff,transparent);width:100%"></div></div>
+      <div style="font-family:Outfit,Inter,sans-serif;font-size:clamp(9px,1.4vw,12px);font-weight:300;color:#00838f;letter-spacing:7px;text-transform:uppercase;text-align:center">Film Corporation</div>
+    </div>
+    <div id="loginCopy" style="margin-top:24px;text-align:center;opacity:0;transition:opacity .5s ease .3s">
+      <div style="font-size:9px;color:rgba(0,131,143,.6);letter-spacing:2px;text-transform:uppercase;line-height:2">The Microflex Operating System</div>
+      <div style="font-size:8px;color:rgba(0,229,255,.15);letter-spacing:1.5px;margin-top:4px">FLEXIBLE PACKAGING · LABELS · POUCHES</div>
+    </div>
+  </div>
+
+  <!-- DIVIDER LINE — appears then form slides in from right -->
+  <div id="loginDivider" style="width:1px;height:0;background:linear-gradient(180deg,transparent,rgba(0,229,255,.35),transparent);transition:height .6s cubic-bezier(.4,0,.2,1);flex-shrink:0;margin:0 0"></div>
+
+  <!-- RIGHT: FORM BLOCK -->
+  <div id="loginFormBlock" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:0;overflow:hidden;opacity:0;transition:width .6s cubic-bezier(.4,0,.2,1) .1s,opacity .5s ease .2s,padding .6s ease .1s;padding:0">
+    <div style="width:260px">
+      <div style="font-size:11px;font-weight:600;color:rgba(0,229,255,.5);letter-spacing:3px;text-transform:uppercase;margin-bottom:20px;text-align:center">Sign In</div>
+      <button id="loginBtn" onclick="signInWithGoogle()" style="width:100%;background:linear-gradient(135deg,#00e5ff,#0891b2);color:#000;padding:13px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;box-shadow:0 0 24px rgba(0,229,255,.2);transition:all .2s;letter-spacing:.3px;margin-bottom:8px" onmouseover="this.style.boxShadow='0 0 40px rgba(0,229,255,.4)'" onmouseout="this.style.boxShadow='0 0 24px rgba(0,229,255,.2)'">Sign in with Google</button>
+      <div id="loginSpinner" style="display:none;text-align:center;padding:8px 0"><div style="display:inline-block;width:20px;height:20px;border:2px solid rgba(0,229,255,.2);border-top:2px solid #00e5ff;border-radius:50%;animation:mfx-spin .8s linear infinite"></div><div style="font-size:9px;color:rgba(0,229,255,.4);margin-top:6px;letter-spacing:1px">Authenticating...</div></div>
+      <div id="loginError" style="display:none;font-size:10px;color:#ff6474;text-align:center;padding:6px 8px;margin-bottom:6px;border-radius:6px;background:rgba(255,100,116,.08);border:1px solid rgba(255,100,116,.15)"></div>
+      <div style="font-size:8px;color:rgba(0,229,255,.3);text-align:center;letter-spacing:1px">@microflexfilm.com accounts only</div>
+    </div>
+  </div>
+
+</div><!-- end loginLayout -->
+</div>
+
+<!-- APP SHELL — JS references 'app' -->
+<div id="app" style="display:none">
+
+<!-- SKIP LINK — WCAG 2.4.1 -->
+<a href="#vc" class="skip-link" id="skipLink">Skip to main content</a>
+
+<!-- TOP BAR -->
+<header class="topbar" role="banner">
+<div id="logoBtn" style="cursor:pointer;display:flex;align-items:center;gap:6px" onclick="toggleHamburger()">
+<div id="logoImg" style="font-size:16px;color:#00e5ff">☰</div>
+<div style="font-size:14px;font-weight:800;color:#00e5ff;text-shadow:0 0 10px rgba(0,229,255,.3)">MFX</div>
+</div>
+<div style="display:flex;align-items:center;gap:8px;margin-left:6px">
+<div id="topDeptBadge" class="topbar-dept" style="background:var(--dept-ops);color:#000">OPS</div>
+<div class="topbar-user">
+<div id="topUserName" class="topbar-name">User</div>
+<div id="topUserRole" class="topbar-role">Team Member</div>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:4px;margin-left:auto;margin-right:auto;flex:1;justify-content:center;min-width:0">
+<span id="hdrNavBack" onclick="navBack()" style="cursor:pointer;font-size:12px;color:#00e5ff;padding:2px 4px;display:none">‹</span>
+<div id="hdrTitle" class="topbar-title" style="font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center"></div>
+<span id="hdrNavFwd" onclick="navForward()" style="cursor:pointer;font-size:12px;color:#00e5ff;padding:2px 4px;display:none">›</span>
+</div>
+<div id="hdrBack" style="display:none"></div>
+<div id="saveIndicator" style="display:none;font-size:10px;color:var(--tx3);margin-left:auto;padding:0 8px;white-space:nowrap" role="status" aria-live="polite"></div>
+<div id="hdrActions" style="margin-left:auto"></div>
+<div id="topDateTime" onclick="toggleCalendarDropdown(event)" style="display:flex;align-items:center;gap:4px;margin-left:6px;white-space:nowrap;cursor:pointer">
+<span id="topTime" style="font-size:11px;font-weight:700;color:#00e5ff"></span>
+<span class="topbar-day" id="topDayOfWeek" style="font-size:9px;color:var(--tx3);font-weight:500">—</span>
+</div>
+</header>
+
+<!-- MAIN TABS — hidden by default, JS toggles visibility -->
+<nav id="mainTabs" role="tablist" aria-label="Module tabs" style="display:none;position:fixed;top:52px;left:0;right:0;z-index:90;background:var(--bg);border-bottom:1px solid var(--bdr)">
+<div style="position:relative">
+<div id="tabScroller" style="display:flex;overflow-x:auto;scrollbar-width:none;padding:0 8px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth">
+<div class="tab active" role="tab" tabindex="0" aria-selected="true" onclick="goView('dashboard')">Dashboard</div>
+<div class="tab" role="tab" tabindex="-1" onclick="goView('quotes')">Quotes</div>
+<div class="tab" role="tab" tabindex="-1" onclick="goView('jobtracker')">Kanban</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('ceodash')" style="display:none;color:#00e5ff">FlexAi</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('orders')" style="display:none">Orders</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('ppd')" style="display:none;color:var(--dept-pp)">PPD</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('production')" style="display:none">Production</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('customers')" style="display:none">Clients</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('templates')" style="display:none">Materials</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('clientservices')" style="display:none;color:#a855f7">Client Svc</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('vendorpos')" style="display:none;color:#a78bfa">Vendors</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('logistics')" style="display:none;color:#f97316">Logistics</div>
+<div class="tab adv" role="tab" tabindex="-1" onclick="goView('datasync')" style="display:none;color:#43d17a">Sync</div>
+</div>
+<!-- Scroll fade indicators -->
+<div id="tabFadeRight" style="position:absolute;top:0;right:0;bottom:0;width:32px;background:linear-gradient(90deg,transparent,var(--bg));pointer-events:none;transition:opacity .2s"></div>
+<div id="tabFadeLeft" style="position:absolute;top:0;left:0;bottom:0;width:32px;background:linear-gradient(270deg,transparent,var(--bg));pointer-events:none;opacity:0;transition:opacity .2s"></div>
+</div>
+</nav>
+<!-- Tab scroll fade — moved to js/inline-boot.js -->
+
+<!-- HAMBURGER -->
+<div class="ham-overlay" id="hamOverlay" role="presentation" onclick="toggleHamburger()"></div>
+<div class="ham-menu" id="hamMenu" role="navigation" aria-label="Main menu">
+
+<!-- ═══ PROFILE SECTION ═══ -->
+<div style="padding:16px;border-bottom:1px solid var(--bdr);background:linear-gradient(135deg,var(--bg2),var(--bg3))">
+<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="toggleHamUserMenu()">
+<div id="hamAvatar" style="width:40px;height:40px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#000">MF</div>
+<div style="flex:1">
+<div id="hamUserName" style="font-size:13px;font-weight:600;color:var(--tx)">User</div>
+<div id="hamUserPosition" style="display:none;margin-top:2px"></div>
+<div id="hamUserRole" style="font-size:9px;color:var(--tx3);margin-top:2px">Role · Dept · 0 pts</div>
+<div id="hamPoints" style="display:none;font-size:9px;color:var(--tx3);margin-top:2px"></div>
+</div>
+<div style="display:flex;gap:4px;align-items:center">
+<span id="hamApprovalBadge" style="display:none;background:var(--or);color:#000;font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px"></span>
+<span id="hamInboxBadge" style="display:none;background:#00e5ff;color:#000;font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px"></span>
+<span id="hamUserArrow" style="color:var(--tx3)">▾</span>
+</div>
+</div>
+<div id="hamUserSub" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">
+<div class="ham-item" onclick="openFlexZone();toggleHamburger()"><span class="hi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>My Hub</div>
+<div class="ham-item" onclick="openUserProfile();toggleHamburger()"><span class="hi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>User Profile</div>
+<div class="ham-item" onclick="goView('launchpad');toggleHamburger()"><span class="hi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 3 0 3 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-3 0-3"/></svg></span>Launchpad / Onboarding</div>
+<div class="ham-item" onclick="if(typeof DB!=='undefined'&&DB.logActivity) DB.logActivity('user.logout', (typeof getUserName==='function'?getUserName():'User')+' logged out');fbAuth.signOut();toggleHamburger()"><span class="hi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>Sign Out</div>
+</div>
+</div>
+
+<!-- ═══ OS SEARCH ═══ -->
+<div style="padding:8px 12px 4px">
+<div id="osSearchWrap" style="position:relative">
+<div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--bdr);border-radius:10px;padding:8px 12px;transition:border-color .2s" id="osSearchBox">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+<input id="osSearchInput" type="text" placeholder="Search MFX OS..." autocomplete="off" style="flex:1;border:none;outline:none;background:transparent;color:var(--tx);font-size:12px;font-family:var(--font)" oninput="osSearch(this.value)" onfocus="document.getElementById('osSearchBox').style.borderColor='var(--cy)'" onblur="setTimeout(function(){document.getElementById('osSearchBox').style.borderColor='var(--bdr)';document.getElementById('osSearchResults').style.display='none'},200)">
+<kbd style="font-size:8px;color:var(--tx3);background:var(--bg2);border:1px solid var(--bdr);border-radius:3px;padding:1px 4px;font-family:var(--mono)">⌘K</kbd>
+</div>
+<div id="osSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;max-height:320px;overflow-y:auto;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.4)"></div>
+</div>
+</div>
+
+<!-- ═══ STAFF QUICK NAV ═══ -->
+<div style="padding:8px 12px 2px">
+<div style="font-size:8px;font-weight:700;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;padding-left:2px">MODULES</div>
+<div class="ham-item" onclick="goView('quotes');toggleHamburger()" style="font-weight:700;color:#00e5ff">
+<span class="hi-ico" style="color:#00e5ff"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Quotes
+</div>
+<div class="ham-item" onclick="goView('jobtracker');toggleHamburger()" style="font-weight:700;color:#00e5ff">
+<span class="hi-ico" style="color:#00e5ff"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Kanban Board
+</div>
+<div class="ham-item" onclick="goView('dashboard');toggleHamburger()">
+<span class="hi-ico" style="color:var(--tx3)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>Dashboard
+</div>
+</div>
+
+<!-- ═══ ADVANCED MODULES (injected by full-menu.js when unlocked) ═══ -->
+<div id="hamAdvanced" style="display:none"></div>
+
+<!-- ═══ COMMUNICATION ═══ -->
+<div style="border-top:1px solid var(--bdr);margin:8px 16px 4px"></div>
+<div style="padding:2px 16px;font-size:8px;font-weight:700;color:#00e5ff;letter-spacing:2px;text-transform:uppercase;opacity:.6">COMMUNICATION</div>
+<div class="ham-item" onclick="openRFQInbox();toggleHamburger()"><span class="hi-ico" style="color:#00e5ff"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>Tasks & Requests</div>
+<div class="ham-item" onclick="goView('notifications');toggleHamburger()"><span class="hi-ico" style="color:#00e5ff"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Inbox & Chat</div>
+<div class="ham-item" onclick="openMeetings();toggleHamburger()"><span class="hi-ico" style="color:#00e5ff"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Calendar</div>
+
+<!-- ═══ NOTIFICATIONS & PRESENCE ═══ -->
+<div style="border-top:1px solid var(--bdr);padding:10px 16px">
+<div onclick="goView('notifications');toggleHamburger()" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;cursor:pointer"><span style="font-size:11px;font-weight:700;color:#00e5ff"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notification Center</span><span id="hamNotifCount" style="font-size:8px;color:var(--tx3)"></span></div>
+<div id="hamNotifList" style="max-height:120px;overflow-y:auto;font-size:10px;color:var(--tx2)">No notifications</div>
+</div>
+<div style="border-top:1px solid var(--bdr);padding:10px 16px">
+<div style="font-size:11px;font-weight:700;color:#00e5ff;margin-bottom:6px">🟢 Active Users</div>
+<div id="hamActiveUsers" style="font-size:10px;color:var(--tx2)">Loading...</div>
+</div>
+<div onclick="mfxUnlockPrompt()" style="padding:8px 16px;font-size:8px;color:var(--tx3);text-align:center;border-top:1px solid var(--bdr);cursor:pointer" title="Tap to unlock">MFX OS v3.0 · Microflex Film Corp</div>
+</div>
+
+<!-- ALERT BANNER — mentions & approvals -->
+
+<!-- VIEWS — all containers the JS needs -->
+<main class="views" id="vc" role="main" aria-label="Main content">
+<div class="view" id="v-dashboard"></div>
+<div class="view" id="v-quotes"></div>
+<div class="view" id="v-editor"></div>
+<div class="view" id="v-templates"></div>
+<div class="view" id="v-specs"></div>
+<div class="view" id="v-customers"></div>
+<div class="view" id="v-profile"></div>
+<div class="view" id="v-supportinbox"></div>
+<div class="view" id="v-supportboard"></div>
+<div class="view" id="v-ceoportal"></div>
+<div class="view" id="v-orders"></div>
+<div class="view" id="v-ppd"></div>
+<div class="view" id="v-production"></div>
+<div class="view" id="v-ceodash"></div>
+<div class="view" id="v-jobtracker"></div>
+<div class="view" id="v-datasync"></div>
+<div class="view" id="v-vendors"></div>
+<div class="view" id="v-vendorpos"></div>
+<div class="view" id="v-vendorprofile"></div>
+<div class="view" id="v-staffhub"></div>
+<div class="view" id="v-logistics"></div>
+<div class="view" id="v-gmp"></div>
+<div class="view" id="v-capa"></div>
+<div class="view" id="v-audit"></div>
+<div class="view" id="v-training"></div>
+<div class="view" id="v-doccontrol"></div>
+<div class="view" id="v-hr"></div>
+<div class="view" id="v-operator"></div>
+<div class="view" id="v-launchpad"></div>
+<div class="view" id="v-sqfdatalogs"></div>
+<div class="view" id="v-fsqms"></div>
+<div class="view" id="v-records"></div>
+<div class="view" id="v-masterauto"></div>
+<div id="v-clientservices" class="view"></div>
+<div id="v-sales" class="view"></div>
+<div id="v-analytics" class="view"></div>
+<div id="v-notifications" class="view"></div>
+<div class="view" id="v-dept-jt-home"></div>
+<div class="view" id="v-dept-cs-home"></div>
+<div class="view" id="v-dept-pp-home"></div>
+<div class="view" id="v-dept-production-home"></div>
+<div class="view" id="v-dept-logistics-home"></div>
+<div class="view" id="v-dept-quality-home"></div>
+<div class="view" id="v-dept-finance-home"></div>
+<div class="view" id="v-dept-operations-home"></div>
+<div class="view" id="v-dept-fsqms-home"></div>
+<div class="view" id="v-dept-flexai-home"></div>
+<div class="view" id="v-aiops"></div>
+</main>
+
+<!-- STREAK BANNER — gamification streak display -->
+<div id="streakBanner" role="status" aria-live="polite" style="display:none"></div>
+
+<!-- BOTTOM BAR -->
+<!-- ═══ INSTANT CHAT POPUP ═══ -->
+<div id="instantChatPopup" style="display:none;position:fixed;bottom:62px;left:8px;right:8px;max-width:420px;margin:0 auto;height:70vh;max-height:560px;background:var(--bg2);border:1px solid var(--bdr);border-radius:16px;z-index:200;box-shadow:0 -8px 40px rgba(0,0,0,.5);flex-direction:column;overflow:hidden">
+<div id="icHeader" style="padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+<span id="icTitle" style="font-size:13px;font-weight:700;color:var(--tx);flex:1">Instant Chat</span>
+<span id="icOnlineCount" style="font-size:9px;color:var(--gn);font-weight:600"></span>
+<span onclick="icShowList()" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:2px 6px;border:1px solid var(--bdr);border-radius:4px">Chats</span>
+<span onclick="toggleInstantChat()" style="cursor:pointer;color:var(--tx3);font-size:16px;padding:0 4px">✕</span>
+</div>
+<div id="icBody" style="flex:1;overflow-y:auto;display:flex;flex-direction:column"></div>
+<div id="icInputBar" style="display:none;padding:8px 12px;border-top:1px solid var(--bdr);background:var(--bg)">
+<div style="display:flex;gap:6px;align-items:flex-end">
+<textarea id="icInput" rows="1" placeholder="Type a message..." style="flex:1;padding:8px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;color:var(--tx);outline:none;resize:none;min-height:36px;max-height:80px;font-family:inherit" onkeydown="icKeyDown(event)" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
+<button onclick="chatSearchGif('ic')" style="background:none;border:1px solid var(--bdr);cursor:pointer;padding:6px 8px;border-radius:6px;font-size:10px;font-weight:700;color:var(--tx3)">GIF</button>
+<button onclick="icSendMsg()" style="background:#00e5ff;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;color:#000">Send</button>
+</div>
+</div>
+</div>
+
+<div class="bottom-bar" id="bottomBar" role="navigation" aria-label="Quick actions" style="color:#00e5ff">
+<button class="bb-btn" onclick="goView('quotes')"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Quotes</button>
+<button class="bb-btn" onclick="goView('jobtracker')"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Kanban</button>
+<button class="bb-btn" onclick="toggleInstantChat()" style="position:relative" id="instantChatBtn"><span class="bb-ico" style="background:#00e5ff;color:#000;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:-14px;box-shadow:0 0 20px rgba(0,229,255,.3)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span id="icUnreadBadge" style="display:none;position:absolute;top:-2px;right:calc(50% - 22px);min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;padding:0 4px;line-height:16px;text-align:center">0</span></button>
+<button class="bb-btn" onclick="openTeamChat()"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Chat</button>
+<button class="bb-btn" onclick="openTasksView()"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg></span>Tasks</button>
+</div>
+
+<!-- ALERT STRIP — sits above bottom bar, hidden by default -->
+<div id="alertReel" role="status" aria-live="polite" onclick="openAlertDetail()" style="display:none;position:fixed;bottom:56px;left:0;right:0;z-index:99;padding:0 12px;cursor:pointer">
+  <div id="alertReelInner" style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:10px 10px 0 0;font-size:11px;font-weight:600;transition:all .3s">
+    <span id="alertFlag" style="font-size:14px;line-height:1">🚩</span>
+    <span id="alertText" style="flex:1"></span>
+    <span style="font-size:10px;opacity:.7">tap for details ›</span>
+  </div>
+</div>
+
+<!-- XP TOAST — gamification popup -->
+<div id="xpToast" style="display:none;position:fixed;top:60px;right:12px;z-index:500;background:linear-gradient(135deg,#00e5ff,#0891b2);color:#000;padding:8px 16px;border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 4px 20px rgba(0,229,255,.4);pointer-events:none;transition:all .4s cubic-bezier(.175,.885,.32,1.275)"></div>
+
+
+</div><!-- end app shell -->
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg" role="dialog" aria-modal="true" aria-label="Dialog" onclick="if(event.target===this)closeModal()">
+<div class="modal" id="modalContent"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast" role="alert" aria-live="polite"></div>
+
+<style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+<!-- Login, SW, keyboard — moved to js/inline-boot.js -->
+<script src="js/inline-boot.js"></script>
+<script src="js/mfx-bundle.b9477dc9.js"></script>
+</body>
+</html>

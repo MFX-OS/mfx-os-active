@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#060d14">
+<title>MFX Finance</title>
+<link rel="stylesheet" href="css/finance.css">
+<link rel="icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@200;300;400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">Microflex <span>Finance</span></div>
+  <div class="topbar-nav" id="navTabs">
+    <a class="active" onclick="goTab('dashboard')">Dashboard</a>
+    <a onclick="goTab('incoming')">Incoming Orders</a>
+    <a onclick="goTab('salesOrders')">Sales Orders</a>
+    <a onclick="goTab('invoices')">Invoices</a>
+    <a onclick="goTab('payments')">Payments</a>
+    <a onclick="goTab('vendorPOs')">Vendor POs</a>
+    <a onclick="goTab('vendors')">Vendors</a>
+    <a onclick="goTab('reports')">Reports</a>
+    <a onclick="goTab('payroll')">Payroll</a>
+  </div>
+  <div class="topbar-right">
+    <a href="https://mfx-2026.web.app" class="topbar-link">← Back to OS</a>
+    <span class="topbar-user" id="userDisp"></span>
+  </div>
+</div>
+
+<div class="main" id="app"><div class="empty">Loading...</div></div>
+<div id="toastEl" class="toast"></div>
+<div id="modalBg" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal()"><div class="modal" id="modalContent"></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<script src="js/finance-core.js"></script>
+<script src="js/finance-invoices.js"></script>
+<script src="js/finance-salesorders.js"></script>
+<script src="js/finance-vendors.js"></script>
+</body>
+</html>

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MFX OS · Scoreboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#060d14;color:#e0f2fe;font-family:'Inter','SF Pro',system-ui,sans-serif;padding:20px;max-width:1200px;margin:0 auto}
+h1{font-size:28px;font-weight:900;color:#00e5ff;margin-bottom:4px}
+.sub{font-size:12px;color:#64748b;margin-bottom:24px;letter-spacing:1px}
+.section{margin-bottom:32px}
+.section-title{font-size:18px;font-weight:800;color:#e0f2fe;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.section-sub{font-size:11px;color:#64748b;margin-bottom:16px}
+.score-ring{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;font-size:16px;font-weight:900;flex-shrink:0}
+.ring-green{background:rgba(34,197,94,.15);color:#22c55e;border:2px solid #22c55e}
+.ring-yellow{background:rgba(251,191,36,.15);color:#fbbf24;border:2px solid #fbbf24}
+.ring-red{background:rgba(239,68,68,.12);color:#ef4444;border:2px solid #ef4444}
+.ring-cyan{background:rgba(0,229,255,.12);color:#00e5ff;border:2px solid #00e5ff}
+
+/* Summary cards */
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px}
+.scard{background:#0f1d2b;border:1px solid #1e3a4f;border-radius:14px;padding:16px;text-align:center}
+.scard-val{font-size:32px;font-weight:900;line-height:1}
+.scard-lbl{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+.green{color:#22c55e}.yellow{color:#fbbf24}.red{color:#ef4444}.cyan{color:#00e5ff}
+
+/* Module grid */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-bottom:8px}
+.mcard{background:#0f1d2b;border:1px solid #1e3a4f;border-radius:12px;padding:14px;display:flex;gap:12px;align-items:flex-start}
+.mcard-body{flex:1}
+.mcard-name{font-size:13px;font-weight:700;color:#e0f2fe}
+.mcard-desc{font-size:10px;color:#94a3b8;line-height:1.4;margin-top:3px}
+.mcard-status{display:inline-block;font-size:9px;font-weight:700;padding:3px 8px;border-radius:999px;margin-top:6px}
+.st-live{background:rgba(34,197,94,.15);color:#22c55e}
+.st-partial{background:rgba(251,191,36,.15);color:#fbbf24}
+.st-missing{background:rgba(239,68,68,.12);color:#ef4444}
+.st-planned{background:rgba(0,229,255,.12);color:#00e5ff}
+
+/* Workflow rows */
+.wf{background:#0f1d2b;border:1px solid #1e3a4f;border-radius:12px;padding:16px;margin-bottom:10px}
+.wf-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.wf-name{font-size:14px;font-weight:800;color:#e0f2fe}
+.wf-pct{font-size:13px;font-weight:800}
+.wf-bar{height:8px;background:#142636;border-radius:99px;overflow:hidden;margin-bottom:10px}
+.wf-fill{height:100%;border-radius:99px;transition:width .4s}
+.wf-steps{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.wf-step{font-size:11px;display:flex;align-items:center;gap:6px;color:#94a3b8}
+.wf-step .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-green{background:#22c55e}
+.dot-yellow{background:#fbbf24}
+.dot-red{background:#ef4444}
+
+/* Trigger table */
+.trig{background:#0f1d2b;border:1px solid #1e3a4f;border-radius:12px;overflow:hidden;margin-bottom:10px}
+.trig-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04)}
+.trig-row:last-child{border-bottom:none}
+.trig-num{font-size:11px;font-weight:800;color:#64748b;width:24px;text-align:center}
+.trig-name{font-size:12px;font-weight:700;color:#e0f2fe;flex:1}
+.trig-if{font-size:10px;color:#94a3b8;flex:2}
+.trig-badge{font-size:9px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.trig-dep{font-size:9px;color:#64748b;width:90px;text-align:right}
+
+/* Roadmap */
+.road{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.rcard{background:#0f1d2b;border:1px solid #1e3a4f;border-radius:12px;padding:16px;border-top:3px solid var(--rc,#1e3a4f)}
+.rcard-phase{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
+.rcard-title{font-size:14px;font-weight:800;color:#e0f2fe;margin-bottom:4px}
+.rcard-items{font-size:11px;color:#94a3b8;line-height:1.6}
+.rcard-effort{font-size:9px;color:#64748b;margin-top:8px;display:flex;gap:12px}
+
+/* Footer */
+.footer{text-align:center;padding:24px 0;font-size:9px;color:#1e3a4f;letter-spacing:2px;text-transform:uppercase}
+
+/* Tabs */
+.tabs{display:flex;gap:6px;margin-bottom:20px;overflow-x:auto;padding-bottom:4px}
+.tab{padding:8px 16px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid #1e3a4f;background:#0a1520;color:#64748b;white-space:nowrap;transition:all .15s}
+.tab:hover{border-color:#00e5ff40;color:#94a3b8}
+.tab.active{background:linear-gradient(135deg,#00e5ff,#0891b2);color:#000;border-color:transparent}
+.panel{display:none}
+.panel.active{display:block}
+
+@media(max-width:600px){
+  .summary{grid-template-columns:repeat(2,1fr)}
+  .wf-steps{grid-template-columns:1fr}
+  .trig-if{display:none}
+}
+</style>
+</head>
+<body>
+
+<h1>MFX OS · Scoreboard</h1>
+<div class="sub">WHAT WE HAVE · WHAT WE NEED · WHERE WE'RE GOING</div>
+
+<!-- SUMMARY -->
+<div class="summary">
+  <div class="scard"><div class="scard-val cyan">20</div><div class="scard-lbl">JS Modules</div></div>
+  <div class="scard"><div class="scard-val green">12</div><div class="scard-lbl">Live Features</div></div>
+  <div class="scard"><div class="scard-val yellow">3</div><div class="scard-lbl">Partial Workflows</div></div>
+  <div class="scard"><div class="scard-val red">12</div><div class="scard-lbl">Missing Pieces</div></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('have')">What We Have</div>
+  <div class="tab" onclick="showTab('workflows')">5 Workflows</div>
+  <div class="tab" onclick="showTab('triggers')">10 Triggers</div>
+  <div class="tab" onclick="showTab('roadmap')">Build Roadmap</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 1: WHAT WE HAVE                    -->
+<!-- ═══════════════════════════════════════ -->
+<div class="panel active" id="p-have">
+  <div class="section">
+    <div class="section-title">✅ Live & Working</div>
+    <div class="section-sub">These modules are deployed, wired into the OS, and functional today.</div>
+    <div class="mgrid">
+      <div class="mcard">
+        <div class="score-ring ring-green">📊</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Quoting Engine</div>
+          <div class="mcard-desc">Create, edit, revision-track, and price quotes with MSI/material cost calculator. CEO approval flow. Quote-to-PDF export.</div>
+          <div class="mcard-status st-live">LIVE · core.js + app.js + features.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">📦</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Sales Orders</div>
+          <div class="mcard-desc">Quotes convert to Sales Orders. SO numbering (server-side), PO file uploads to Drive, client send workflow.</div>
+          <div class="mcard-status st-live">LIVE · orders.js + so-workflow.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">🛂</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Job Passports</div>
+          <div class="mcard-desc">SO → Job Passport pipeline. Server-side JP numbering. Groups SKUs into a single production passport.</div>
+          <div class="mcard-status st-live">LIVE · production.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">🎫</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Job Tickets</div>
+          <div class="mcard-desc">Passport → Job Tickets. Server-side JT numbering. Per-SKU tracking with prepress status and production queue.</div>
+          <div class="mcard-status st-live">LIVE · production.js + job-tracker.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">🎨</div>
+        <div class="mcard-body">
+          <div class="mcard-name">PPD · PrePress Design</div>
+          <div class="mcard-desc">Full department workspace: intake desk, shared Gmail inbox sync, Kanban workbench, proof/approval center, plate incident log, Drive folder provisioning.</div>
+          <div class="mcard-status st-live">LIVE · ppd.js + platform-services.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">🏭</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Production Queue</div>
+          <div class="mcard-desc">Prepress → Running → QC → Done stage tracking per ticket. Passport-level production overview. Cross-module with PPD.</div>
+          <div class="mcard-status st-live">LIVE · production.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">👥</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Client Database</div>
+          <div class="mcard-desc">Company profiles, contacts, activity logs, linked quotes and orders. Client history across all modules.</div>
+          <div class="mcard-status st-live">LIVE · core.js + features.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">📁</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Google Drive Integration</div>
+          <div class="mcard-desc">Auto-folder provisioning per job. File uploads routed to client/job/type folders on MFX-CORE shared drive. Cloud Functions handle all server-side.</div>
+          <div class="mcard-status st-live">LIVE · functions/index.js + drive-listener.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">📅</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Calendar & Tasks</div>
+          <div class="mcard-desc">Google Calendar sync (shared MFX calendar), Google Tasks read/create, personal to-do list, meeting view.</div>
+          <div class="mcard-status st-live">LIVE · modules.js + notifications.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">📌</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Team Board</div>
+          <div class="mcard-desc">Mood feed, CEO priority board, department boards, task lists, threaded discussions, flex zone. @mention support.</div>
+          <div class="mcard-status st-live">LIVE · modules.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">🔒</div>
+        <div class="mcard-body">
+          <div class="mcard-name">CEO Approvals Portal</div>
+          <div class="mcard-desc">Quote approval queue with admin code. Approval/rejection flow updates quote status and triggers notifications.</div>
+          <div class="mcard-status st-live">LIVE · features.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">📊</div>
+        <div class="mcard-body">
+          <div class="mcard-name">CEO Dashboard</div>
+          <div class="mcard-desc">Executive daily view: pipeline snapshots, quote analytics, win rate, team performance, and department rollups.</div>
+          <div class="mcard-status st-live">LIVE · ceo-dash.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">⚡</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Gamification</div>
+          <div class="mcard-desc">XP points, streak tracking, level system, achievements, leaderboard. Actions across the OS earn points.</div>
+          <div class="mcard-status st-live">LIVE · gamification.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">🔔</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Notifications & Alerts</div>
+          <div class="mcard-desc">Smart alert strip, overdue warnings, follow-up reminders, mention notifications, Gmail send support.</div>
+          <div class="mcard-status st-live">LIVE · notifications.js + app.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">🔄</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Data Sync</div>
+          <div class="mcard-desc">Firestore real-time listeners across all collections. Offline persistence. Cross-tab sync. Activity logging.</div>
+          <div class="mcard-status st-live">LIVE · data-sync.js + realtime.js</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">💰</div>
+        <div class="mcard-body">
+          <div class="mcard-name">Finance App</div>
+          <div class="mcard-desc">Separate hosted app for invoices, vendors, and sales order financials. Linked from main OS.</div>
+          <div class="mcard-status st-live">LIVE · public-finance/</div>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="score-ring ring-green">📱</div>
+        <div class="mcard-body">
+          <div class="mcard-name">PWA / Mobile Ready</div>
+          <div class="mcard-desc">Service worker, manifest, icons, mobile viewport, touch-optimized 44px tap targets, offline support.</div>
+          <div class="mcard-status st-live">LIVE · sw.js + manifest.json</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 2: 5 WORKFLOWS                     -->
+<!-- ═══════════════════════════════════════ -->
+<div class="panel" id="p-workflows">
+  <div class="section">
+    <div class="section-title">5 Target Workflows</div>
+    <div class="section-sub">Coverage of each workflow against what's built in MFX OS today.</div>
+
+    <!-- WF1: Quote-to-Cash -->
+    <div class="wf">
+      <div class="wf-top">
+        <div class="wf-name">1. Quote-to-Cash</div>
+        <div class="wf-pct yellow">50%</div>
+      </div>
+      <div class="wf-bar"><div class="wf-fill" style="width:50%;background:linear-gradient(90deg,#22c55e,#fbbf24)"></div></div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="dot dot-green"></div>Client specs → Quote created (material calculator exists)</div>
+        <div class="wf-step"><div class="dot dot-yellow"></div>Pricing is formula-based, not AI-driven from specs input</div>
+        <div class="wf-step"><div class="dot dot-green"></div>CEO approval flow → Quote status updates</div>
+        <div class="wf-step"><div class="dot dot-green"></div>Quote → Sales Order conversion</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No client self-service portal for approve & pay</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No QuickBooks auto-invoice generation</div>
+      </div>
+    </div>
+
+    <!-- WF2: File-to-Press -->
+    <div class="wf">
+      <div class="wf-top">
+        <div class="wf-name">2. File-to-Press</div>
+        <div class="wf-pct yellow">45%</div>
+      </div>
+      <div class="wf-bar"><div class="wf-fill" style="width:45%;background:linear-gradient(90deg,#22c55e,#fbbf24)"></div></div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="dot dot-green"></div>Client uploads PDF → files stored in Drive per job</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No AI pre-flight (bleed, resolution, color mode checks)</div>
+        <div class="wf-step"><div class="dot dot-green"></div>Proof tracking + approval records in PPD module</div>
+        <div class="wf-step"><div class="dot dot-green"></div>Job Ticket generated with prepress stage tracking</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No digital push to press operator iPad / shop floor</div>
+      </div>
+    </div>
+
+    <!-- WF3: Roll-to-Pouch -->
+    <div class="wf">
+      <div class="wf-top">
+        <div class="wf-name">3. Roll-to-Pouch</div>
+        <div class="wf-pct red">10%</div>
+      </div>
+      <div class="wf-bar"><div class="wf-fill" style="width:10%;background:#ef4444"></div></div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="dot dot-yellow"></div>Production queue exists (prepress → running → QC → done)</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No raw material loading / roll tracking</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No print run tracking (footage, speed, waste)</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No lamination / slitting / converting stages</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No finished goods inventory or pallet tracking</div>
+      </div>
+    </div>
+
+    <!-- WF4: Inspect-to-Correct -->
+    <div class="wf">
+      <div class="wf-top">
+        <div class="wf-name">4. Inspect-to-Correct</div>
+        <div class="wf-pct red">5%</div>
+      </div>
+      <div class="wf-bar"><div class="wf-fill" style="width:5%;background:#ef4444"></div></div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="dot dot-yellow"></div>PPD plate incident log captures defect records manually</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No inline camera / vision system integration</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No real-time defect detection</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No automatic press adjustment or halt</div>
+      </div>
+    </div>
+
+    <!-- WF5: Sensor-to-Service -->
+    <div class="wf">
+      <div class="wf-top">
+        <div class="wf-name">5. Sensor-to-Service</div>
+        <div class="wf-pct red">0%</div>
+      </div>
+      <div class="wf-bar"><div class="wf-fill" style="width:0%;background:#ef4444"></div></div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="dot dot-red"></div>No IoT sensor integration</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No machine health monitoring</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No predictive maintenance AI</div>
+        <div class="wf-step"><div class="dot dot-red"></div>No auto-scheduled maintenance tickets</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 3: 10 TRIGGERS                     -->
+<!-- ═══════════════════════════════════════ -->
+<div class="panel" id="p-triggers">
+  <div class="section">
+    <div class="section-title">10 Target Automations</div>
+    <div class="section-sub">IF → THEN triggers. Green = built, yellow = partial, red = missing.</div>
+    <div class="trig">
+
+      <div class="trig-row">
+        <div class="trig-num">1</div>
+        <div class="trig-name">Quote Trigger</div>
+        <div class="trig-if">IF pouch dimensions entered → THEN live price calculated</div>
+        <div class="trig-badge st-partial">PARTIAL</div>
+        <div class="trig-dep">Software</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">2</div>
+        <div class="trig-name">Art Rejection</div>
+        <div class="trig-if">IF PDF missing bleed/RGB → THEN auto-email error report</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Software</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">3</div>
+        <div class="trig-name">Ticketing Trigger</div>
+        <div class="trig-if">IF client approves & pays → THEN lock file, push to queue</div>
+        <div class="trig-badge st-partial">PARTIAL</div>
+        <div class="trig-dep">Software</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">4</div>
+        <div class="trig-name">Procurement</div>
+        <div class="trig-if">IF inventory below 15% → THEN auto-draft PO</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Software</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">5</div>
+        <div class="trig-name">Climate Trigger</div>
+        <div class="trig-if">IF humidity drops → THEN activate HVAC</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Hardware + IoT</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">6</div>
+        <div class="trig-name">Calibration Trigger</div>
+        <div class="trig-if">IF material job hits iPad → THEN auto-adjust press</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Hardware + IoT</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">7</div>
+        <div class="trig-name">Defect Trigger</div>
+        <div class="trig-if">IF camera detects color shift → THEN alert + log</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Hardware + IoT</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">8</div>
+        <div class="trig-name">Maintenance Trigger</div>
+        <div class="trig-if">IF gear overheating → THEN auto-generate ticket</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Hardware + IoT</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">9</div>
+        <div class="trig-name">Fulfillment Trigger</div>
+        <div class="trig-if">IF pallet barcode scanned → THEN print ship labels</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Hardware</div>
+      </div>
+      <div class="trig-row">
+        <div class="trig-num">10</div>
+        <div class="trig-name">Dispatch Trigger</div>
+        <div class="trig-if">IF shipment leaves → THEN email tracking + final invoice</div>
+        <div class="trig-badge st-missing">MISSING</div>
+        <div class="trig-dep">Software</div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:16px;background:#0f1d2b;border:1px solid #1e3a4f;border-radius:12px;padding:16px">
+      <div style="font-size:13px;font-weight:700;color:#e0f2fe;margin-bottom:8px">Dependency Breakdown</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#00e5ff;margin-bottom:4px">Software-Only (can build now)</div>
+          <div style="font-size:11px;color:#94a3b8;line-height:1.6">
+            #1 Quote Trigger (enhance calculator)<br>
+            #2 Art Rejection (PDF.js pre-flight)<br>
+            #3 Ticketing (auto-lock + queue push)<br>
+            #4 Procurement (inventory module)<br>
+            #10 Dispatch (email + invoice trigger)
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:4px">Needs Hardware / IoT First</div>
+          <div style="font-size:11px;color:#94a3b8;line-height:1.6">
+            #5 Climate (sensors + HVAC controls)<br>
+            #6 Calibration (PLC / press API)<br>
+            #7 Defect (inline vision cameras)<br>
+            #8 Maintenance (vibration sensors)<br>
+            #9 Fulfillment (barcode scanners)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 4: BUILD ROADMAP                   -->
+<!-- ═══════════════════════════════════════ -->
+<div class="panel" id="p-roadmap">
+  <div class="section">
+    <div class="section-title">Build Roadmap</div>
+    <div class="section-sub">Prioritized by impact and what's buildable right now, no new hardware needed.</div>
+    <div class="road">
+
+      <div class="rcard" style="--rc:#22c55e">
+        <div class="rcard-phase" style="color:#22c55e">Phase 1 · Quick Wins</div>
+        <div class="rcard-title">Quote Pricing Engine</div>
+        <div class="rcard-items">
+          Live cost calculator from pouch dimensions<br>
+          Material DB with MSI rates per substrate<br>
+          Instant price display on spec input<br>
+          Covers Trigger #1
+        </div>
+        <div class="rcard-effort"><span>Effort: 2-3 days</span><span>Impact: High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#22c55e">
+        <div class="rcard-phase" style="color:#22c55e">Phase 1 · Quick Wins</div>
+        <div class="rcard-title">Art Pre-Flight Validation</div>
+        <div class="rcard-items">
+          PDF.js-based bleed/resolution/color check<br>
+          Auto-generate visual error report<br>
+          Email client with fix instructions<br>
+          Covers Trigger #2
+        </div>
+        <div class="rcard-effort"><span>Effort: 3-4 days</span><span>Impact: High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#22c55e">
+        <div class="rcard-phase" style="color:#22c55e">Phase 1 · Quick Wins</div>
+        <div class="rcard-title">Dispatch Email + Invoice</div>
+        <div class="rcard-items">
+          Shipment status field on job tickets<br>
+          Auto-email client tracking link on dispatch<br>
+          Trigger final invoice generation<br>
+          Covers Trigger #10
+        </div>
+        <div class="rcard-effort"><span>Effort: 2 days</span><span>Impact: High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#00e5ff">
+        <div class="rcard-phase" style="color:#00e5ff">Phase 2 · Core Workflows</div>
+        <div class="rcard-title">Client Self-Service Portal</div>
+        <div class="rcard-items">
+          Client login to portal.html<br>
+          View quote → Approve & Pay<br>
+          Stripe or QB Payments integration<br>
+          Auto-lock files + push to production<br>
+          Covers Trigger #3 + Quote-to-Cash gap
+        </div>
+        <div class="rcard-effort"><span>Effort: 1-2 weeks</span><span>Impact: Very High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#00e5ff">
+        <div class="rcard-phase" style="color:#00e5ff">Phase 2 · Core Workflows</div>
+        <div class="rcard-title">QuickBooks Integration</div>
+        <div class="rcard-items">
+          QB OAuth connection<br>
+          Auto-create invoices from won quotes<br>
+          Payment status sync back to MFX OS<br>
+          Covers Quote-to-Cash final mile
+        </div>
+        <div class="rcard-effort"><span>Effort: 1 week</span><span>Impact: Very High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#00e5ff">
+        <div class="rcard-phase" style="color:#00e5ff">Phase 2 · Core Workflows</div>
+        <div class="rcard-title">Inventory + Procurement</div>
+        <div class="rcard-items">
+          Raw material stock levels per substrate<br>
+          Threshold alerts (15% trigger)<br>
+          Auto-draft PO to supplier<br>
+          Covers Trigger #4
+        </div>
+        <div class="rcard-effort"><span>Effort: 1 week</span><span>Impact: High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#a78bfa">
+        <div class="rcard-phase" style="color:#a78bfa">Phase 3 · Shop Floor</div>
+        <div class="rcard-title">Production Stage Tracking</div>
+        <div class="rcard-items">
+          Roll loading → Print → Laminate → Slit → Convert<br>
+          Per-job footage/speed/waste metrics<br>
+          Operator iPad view for job tickets<br>
+          Covers Roll-to-Pouch workflow
+        </div>
+        <div class="rcard-effort"><span>Effort: 2-3 weeks</span><span>Impact: Very High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#a78bfa">
+        <div class="rcard-phase" style="color:#a78bfa">Phase 3 · Shop Floor</div>
+        <div class="rcard-title">Barcode / Fulfillment</div>
+        <div class="rcard-items">
+          Barcode scanner integration (USB/Bluetooth)<br>
+          Pallet scanning at dock<br>
+          Auto-print shipping labels (FedEx/Freight)<br>
+          Covers Trigger #9
+        </div>
+        <div class="rcard-effort"><span>Effort: 1-2 weeks</span><span>Impact: High</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#f59e0b">
+        <div class="rcard-phase" style="color:#f59e0b">Phase 4 · IoT + AI</div>
+        <div class="rcard-title">Sensor Infrastructure</div>
+        <div class="rcard-items">
+          IoT gateway + sensor hardware procurement<br>
+          MQTT/HTTP ingestion API<br>
+          Climate, vibration, temperature monitoring<br>
+          Covers Triggers #5, #7, #8
+        </div>
+        <div class="rcard-effort"><span>Effort: Hardware + 3-4 weeks dev</span><span>Impact: Transformative</span></div>
+      </div>
+
+      <div class="rcard" style="--rc:#f59e0b">
+        <div class="rcard-phase" style="color:#f59e0b">Phase 4 · IoT + AI</div>
+        <div class="rcard-title">Vision QC + Press Control</div>
+        <div class="rcard-items">
+          Inline camera system integration<br>
+          Color shift detection + footage logging<br>
+          PLC integration for auto-adjustment<br>
+          Predictive maintenance engine<br>
+          Covers Triggers #6, #7 + Inspect-to-Correct
+        </div>
+        <div class="rcard-effort"><span>Effort: Hardware + 4-6 weeks dev</span><span>Impact: Transformative</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="footer">MFX OS v2.2 · Scoreboard · Generated April 2026</div>
+
+<script>
+function showTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('p-'+id).classList.add('active');
+}
+</script>
+</body>
+</html>

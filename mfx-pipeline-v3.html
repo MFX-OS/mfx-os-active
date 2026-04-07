@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MFX OS v2.2 — Pipeline Audit (Post-Merge)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0e14;--s1:#0d1117;--s2:#161b22;--s3:#1c2333;--bdr:#21262d;--tx:#e6edf3;--tx2:#8b949e;--tx3:#484f58;--ac:#00e5ff;--ac2:#0891b2;--grn:#22c55e;--ylw:#eab308;--red:#ef4444;--org:#f97316;--pur:#a78bfa}
+body{font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden}
+.shell{max-width:1320px;margin:0 auto;padding:20px 16px 60px}
+.hero{background:linear-gradient(135deg,#0d1117 0%,#112130 50%,#0d1117 100%);border:1px solid var(--bdr);border-radius:12px;padding:28px 32px;margin-bottom:20px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--ac),transparent)}
+.hero-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.hero h1{font-size:22px;font-weight:800;color:var(--ac);letter-spacing:-.5px}
+.hero .sub{font-size:11px;color:var(--tx2);margin-top:4px;letter-spacing:.3px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.badge-ac{background:rgba(0,229,255,.1);color:var(--ac);border:1px solid rgba(0,229,255,.2)}
+.badge-grn{background:rgba(34,197,94,.1);color:var(--grn);border:1px solid rgba(34,197,94,.2)}
+.badge-ylw{background:rgba(234,179,8,.1);color:var(--ylw);border:1px solid rgba(234,179,8,.2)}
+.badge-red{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+
+/* Merge Summary */
+.merge-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.merge-card{background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px;text-align:center}
+.merge-card .val{font-size:22px;font-weight:800;color:var(--ac)}
+.merge-card .lbl{font-size:9px;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px;margin-top:2px}
+
+/* Pipeline Strip */
+.pipe-strip{display:flex;gap:0;margin-bottom:20px;overflow-x:auto;padding-bottom:4px}
+.pipe-step{flex:1;min-width:90px;background:var(--s2);border:1px solid var(--bdr);padding:10px 8px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.pipe-step:first-child{border-radius:8px 0 0 8px}
+.pipe-step:last-child{border-radius:0 8px 8px 0}
+.pipe-step:not(:last-child)::after{content:'→';position:absolute;right:-8px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--tx3);z-index:2}
+.pipe-step:hover{background:var(--s3);border-color:var(--ac)}
+.pipe-step.active{background:rgba(0,229,255,.06);border-color:var(--ac)}
+.pipe-num{font-size:8px;color:var(--tx3);letter-spacing:1px;text-transform:uppercase}
+.pipe-name{font-size:10px;font-weight:700;color:var(--tx);margin:4px 0}
+.pipe-pct{font-size:16px;font-weight:800}
+.pct-hi{color:var(--grn)}.pct-med{color:var(--ylw)}.pct-lo{color:var(--org)}.pct-crit{color:var(--red)}
+
+/* Detail Panel */
+.detail{background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:24px;margin-bottom:20px;display:none}
+.detail.open{display:block}
+.detail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.detail-title{font-size:17px;font-weight:800;color:var(--tx)}
+.detail-pct{font-size:28px;font-weight:900}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.detail-grid{grid-template-columns:1fr}}
+.detail-col{background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:16px}
+.detail-col h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.detail-col h3 .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.dot-grn{background:var(--grn)}.dot-red{background:var(--red)}.dot-ylw{background:var(--ylw)}.dot-ac{background:var(--ac)}
+.fn-list{list-style:none;font-size:11px;line-height:1.9;color:var(--tx2)}
+.fn-list li{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.fn-list li:last-child{border:none}
+.fn-list code{background:rgba(0,229,255,.08);color:var(--ac);padding:1px 5px;border-radius:3px;font-size:10px;font-family:'SF Mono','Fira Code',monospace}
+.fn-list .new{background:rgba(34,197,94,.1);color:var(--grn);padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.3px;margin-left:4px}
+.fn-list .fix{background:rgba(234,179,8,.1);color:var(--ylw);padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.3px;margin-left:4px}
+
+/* Upgrade log */
+.upgrade-section{background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:24px;margin-bottom:20px}
+.upgrade-section h2{font-size:14px;font-weight:800;color:var(--ac);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.upgrade-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.upgrade-item{background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:12px 14px}
+.upgrade-item .file{font-size:10px;font-weight:700;color:var(--ac);font-family:'SF Mono','Fira Code',monospace}
+.upgrade-item .desc{font-size:11px;color:var(--tx2);margin-top:4px;line-height:1.5}
+.upgrade-item .tag{display:inline-block;font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 6px;border-radius:3px;margin-top:6px}
+.tag-new{background:rgba(34,197,94,.12);color:var(--grn)}
+.tag-upgrade{background:rgba(0,229,255,.12);color:var(--ac)}
+.tag-fix{background:rgba(234,179,8,.12);color:var(--ylw)}
+.tag-security{background:rgba(167,139,250,.12);color:var(--pur)}
+
+/* Footer */
+.footer{text-align:center;font-size:9px;color:var(--tx3);padding:20px;letter-spacing:1px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<div class="hero">
+<div class="hero-row">
+<div>
+<h1>MFX OS v2.2 — Pipeline Audit</h1>
+<div class="sub">Post-merge analysis · PPD Master overlay integrated · All syntax checks passed</div>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<span class="badge badge-grn">22/22 JS ✓</span>
+<span class="badge badge-ac">8 files merged</span>
+<span class="badge badge-ylw">1 new module</span>
+</div>
+</div>
+</div>
+
+<!-- Merge summary cards -->
+<div class="merge-strip">
+<div class="merge-card"><div class="val">8</div><div class="lbl">Files Upgraded</div></div>
+<div class="merge-card"><div class="val">1</div><div class="lbl">New Module</div></div>
+<div class="merge-card"><div class="val">5</div><div class="lbl">New Collections</div></div>
+<div class="merge-card"><div class="val">3</div><div class="lbl">Auth-Protected APIs</div></div>
+<div class="merge-card"><div class="val">11</div><div class="lbl">Drive Subfolders</div></div>
+<div class="merge-card"><div class="val">42%</div><div class="lbl">Avg Pipeline Coverage</div></div>
+</div>
+
+<!-- Pipeline strip -->
+<div class="pipe-strip" id="pipeStrip"></div>
+
+<!-- Detail panel -->
+<div class="detail" id="detailPanel"></div>
+
+<!-- Upgrade Log -->
+<div class="upgrade-section">
+<h2>🔀 What Was Merged (New Build → Current Deploy)</h2>
+<div class="upgrade-grid" id="upgradeGrid"></div>
+</div>
+
+<div class="footer">MFX OS v2.2 · Microflex Film Corp · Pipeline Audit · April 2026</div>
+</div>
+
+<script>
+var STEPS = [
+  {
+    id:'leads', num:'01', name:'Leads / RFQ', pct:35,
+    have:[
+      '<code>renderDash()</code> — Dashboard with quote snapshot',
+      '<code>renderCust()</code> — Customer list view',
+      '<code>createCalendarEvent()</code> — Follow-up scheduling',
+      '<code>saveCust()</code> — Customer CRUD',
+      'Firestore: <code>quotes</code>, <code>customers</code>, <code>activity</code>'
+    ],
+    need:[
+      'No formal RFQ intake form or email-to-RFQ parsing',
+      'No lead scoring or qualification workflow',
+      'No auto-customer creation from inbound email',
+      'No integration with <code>prepressInbox</code> for email-based leads',
+      'No quote expiration handling',
+      'No RFQ → Quote auto-conversion trigger'
+    ],
+    triggers:['Activity logging on quote creation','Quote status tracking (draft → won/lost)'],
+    triggersMissing:['Email → RFQ auto-intake','Lead priority scoring','Follow-up auto-scheduling']
+  },
+  {
+    id:'quotes', num:'02', name:'Quotes', pct:65,
+    have:[
+      '<code>renderEditor()</code> — Full quote editor with pricing matrix',
+      '<code>saveQ()</code> — Save quote to Firestore',
+      '<code>generateQuotePDF()</code> — PDF generation',
+      '<code>sendQuoteEmail()</code> — Gmail API send',
+      '<code>sendAndSaveToDrive()</code> — Send + Drive upload',
+      '<code>edCalc()</code> — Pricing calculations',
+      '<code>renderTermsEditor()</code> — Payment terms editor',
+      '<code>saveBulletinEntry()</code> — Inline notes',
+      'Firestore: <code>quotes</code>, <code>activity</code>, <code>syncEvents</code>'
+    ],
+    need:[
+      'No CEO approval gate before sending to client',
+      'No quote revision version tracking',
+      'No cost-plus pricing engine (manual entry only)',
+      'No won/lost reason capture',
+      'No revenue forecast integration'
+    ],
+    triggers:['PDF auto-generate on send','Auto-upload to Drive','Gmail send + metadata update','Activity log on status change'],
+    triggersMissing:['Approval workflow gate','Quote validity period enforcement','Lost-deal tracking']
+  },
+  {
+    id:'po', num:'03', name:'Client PO', pct:25,
+    have:[
+      '<code>uploadToDrive()</code> — PO file upload to Drive <span class="new">UPGRADED</span>',
+      'PO fields on quote: <code>poNumber</code>, <code>poSignature</code>, <code>poFiles</code>',
+      'Auto-folder hierarchy: Clients/Company/QuoteNum/PO',
+      'File metadata sync to quote record'
+    ],
+    need:[
+      '<strong>No dedicated PO intake workflow</strong> — upload only via quote detail',
+      'No PO parsing/OCR for term extraction',
+      'No PO vs Quote validation (qty/price mismatch)',
+      'No auto-trigger to set quote status to "won"',
+      'No PO acknowledgment email to client',
+      'No email inbox integration for PO attachments'
+    ],
+    triggers:['Drive folder auto-create on upload','Metadata sync to Firestore'],
+    triggersMissing:['PO received → quote status auto-update','PO received → SO auto-creation','PO validation alerts']
+  },
+  {
+    id:'so', num:'04', name:'Sales Order', pct:70,
+    have:[
+      '<code>createSOFromPO(quoteId)</code> — SO creation from quote/PO <span class="fix">NOW ASYNC</span>',
+      '<code>requestServerNumber("salesOrder")</code> — Server-side SO numbering <span class="new">NEW</span>',
+      '<code>approveSO(soId)</code> — CEO approval (code: 2057)',
+      '<code>sendSOToClient(soId)</code> — Email + Drive',
+      '<code>finalizeSO()</code> — Mark sent with metadata',
+      '<code>renderPOList()</code> — PO intake → "Create SO" button',
+      '<code>startSOListeners()</code> — Real-time Firestore',
+      'Firestore: <code>salesOrders</code>, <code>quotes</code>, <code>activity</code>'
+    ],
+    need:[
+      'No auto-trigger PO → SO conversion (manual button)',
+      '<strong>No Job Passport auto-creation from approved SO</strong>',
+      'No inventory/material check before approval',
+      'No SO revision/amendment workflow',
+      'No production release gate after approval'
+    ],
+    triggers:['CEO approval gate','Gmail + Drive on send','Activity logging on create/approve/send','Real-time listener'],
+    triggersMissing:['SO approved → auto Job Passport creation','SO released → notify production','Material reservation on approval']
+  },
+  {
+    id:'passport', num:'05', name:'Job Passport', pct:50,
+    have:[
+      '<code>createPassportFromSO(soId)</code> — JP creation <span class="fix">NOW ASYNC</span>',
+      '<code>requestServerNumber("jobPassport")</code> — Server JP# <span class="new">NEW</span>',
+      '<code>savePassport(jp)</code> — Persist to Firestore',
+      '<code>addSKUToPassport(jpId)</code> — Add product variants',
+      '<code>confirmSKU(jpId, skuIdx)</code> — Confirm SKU',
+      '<code>setPassportStatus(jpId, st)</code> — Status update',
+      '<code>startProductionListeners()</code> — Real-time',
+      'Firestore: <code>jobPassports</code>, <code>salesOrders</code>, <code>blueprints</code>'
+    ],
+    need:[
+      '<strong>No auto-trigger from SO approval</strong> — manual button only',
+      'No pre-flight validation checklist',
+      'No prepress intake auto-request on creation',
+      'No material allocation from vendor PO inventory',
+      'No production schedule generation',
+      'No approval workflow (goes straight to active)'
+    ],
+    triggers:['Activity logging','MFX.track() event','Real-time listener','Blueprint linking'],
+    triggersMissing:['SO approved → auto-create Passport','Passport active → auto-create Tickets','Material needs → auto-create Vendor POs']
+  },
+  {
+    id:'tickets', num:'06', name:'Job Tickets', pct:45,
+    have:[
+      '<code>generateJobTickets(jpId)</code> — Create JTs from SKUs <span class="fix">NOW ASYNC</span>',
+      '<code>requestServerNumber("jobTicket")</code> — Server JT# <span class="new">NEW</span>',
+      '<code>provisionPPDWorkspace()</code> — Auto Drive folders <span class="new">NEW</span>',
+      'PPD metadata block on each ticket <span class="new">NEW</span>',
+      '<code>saveJobTicket(jt)</code>, <code>setJTStatus()</code>',
+      '<code>renderPrePressQueue()</code> — PrePress JT view',
+      '<code>setPPStatus(jtId, st)</code> — PrePress status',
+      'Firestore: <code>jobTickets</code>, <code>jobPassports</code>, <code>blueprints</code>'
+    ],
+    need:[
+      'No auto-trigger from Passport activation — manual button',
+      'No production scheduling (start/end dates)',
+      'No machine/resource assignment',
+      'No quality checklist auto-population',
+      'No prepress intake auto-request creation from JT',
+      'No material kit assembly initiation'
+    ],
+    triggers:['Server-side numbering','PPD folder provisioning on create','Blueprint production history update','Activity logging'],
+    triggersMissing:['JP active → auto-create Tickets','JT created → auto PPD request','JT complete → trigger shipping']
+  },
+  {
+    id:'vendor', num:'07', name:'Vendor POs', pct:35,
+    have:[
+      '<code>createVPO()</code> — Create vendor PO (finance module)',
+      '<code>genVPONum()</code> — Local VPO numbering',
+      '<code>receiveVPO(id)</code> — Material receipt + lot#',
+      '<code>payVPO(id)</code> — Record vendor payment',
+      '<code>renderVendorPOs()</code> — List view with status',
+      'Firestore: <code>vendorPOs</code>, <code>salesOrders</code>, <code>activity</code>'
+    ],
+    need:[
+      '<strong>No auto-creation from Job Passport specs</strong>',
+      'No material requirements planning',
+      'No supplier matching based on specs',
+      'No lead time tracking / ETA alerts',
+      'No inventory tracking beyond receipt',
+      'No quality inspection on receive',
+      'No invoice matching / AP integration'
+    ],
+    triggers:['Activity log on create/receive/pay','Notification to logistics on receipt'],
+    triggersMissing:['JP specs → auto material list','Material needs → auto VPO draft','Receipt → trigger production readiness']
+  },
+  {
+    id:'tracking', num:'08', name:'Job Tracking', pct:40,
+    have:[
+      '<code>setJTStatus(jtId, st)</code> — Manual status update',
+      '<code>setPPStatus(jtId, st)</code> — PrePress status',
+      '<code>setPassportStatus(jpId, st)</code> — Passport status',
+      'Job Tracker v3 (external iframe/standalone)',
+      'Real-time Firestore listeners on all collections',
+      '<code>getActiveTickets()</code> — PPD active filter <span class="new">NEW</span>',
+      'Cross-module dependency metrics <span class="new">NEW</span>'
+    ],
+    need:[
+      '<strong>No timeline milestones or due dates</strong>',
+      'No critical path / dependency tracking',
+      'No resource utilization monitoring',
+      'No machine downtime logging',
+      'No automatic status progression',
+      'No delay notification system',
+      'Job Tracker v3 is external iframe — not integrated data model'
+    ],
+    triggers:['Real-time Firestore updates','Status change → activity log','updatedAt/updatedBy auto-set'],
+    triggersMissing:['Automated status progression','Delay alerts','Bottleneck detection','Calendar integration']
+  },
+  {
+    id:'shipping', num:'09', name:'Shipping', pct:5,
+    have:[
+      '<code>salesOrders.shipTo</code> — Ship-to address field on SO',
+      'That\'s it.'
+    ],
+    need:[
+      '<strong>ENTIRE MODULE MISSING</strong>',
+      'No dispatch workflow',
+      'No carrier selection (UPS, FedEx, freight)',
+      'No BOL (Bill of Lading) generation',
+      'No tracking number capture',
+      'No customer ship notification',
+      'No delivery confirmation',
+      'No pickup scheduling',
+      'No freight quote integration'
+    ],
+    triggers:[],
+    triggersMissing:['JT complete → trigger dispatch','Ship → notify customer','Ship → auto-create invoice','Delivery confirmed → close job']
+  },
+  {
+    id:'invoice', num:'10', name:'Invoice', pct:60,
+    have:[
+      '<code>createInvFromSO(soId)</code> — Invoice from SO',
+      '<code>createInvFromQuote(qid)</code> — Invoice from quote',
+      '<code>sendInvoice(id)</code> — Gmail send',
+      '<code>recordPay(id)</code> / <code>savePay(id)</code> — Payment entry',
+      '<code>sendReminder(id)</code> — Payment reminder email',
+      '<code>printInv(id)</code> — Browser print',
+      'Status flow: draft → sent → overdue → partial → paid',
+      'Firestore: <code>invoices</code>, <code>salesOrders</code>, <code>activity</code>'
+    ],
+    need:[
+      'No auto-trigger from shipment or job completion',
+      'No invoice approval workflow before send',
+      'No tax calculation (always 0)',
+      'No discount application',
+      'No partial shipment invoicing',
+      'No recurring billing for multi-shipment jobs',
+      'No GL account posting'
+    ],
+    triggers:['Auto-mark overdue past due date','Balance auto-calc (total - paid)','Status auto-update on payment','Gmail send + activity log'],
+    triggersMissing:['Ship → auto-create invoice','Invoice approved → auto-send','Late payment auto-penalties']
+  },
+  {
+    id:'payment', num:'11', name:'Payment', pct:30,
+    have:[
+      '<code>savePay(id)</code> — Record payment (amount/date/method/ref)',
+      'Payment methods: Check, ACH, Wire, CC, Cash',
+      'Payment history array on invoice',
+      'Balance calculation: <code>total - paidAmount</code>',
+      'Status auto-update: partial → paid',
+      '<code>sendReminder(id)</code> — Dunning email'
+    ],
+    need:[
+      '<strong>No bank reconciliation</strong>',
+      'No cash application workflow',
+      'No credit memo / refund handling',
+      'No aged AR report',
+      'No DSO tracking',
+      'No GL posting',
+      'No multi-invoice payment',
+      'No dispute/chargeback tracking'
+    ],
+    triggers:['Status auto-update on payment','Balance auto-calc','Activity logging'],
+    triggersMissing:['Payment received → auto-close job','Overdue → auto-escalation','AR aging alerts']
+  }
+];
+
+var UPGRADES = [
+  {file:'functions/index.js', lines:'537 (was 110)', tag:'upgrade', desc:'Firebase ID token auth on all endpoints. Delegated Gmail mailbox. 11-subfolder Drive provisioning. Event logging to syncEvents. Proper folder naming with safeName().'},
+  {file:'public/js/core.js', lines:'726 (was 646)', tag:'upgrade', desc:'User access profile sync to Firestore users/{uid}. getMFXAuthHeaders() for Bearer tokens. Enhanced MFX_API with auth. syncPPDInbox with delegated mailbox support.'},
+  {file:'public/js/ppd.js', lines:'856 (was 566)', tag:'upgrade', desc:'8 PPD types (was 4). Inbox array + polling. Combined intake (requests + inbox). Dashboards tab. Cross-module dependency metrics. Release readiness. Incident cost tracking.'},
+  {file:'public/js/ppd-master.js', lines:'353 (new)', tag:'new', desc:'Control tab overlay. Governance view. Event logging (ppdEvents). Validation prompts on save. Override/exception management. Connector status dashboard.'},
+  {file:'public/js/production.js', lines:'588 (was 564)', tag:'upgrade', desc:'Async server-side numbering for JP/JT. PPD metadata block on job tickets. Auto-folder provisioning on ticket creation. Blueprint history update.'},
+  {file:'public/js/orders.js', lines:'439 (was 438)', tag:'fix', desc:'Async server-side SO numbering via requestServerNumber("salesOrder"). genSONUMLocal() retained as fallback.'},
+  {file:'public/js/platform-services.js', lines:'125', tag:'upgrade', desc:'Bearer token auth headers. kindMap for SO/JP/JT types. Correct field names (jobTicketNum, rootFolderUrl, rootFolderId). Route fixes preserved.'},
+  {file:'public/js/modules.js', lines:'Same', tag:'fix', desc:'Profile save now calls syncUserAccessProfile() to mirror dept/role to Firestore users/{uid} for role-based security rules.'},
+  {file:'firestore.rules', lines:'Full rewrite', tag:'security', desc:'Role/dept-aware rules. companyUser(), canEditCommercial(), canEditPPD(), isManagement(). Server-only systemCounters. PPD collections locked to prepress dept.'},
+  {file:'firebase.json', lines:'Expanded', tag:'fix', desc:'All 5 API rewrites present (uploadToDrive, getClientFolder, nextSequence, provisionPPDWorkspace, ingestSharedInbox). Formatted for readability.'},
+  {file:'ppd-master/*.json', lines:'5 files (new)', tag:'new', desc:'Source of truth, permission matrix, validation rules, exception model, master registers — JSON config for PPD Control tab governance.'},
+  {file:'storage.rules', lines:'Updated', tag:'security', desc:'Storage security rules aligned with new auth model.'}
+];
+
+// Render pipeline strip
+var strip = document.getElementById('pipeStrip');
+var activeStep = null;
+STEPS.forEach(function(s,i){
+  var el = document.createElement('div');
+  el.className = 'pipe-step';
+  el.id = 'step-'+s.id;
+  var pctClass = s.pct >= 60 ? 'pct-hi' : s.pct >= 40 ? 'pct-med' : s.pct >= 20 ? 'pct-lo' : 'pct-crit';
+  el.innerHTML = '<div class="pipe-num">'+s.num+'</div><div class="pipe-name">'+s.name+'</div><div class="pipe-pct '+pctClass+'">'+s.pct+'%</div>';
+  el.onclick = function(){ toggleDetail(s.id); };
+  strip.appendChild(el);
+});
+
+function toggleDetail(id){
+  var panel = document.getElementById('detailPanel');
+  if(activeStep === id){ panel.classList.remove('open'); activeStep=null; document.querySelectorAll('.pipe-step').forEach(function(e){e.classList.remove('active')}); return; }
+  activeStep = id;
+  document.querySelectorAll('.pipe-step').forEach(function(e){e.classList.remove('active')});
+  document.getElementById('step-'+id).classList.add('active');
+  var s = STEPS.find(function(x){return x.id===id});
+  var pctClass = s.pct >= 60 ? 'pct-hi' : s.pct >= 40 ? 'pct-med' : s.pct >= 20 ? 'pct-lo' : 'pct-crit';
+  var h = '<div class="detail-head"><div class="detail-title">'+s.num+' · '+s.name+'</div><div class="detail-pct '+pctClass+'">'+s.pct+'%</div></div>';
+  h += '<div class="detail-grid">';
+  // Have
+  h += '<div class="detail-col"><h3><span class="dot dot-grn"></span> What Exists</h3><ul class="fn-list">';
+  s.have.forEach(function(x){ h += '<li>'+x+'</li>'; });
+  h += '</ul></div>';
+  // Need
+  h += '<div class="detail-col"><h3><span class="dot dot-red"></span> What\'s Missing</h3><ul class="fn-list">';
+  s.need.forEach(function(x){ h += '<li>'+x+'</li>'; });
+  h += '</ul></div>';
+  // Triggers
+  h += '<div class="detail-col"><h3><span class="dot dot-ac"></span> Active Triggers</h3><ul class="fn-list">';
+  if(!s.triggers.length) h += '<li style="color:var(--red)">No active triggers</li>';
+  s.triggers.forEach(function(x){ h += '<li>✓ '+x+'</li>'; });
+  h += '</ul></div>';
+  // Missing triggers
+  h += '<div class="detail-col"><h3><span class="dot dot-ylw"></span> Triggers Needed</h3><ul class="fn-list">';
+  s.triggersMissing.forEach(function(x){ h += '<li>⚠ '+x+'</li>'; });
+  h += '</ul></div>';
+  h += '</div>';
+  panel.innerHTML = h;
+  panel.classList.add('open');
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// Render upgrades
+var ugGrid = document.getElementById('upgradeGrid');
+UPGRADES.forEach(function(u){
+  var tagClass = u.tag==='new'?'tag-new':u.tag==='upgrade'?'tag-upgrade':u.tag==='fix'?'tag-fix':'tag-security';
+  var el = document.createElement('div');
+  el.className = 'upgrade-item';
+  el.innerHTML = '<div class="file">'+u.file+'</div><div class="desc">'+u.desc+'</div><div class="tag '+tagClass+'">'+u.tag+(u.lines?' · '+u.lines:'')+'</div>';
+  ugGrid.appendChild(el);
+});
+
+// Auto-open first step
+toggleDetail('leads');
+</script>
+</body>
+</html>

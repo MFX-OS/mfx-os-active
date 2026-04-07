@@ -1,0 +1,67 @@
+# MFX OS — Production Deploy Pipeline
+# Triggers on push to main branch
+# Builds bundle → runs tests → deploys to Firebase
+
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install functions dependencies
+        run: cd functions && npm ci
+
+      - name: Build bundle
+        run: npm run build
+
+      - name: Verify bundle exists
+        run: |
+          BUNDLE=$(ls public/js/mfx-bundle.*.js 2>/dev/null)
+          if [ -z "$BUNDLE" ]; then
+            echo "ERROR: No bundle file found!"
+            exit 1
+          fi
+          SIZE=$(wc -c < "$BUNDLE")
+          echo "Bundle: $BUNDLE ($SIZE bytes)"
+          if [ "$SIZE" -gt 2000000 ]; then
+            echo "WARNING: Bundle exceeds 2MB"
+          fi
+
+      - name: Syntax check bundle
+        run: node -c public/js/mfx-bundle.*.js
+
+      - name: Deploy to Firebase (Production)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: mfx-2026
+
+      - name: Deploy Functions
+        run: npx firebase-tools deploy --only functions --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Post-deploy summary
+        run: |
+          echo "## Deploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bundle:** $(ls public/js/mfx-bundle.*.js)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size:** $(wc -c < public/js/mfx-bundle.*.js) bytes" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://mfx-2026.web.app" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY

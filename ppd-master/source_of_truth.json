@@ -1,0 +1,9 @@
+{
+  "jobState": "Firestore",
+  "approvals": "Firestore",
+  "internalFiles": "Google Shared Drive",
+  "externalExchange": "Dropbox (optional edge only)",
+  "releasedPackets": "Google Shared Drive",
+  "executionQueue": "Firestore to local daemon",
+  "dashboards": "Derived views from Firestore and master registers"
+}

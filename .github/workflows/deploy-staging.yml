@@ -1,0 +1,55 @@
+# MFX OS — Staging Deploy Pipeline
+# Triggers on push to develop branch or PR to main
+# Deploys to a Firebase preview channel for testing
+
+name: Deploy Staging
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build bundle
+        run: npm run build
+
+      - name: Verify bundle
+        run: |
+          BUNDLE=$(ls public/js/mfx-bundle.*.js 2>/dev/null)
+          echo "Bundle: $BUNDLE ($(wc -c < "$BUNDLE") bytes)"
+
+      - name: Syntax check
+        run: node -c public/js/mfx-bundle.*.js
+
+      - name: Deploy to Firebase Preview Channel
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: mfx-2026
+          # Creates a unique preview URL for each PR/push
+          # Preview URLs auto-expire after 7 days
+
+      - name: Post staging summary
+        run: |
+          echo "## Staging Deploy" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bundle:** $(wc -c < public/js/mfx-bundle.*.js) bytes" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Preview URL will appear in PR comments" >> $GITHUB_STEP_SUMMARY

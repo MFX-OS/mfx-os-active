@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MFX OS — Mock Recall Exercise · SQF 2.6</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg0:#04060a;--bg1:#080c12;--bg2:#0d1420;--bg3:#111a2a;--bg4:#162030;
+  --red:#ff3b4e;--red2:rgba(255,59,78,0.15);--red3:rgba(255,59,78,0.08);
+  --amber:#ffaa2c;--amber2:rgba(255,170,44,0.15);
+  --green:#00e87a;--green2:rgba(0,232,122,0.12);
+  --cyan:#00d4f5;--cyan2:rgba(0,212,245,0.1);
+  --violet:#a17bff;
+  --text0:#eaf2ff;--text1:#7090b8;--text2:#384e6a;
+  --border:rgba(0,212,245,0.1);--border2:rgba(0,212,245,0.2);
+  --mono:'JetBrains Mono',monospace;--display:'Syne',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x:hidden;min-height:100vh}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--bg4)}
+
+/* ── SCREENS ── */
+.screen{display:none;min-height:100vh}
+.screen.on{display:flex;flex-direction:column}
+
+/* ── BOOT / TITLE ── */
+#s-boot{align-items:center;justify-content:center;background:var(--bg0);position:relative;overflow:hidden}
+.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(0,212,245,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,245,0.04) 1px,transparent 1px);background-size:40px 40px;mask-image:radial-gradient(ellipse 80% 70% at 50% 50%,black,transparent)}
+.boot-inner{position:relative;text-align:center;max-width:700px;padding:40px 20px}
+.boot-badge{display:inline-flex;align-items:center;gap:8px;background:var(--red2);border:1px solid rgba(255,59,78,0.4);padding:6px 18px;border-radius:20px;font-size:11px;color:var(--red);letter-spacing:0.14em;margin-bottom:24px;animation:pulse-red 2s ease infinite}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(255,59,78,0.3)}50%{box-shadow:0 0 0 8px rgba(255,59,78,0)}}
+.boot-title{font-family:var(--display);font-size:clamp(32px,6vw,64px);font-weight:800;line-height:0.95;color:var(--text0);margin-bottom:8px}
+.boot-title span{color:var(--red)}
+.boot-sub{font-size:13px;color:var(--text1);margin:16px 0 32px;line-height:1.7}
+.boot-meta{display:flex;justify-content:center;gap:24px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-bottom:36px}
+.boot-meta span{display:flex;align-items:center;gap:6px}
+.btn-launch{background:var(--red);color:#fff;border:none;padding:14px 40px;font-family:var(--display);font-size:16px;font-weight:700;border-radius:6px;cursor:pointer;letter-spacing:0.06em;transition:all 0.2s;position:relative;overflow:hidden}
+.btn-launch::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0.12);opacity:0;transition:opacity 0.2s}
+.btn-launch:hover::after{opacity:1}
+.btn-launch:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,59,78,0.4)}
+.scenario-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:24px;text-align:left}
+.scenario-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;transition:all 0.15s}
+.scenario-card:hover{border-color:var(--red);background:var(--red3)}
+.scenario-card.sel{border-color:var(--red);background:var(--red3)}
+.sc-icon{font-size:20px;margin-bottom:8px}
+.sc-title{font-size:13px;font-weight:600;color:var(--text0);margin-bottom:4px}
+.sc-sub{font-size:11px;color:var(--text1);line-height:1.5}
+.sc-diff{display:inline-flex;margin-top:6px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.diff-easy{background:var(--green2);color:var(--green)}
+.diff-med{background:var(--amber2);color:var(--amber)}
+.diff-hard{background:var(--red2);color:var(--red)}
+
+/* ── GAME CHROME ── */
+#s-game{background:var(--bg0)}
+.hud{display:flex;align-items:center;justify-content:space-between;padding:10px 24px;background:var(--bg1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;gap:16px;flex-wrap:wrap}
+.hud-left{display:flex;align-items:center;gap:16px}
+.hud-logo{font-family:var(--display);font-size:13px;font-weight:700;color:var(--red);letter-spacing:0.06em}
+.hud-scenario{font-size:11px;color:var(--text1);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-center{display:flex;align-items:center;gap:8px}
+.hud-step{display:flex;align-items:center;gap:6px}
+.step-pip{width:28px;height:4px;border-radius:2px;background:var(--bg4);transition:all 0.3s}
+.step-pip.done{background:var(--green)}
+.step-pip.active{background:var(--amber);animation:pip-pulse 1.5s ease infinite}
+.step-pip.locked{background:var(--bg4)}
+@keyframes pip-pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.hud-right{display:flex;align-items:center;gap:16px}
+.timer-box{background:var(--bg2);border:1px solid rgba(255,59,78,0.3);border-radius:6px;padding:6px 14px;text-align:center}
+.timer-label{font-size:9px;color:var(--text2);letter-spacing:0.1em}
+.timer-val{font-size:18px;font-weight:700;color:var(--red);font-variant-numeric:tabular-nums;line-height:1}
+.timer-val.warn{color:var(--amber)}
+.timer-val.ok{color:var(--green)}
+.score-box{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;text-align:center}
+.score-val{font-size:18px;font-weight:700;color:var(--cyan)}
+
+/* ── GAME PANELS ── */
+.game-body{display:grid;grid-template-columns:300px 1fr;min-height:calc(100vh - 54px)}
+@media(max-width:900px){.game-body{grid-template-columns:1fr}}
+.sidebar-game{background:var(--bg1);border-right:1px solid var(--border);padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+@media(max-width:900px){.sidebar-game{display:none}}
+
+/* MISSION BRIEF SIDEBAR */
+.mission-head{font-size:10px;color:var(--text2);letter-spacing:0.12em;margin-bottom:8px}
+.mission-body{font-size:12px;color:var(--text1);line-height:1.7}
+.mission-body b{color:var(--text0)}
+.lot-card{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:12px}
+.lot-field{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(0,212,245,0.05)}
+.lot-field:last-child{border-bottom:none}
+.lot-key{color:var(--text2)}
+.lot-val{color:var(--text0);font-weight:500}
+
+/* COMMAND LOG */
+.cmd-log{background:var(--bg0);border:1px solid var(--border);border-radius:7px;padding:12px;flex:1;overflow-y:auto;max-height:260px;min-height:120px}
+.log-line{font-size:10px;line-height:1.8;color:var(--text1)}
+.log-line.sys{color:var(--cyan)}
+.log-line.ok{color:var(--green)}
+.log-line.err{color:var(--red)}
+.log-line.warn{color:var(--amber)}
+.log-ts{color:var(--text2);margin-right:6px}
+
+/* MAIN STEP AREA */
+.step-area{padding:24px;overflow-y:auto}
+.phase-banner{display:flex;align-items:flex-start;gap:16px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:18px 20px;margin-bottom:20px}
+.phase-icon{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.phase-icon.red{background:var(--red2)}
+.phase-icon.amber{background:var(--amber2)}
+.phase-icon.green{background:var(--green2)}
+.phase-icon.cyan{background:var(--cyan2)}
+.phase-num{font-size:10px;color:var(--text2);letter-spacing:0.12em;margin-bottom:4px}
+.phase-title{font-family:var(--display);font-size:20px;font-weight:700;color:var(--text0)}
+.phase-desc{font-size:12px;color:var(--text1);margin-top:4px;line-height:1.6}
+.phase-sqf{display:inline-flex;margin-top:6px;background:rgba(161,123,255,0.12);border:1px solid rgba(161,123,255,0.2);color:var(--violet);padding:2px 10px;border-radius:10px;font-size:10px;letter-spacing:0.08em}
+
+/* INSTRUCTIONS BOX */
+.instruct{background:rgba(0,212,245,0.05);border-left:3px solid var(--cyan);border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:18px;font-size:12px;color:var(--text1);line-height:1.8}
+.instruct b{color:var(--cyan)}
+.instruct .cmd{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text0);display:inline-block;margin:1px 0}
+
+/* TASK CARDS */
+.task-grid{display:grid;gap:10px}
+.task-card{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px;transition:all 0.2s;cursor:pointer}
+.task-card:hover:not(.done):not(.locked){border-color:var(--border2);background:var(--bg2)}
+.task-card.done{border-color:rgba(0,232,122,0.25);background:rgba(0,232,122,0.04);cursor:default}
+.task-card.locked{opacity:0.4;cursor:not-allowed}
+.task-card.active-task{border-color:var(--amber);background:var(--amber2)}
+.task-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.task-check{width:20px;height:20px;border-radius:4px;border:1.5px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;transition:all 0.2s}
+.task-card.done .task-check{background:var(--green);border-color:var(--green);color:var(--bg0)}
+.task-title{font-size:13px;font-weight:600;color:var(--text0);flex:1}
+.task-card.done .task-title{color:var(--text2);text-decoration:line-through}
+.task-body{font-size:11px;color:var(--text1);line-height:1.7;margin-left:30px}
+.task-action{margin-top:10px;margin-left:30px}
+
+/* SCAN WIDGET */
+.scan-zone{background:var(--bg0);border:2px dashed var(--border2);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.scan-zone:hover{border-color:var(--cyan);background:var(--cyan2)}
+.scan-zone.scanning{border-color:var(--amber);background:var(--amber2)}
+.scan-zone.scanned{border-color:var(--green);background:var(--green2);cursor:default}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--amber),transparent);top:0;animation:scan-anim 1.2s linear infinite;display:none}
+.scan-zone.scanning .scan-line{display:block}
+@keyframes scan-anim{from{top:0}to{top:100%}}
+.scan-icon{font-size:28px;margin-bottom:8px}
+.scan-label{font-size:12px;color:var(--text1)}
+.scan-result{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--green)}
+
+/* LOT TRACE TABLE */
+.trace-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.trace-tbl th{font-size:10px;color:var(--text2);letter-spacing:0.1em;text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);background:var(--bg2)}
+.trace-tbl td{padding:8px 10px;border-bottom:1px solid rgba(0,212,245,0.05);color:var(--text0)}
+.trace-tbl tr:hover td{background:var(--bg2)}
+.hl-red{background:rgba(255,59,78,0.12)!important}
+.hl-amber{background:rgba(255,170,44,0.08)!important}
+
+/* NOTIFICATION COMPOSER */
+.notif-card{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px}
+.notif-to{font-size:11px;color:var(--text2);margin-bottom:4px}
+.notif-subject{font-size:13px;font-weight:600;color:var(--text0);margin-bottom:8px}
+.notif-body-preview{font-size:11px;color:var(--text1);line-height:1.6;background:var(--bg2);border-radius:5px;padding:10px;max-height:80px;overflow:hidden;position:relative}
+.notif-body-preview::after{content:'';position:absolute;bottom:0;left:0;right:0;height:24px;background:linear-gradient(transparent,var(--bg2))}
+.notif-actions{display:flex;gap:8px;margin-top:10px}
+.notif-sent{border-color:rgba(0,232,122,0.25)!important;background:rgba(0,232,122,0.04)!important}
+
+/* BUTTONS */
+.btn{padding:7px 18px;border-radius:5px;font-size:12px;font-family:var(--mono);font-weight:500;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text1);transition:all 0.15s;letter-spacing:0.04em}
+.btn:hover{background:var(--bg3);color:var(--text0)}
+.btn-red{background:rgba(255,59,78,0.12);color:var(--red);border-color:rgba(255,59,78,0.3)}
+.btn-red:hover{background:rgba(255,59,78,0.22)}
+.btn-green{background:var(--green2);color:var(--green);border-color:rgba(0,232,122,0.3)}
+.btn-green:hover{background:rgba(0,232,122,0.2)}
+.btn-amber{background:var(--amber2);color:var(--amber);border-color:rgba(255,170,44,0.3)}
+.btn-cyan{background:var(--cyan2);color:var(--cyan);border-color:rgba(0,212,245,0.3)}
+.btn:disabled{opacity:0.35;cursor:not-allowed}
+
+/* BADGE */
+.badge{display:inline-flex;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:0.06em}
+.b-red{background:var(--red2);color:var(--red);border:1px solid rgba(255,59,78,0.2)}
+.b-amber{background:var(--amber2);color:var(--amber);border:1px solid rgba(255,170,44,0.2)}
+.b-green{background:var(--green2);color:var(--green);border:1px solid rgba(0,232,122,0.2)}
+.b-cyan{background:var(--cyan2);color:var(--cyan);border:1px solid var(--border2)}
+.b-gray{background:var(--bg3);color:var(--text1);border:1px solid var(--border)}
+
+/* PROGRESS TRACKER SIDEBAR */
+.step-nav{display:flex;flex-direction:column;gap:4px}
+.step-nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;font-size:11px;color:var(--text2);transition:all 0.2s}
+.step-nav-item.done{color:var(--green)}
+.step-nav-item.active{color:var(--amber);background:var(--amber2)}
+.step-nav-item.locked{color:var(--text2);opacity:0.5}
+.step-num{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;border:1.5px solid currentColor}
+.step-nav-item.done .step-num{background:var(--green);color:var(--bg0);border-color:var(--green)}
+
+/* DEBRIEF */
+.debrief-score{text-align:center;padding:32px;background:var(--bg2);border-radius:12px;border:1px solid var(--border);margin-bottom:20px}
+.big-score{font-family:var(--display);font-size:80px;font-weight:800;line-height:1}
+.grade-a{color:var(--green)}
+.grade-b{color:var(--cyan)}
+.grade-c{color:var(--amber)}
+.grade-d{color:var(--red)}
+.debrief-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.d-metric{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
+.d-val{font-family:var(--display);font-size:24px;font-weight:700;margin-bottom:4px}
+.d-label{font-size:10px;color:var(--text2);letter-spacing:0.08em}
+.finding-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,212,245,0.05);font-size:12px}
+.finding-row:last-child{border-bottom:none}
+.finding-icon{font-size:16px;flex-shrink:0}
+
+/* ANIMATIONS */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fade-up{animation:fadeUp 0.3s ease forwards}
+@keyframes blink-cursor{0%,100%{opacity:1}50%{opacity:0}}
+.blink{animation:blink-cursor 1s step-end infinite}
+.redline{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--red),var(--amber));z-index:100;transform-origin:left;transition:transform 0.5s}
+
+/* HOLD OVERLAY */
+.hold-badge{display:inline-flex;align-items:center;gap:5px;background:var(--red2);border:1px solid rgba(255,59,78,0.4);color:var(--red);padding:4px 12px;border-radius:4px;font-size:11px;font-weight:600;animation:pulse-red 2s infinite}
+</style>
+</head>
+<body>
+
+<!-- BACK NAV -->
+<div style="position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--bg1);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px">
+  <a href="/" style="color:var(--cyan);text-decoration:none;font-family:var(--mono);font-size:11px;font-weight:500;display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border2);border-radius:4px;transition:all .2s" onmouseover="this.style.background='rgba(0,212,245,0.08)'" onmouseout="this.style.background='transparent'">← MFX OS</a>
+  <span style="color:var(--text2);font-family:var(--mono);font-size:10px;letter-spacing:0.1em">MOCK RECALL · SQF 2.6</span>
+</div>
+<div style="height:40px"></div>
+
+<!-- PROGRESS BAR -->
+<div class="redline" id="redline" style="transform:scaleX(0)"></div>
+
+<!-- ═══════════ SCREEN 1: BOOT ═══════════ -->
+<div class="screen on" id="s-boot">
+  <div class="grid-bg"></div>
+  <div class="boot-inner">
+    <div class="boot-badge">⚠ SQF EDITION 10 · CLAUSE 2.6 · FOOD PACKAGING</div>
+    <div class="boot-title">MOCK<br><span>RECALL</span><br>EXERCISE</div>
+    <div class="boot-sub">An interactive simulation that walks your team through a product recall drill from first alert to final disposition — training you to respond within the <b style="color:var(--amber)">2-hour SQF traceability requirement</b>.</div>
+    <div class="boot-meta">
+      <span>🏭 Microflex Film Corp · Riverside CA</span>
+      <span>🎯 SQF Clause 2.6</span>
+      <span>⏱ Target: 100% trace in &lt;2hr</span>
+      <span>📋 Generates SQF audit record</span>
+    </div>
+
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px;letter-spacing:0.1em">SELECT SCENARIO DIFFICULTY</div>
+    <div class="scenario-picker">
+      <div class="scenario-card sel" onclick="selectScenario(0,this)">
+        <div class="sc-icon">⚗️</div>
+        <div class="sc-title">Customer Complaint — Foreign Material</div>
+        <div class="sc-sub">Customer found a metal fragment on a Brain MD label. One lot suspected.</div>
+        <span class="sc-diff diff-easy">STANDARD</span>
+      </div>
+      <div class="scenario-card" onclick="selectScenario(1,this)">
+        <div class="sc-icon">🧪</div>
+        <div class="sc-title">Supplier COA Failure — Ink Safety</div>
+        <div class="sc-sub">Sun Chemical confirms heavy metal contamination in lot INK-SC-240118. Multiple jobs affected.</div>
+        <span class="sc-diff diff-med">ADVANCED</span>
+      </div>
+      <div class="scenario-card" onclick="selectScenario(2,this)">
+        <div class="sc-icon">🔬</div>
+        <div class="sc-title">Regulatory — FDA Notification</div>
+        <div class="sc-sub">CCP-002 UV cure failure discovered post-shipment. Ink migration risk. 4 customers. FDA timeline.</div>
+        <span class="sc-diff diff-hard">EXPERT</span>
+      </div>
+    </div>
+
+    <div style="margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <button class="btn-launch" onclick="startGame()">▶ BEGIN EXERCISE</button>
+      <div style="font-size:11px;color:var(--text2);align-self:center">All actions are simulated. No real notifications sent.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SCREEN 2: GAME ═══════════ -->
+<div class="screen" id="s-game">
+  <div class="hud">
+    <div class="hud-left">
+      <div class="hud-logo">RECALL OPS</div>
+      <div class="hud-scenario" id="hud-scenario">Loading...</div>
+    </div>
+    <div class="hud-center">
+      <div class="hud-step" id="step-pips"></div>
+    </div>
+    <div class="hud-right">
+      <div class="score-box">
+        <div class="timer-label">SCORE</div>
+        <div class="score-val" id="score-val">0</div>
+      </div>
+      <div class="timer-box">
+        <div class="timer-label">SQF CLOCK</div>
+        <div class="timer-val ok" id="timer-display">02:00:00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-body">
+    <!-- LEFT SIDEBAR -->
+    <div class="sidebar-game">
+      <div>
+        <div class="mission-head">INCIDENT BRIEF</div>
+        <div class="mission-body" id="sidebar-brief">Loading...</div>
+      </div>
+      <div>
+        <div class="mission-head">AFFECTED LOT</div>
+        <div class="lot-card" id="sidebar-lot"></div>
+      </div>
+      <div>
+        <div class="mission-head">PHASE PROGRESS</div>
+        <div class="step-nav" id="step-nav"></div>
+      </div>
+      <div style="flex:1">
+        <div class="mission-head">COMMAND LOG</div>
+        <div class="cmd-log" id="cmd-log">
+          <div class="log-line sys"><span class="log-ts">[00:00]</span>System initialized. Awaiting recall trigger.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN STEP AREA -->
+    <div class="step-area" id="step-area">
+      <!-- Injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SCREEN 3: DEBRIEF ═══════════ -->
+<div class="screen" id="s-debrief">
+  <div style="max-width:760px;margin:0 auto;padding:40px 24px">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:11px;color:var(--text2);letter-spacing:0.14em;margin-bottom:8px">EXERCISE COMPLETE · SQF 2.6 MOCK RECALL</div>
+      <div style="font-family:var(--display);font-size:28px;font-weight:800;color:var(--text0)">Debrief & Compliance Report</div>
+    </div>
+    <div class="debrief-score">
+      <div class="big-score" id="final-score-display">--</div>
+      <div style="font-size:14px;color:var(--text1);margin-top:8px" id="final-grade-label">Calculating...</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px" id="final-time-label">--</div>
+    </div>
+    <div class="debrief-metrics">
+      <div class="d-metric"><div class="d-val" id="dm-trace" style="color:var(--green)">--</div><div class="d-label">% PRODUCT TRACED</div></div>
+      <div class="d-metric"><div class="d-val" id="dm-time" style="color:var(--amber)">--</div><div class="d-label">TIME ELAPSED</div></div>
+      <div class="d-metric"><div class="d-val" id="dm-notif" style="color:var(--cyan)">--</div><div class="d-label">NOTIFICATIONS SENT</div></div>
+    </div>
+    <div style="background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:16px">
+      <div style="font-size:10px;color:var(--text2);letter-spacing:0.12em;margin-bottom:12px">FINDINGS & OBSERVATIONS</div>
+      <div id="debrief-findings"></div>
+    </div>
+    <div style="background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
+      <div style="font-size:10px;color:var(--text2);letter-spacing:0.12em;margin-bottom:8px">SQF 2.6 COMPLIANCE CHECKLIST</div>
+      <div id="debrief-sqf"></div>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-green" onclick="generateReport()">📄 Generate SQF Audit Record</button>
+      <button class="btn btn-amber" onclick="restartGame()">↺ Run Another Drill</button>
+      <button class="btn" onclick="backToMenu()">← Back to Menu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// DATA / SCENARIOS
+// ═══════════════════════════════════════
+const SCENARIOS = [
+{
+  id:0,
+  title:"Customer Complaint — Foreign Material",
+  short:"Metal fragment found · Brain MD labels · Lot MFX-BM-240305",
+  trigger:"Customer Brain Health MD (Los Angeles) called in at 08:42 AM reporting a metallic fragment approximately 2mm found on a label from their most recent shipment. Suspected lot: MFX-BM-240305.",
+  lot:{
+    number:"MFX-BM-240305",
+    product:"Brain MD — Large Label 4\"×6\" Flexo",
+    produced:"2024-03-05",
+    qty:"48,000 units / 12 rolls",
+    press:"Mark Andy P7",
+    substrate:"Avery Dennison FaceFilm FF-104",
+    subLot:"AD-2024-0301",
+    ink:"Sun Chemical UV Flexo Black",
+    inkLot:"SC-INK-240228",
+    released:"2024-03-07",
+    shipped:"2024-03-08",
+    customer:"Brain Health MD — Los Angeles, CA"
+  },
+  backwardTrace:[
+    {item:"Substrate",lot:"AD-2024-0301",supplier:"Avery Dennison",recvd:"2024-03-01",coa:"✓ On file",status:"OK"},
+    {item:"UV Flexo Ink — Black",lot:"SC-INK-240228",supplier:"Sun Chemical",recvd:"2024-02-28",coa:"✓ On file",status:"OK"},
+    {item:"Die — Flat",lot:"DI-RTM-0245",supplier:"RotoMetrics",recvd:"2024-01-15",coa:"N/A",status:"OK"},
+    {item:"Plates",lot:"PLT-AV-240304",supplier:"Anderson Vreeland",recvd:"2024-03-04",coa:"✓ On file",status:"OK"},
+  ],
+  forwardTrace:[
+    {customer:"Brain Health MD",po:"PO-BM-2024-0312",shipped:"2024-03-08",qty:"48,000",status:"AFFECTED",contact:"Sarah Chen · (310) 555-0192"},
+  ],
+  onSite:[
+    {location:"Zone A — Finished Goods",qty:"0 units",status:"Shipped"},
+    {location:"QC Sample Archive",qty:"6 units",status:"Hold Required"},
+  ],
+  rootCause:"Metal swarf from slitter blade replacement on Rotoflex VSI — blade changed Mar 4, deburr check not performed.",
+  disposition:"Recall all 48,000 units. Customer to quarantine and return for destruction. Issue credit memo.",
+  maxScore:1000,
+  fda:false
+},
+{
+  id:1,
+  title:"Supplier COA Failure — Ink Safety",
+  short:"Heavy metals in Sun Chemical lot · 3 jobs affected",
+  trigger:"Sun Chemical quality team called MFX at 10:15 AM. They have identified that lot INK-SC-240118 (Process Yellow UV) may contain elevated cadmium above 100ppm. Three MFX jobs used this lot. All three shipped.",
+  lot:{
+    number:"INK-SC-240118",
+    product:"Sun Chemical Process Yellow UV Flexo",
+    produced:"2024-01-18",
+    qty:"3 jobs affected",
+    press:"Mark Andy P7",
+    substrate:"Multiple",
+    subLot:"Multiple",
+    ink:"Sun Chemical Process Yellow",
+    inkLot:"INK-SC-240118",
+    released:"Multiple dates",
+    shipped:"Multiple dates",
+    customer:"Multiple customers"
+  },
+  backwardTrace:[
+    {item:"Process Yellow UV Ink",lot:"INK-SC-240118",supplier:"Sun Chemical",recvd:"2024-01-20",coa:"⚠ COA shows Cd < 50ppm — DISPUTED",status:"SUSPECT"},
+    {item:"Substrate — Job 1",lot:"AD-2024-0115",supplier:"Avery Dennison",recvd:"2024-01-15",coa:"✓ On file",status:"OK"},
+    {item:"Substrate — Job 2",lot:"CH-2024-0201",supplier:"Channeled Resources",recvd:"2024-02-01",coa:"✓ On file",status:"OK"},
+  ],
+  forwardTrace:[
+    {customer:"VitaGreen Supplements",po:"PO-VG-2024-0128",shipped:"2024-01-30",qty:"64,000",status:"AFFECTED",contact:"Mike Torres · (714) 555-0188"},
+    {customer:"NutriMax Labs",po:"PO-NM-2024-0210",shipped:"2024-02-12",qty:"32,000",status:"AFFECTED",contact:"Lisa Park · (626) 555-0234"},
+    {customer:"ProHealth Brands",po:"PO-PH-2024-0220",shipped:"2024-02-22",qty:"28,000",status:"AFFECTED",contact:"David Kim · (213) 555-0167"},
+  ],
+  onSite:[
+    {location:"Ink Room — Zone B",qty:"4.2 kg remaining",status:"HOLD IMMEDIATELY"},
+    {location:"WIP — Press Queue",qty:"Job JT-018 not yet run",status:"DO NOT RUN"},
+    {location:"QC Sample Archive",qty:"9 units",status:"Hold Required"},
+  ],
+  rootCause:"Supplier quality failure. Sun Chemical to provide corrective action. MFX COA acceptance process under review.",
+  disposition:"Recall all 124,000 units from 3 customers. Hold remaining ink. Notify Sun Chemical formally. File FDA voluntary report.",
+  maxScore:1500,
+  fda:true
+},
+{
+  id:2,
+  title:"Regulatory — FDA Notification Required",
+  short:"CCP-002 UV cure failure post-shipment · FDA timeline · 4 customers",
+  trigger:"During weekly verification review, QC found that the UV radiometer log from Feb 14–15 shows UV energy readings of 72–85 mJ/cm² — well below the 100 mJ/cm² critical limit. Product from those 2 shifts was released and shipped to 4 customers. Incomplete UV cure creates ink migration risk into food contact materials.",
+  lot:{
+    number:"MULTI-SHIFT-0214-0215",
+    product:"Multiple jobs — 2 shifts",
+    produced:"2024-02-14 to 2024-02-15",
+    qty:"4 customers · 5 jobs · ~180,000 units",
+    press:"Mark Andy P7",
+    substrate:"Multiple lots",
+    subLot:"Multiple",
+    ink:"Multiple UV inks — all at risk",
+    inkLot:"Multiple",
+    released:"2024-02-16",
+    shipped:"2024-02-17 to 2024-02-19",
+    customer:"4 customers"
+  },
+  backwardTrace:[
+    {item:"UV Lamp Assembly",lot:"UV-LAMP-SVC-231201",supplier:"Mark Andy",recvd:"2023-12-01",coa:"Service record",status:"DEGRADED — Past service life"},
+    {item:"UV Radiometer",lot:"PWR-PUCK-CAL-240101",supplier:"Internal",recvd:"2024-01-01",coa:"Calibration cert",status:"OK — Readings were accurate"},
+  ],
+  forwardTrace:[
+    {customer:"Brain Health MD",po:"PO-BM-2024-0219",shipped:"2024-02-17",qty:"48,000",status:"AFFECTED",contact:"Sarah Chen · (310) 555-0192"},
+    {customer:"VitaGreen Supplements",po:"PO-VG-2024-0220",shipped:"2024-02-18",qty:"52,000",status:"AFFECTED",contact:"Mike Torres · (714) 555-0188"},
+    {customer:"NutriMax Labs",po:"PO-NM-2024-0218",shipped:"2024-02-18",qty:"44,000",status:"AFFECTED",contact:"Lisa Park · (626) 555-0234"},
+    {customer:"ProHealth Brands",po:"PO-PH-2024-0222",shipped:"2024-02-19",qty:"36,000",status:"AFFECTED",contact:"David Kim · (213) 555-0167"},
+  ],
+  onSite:[
+    {location:"Finished Goods — Zone A",qty:"0 — all shipped",status:"None on site"},
+    {location:"QC Sample Archive",qty:"12 units",status:"Hold and retest"},
+  ],
+  rootCause:"UV lamp not replaced per maintenance schedule (every 1,000 hrs). Preventive maintenance overdue by 340 hours.",
+  disposition:"Recall all ~180,000 units from 4 customers. Issue voluntary FDA notification within 24 hrs. Full CAPA on UV PM schedule.",
+  maxScore:2000,
+  fda:true
+}
+];
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let state = {
+  scenario: SCENARIOS[0],
+  phase: 0,
+  score: 0,
+  startTime: null,
+  elapsed: 0,
+  timerInterval: null,
+  tasksDone: {},
+  notifsSent: 0,
+  lotsTraced: 0,
+  selectedScenario: 0,
+  phaseScores: [],
+};
+
+const PHASES = [
+  {id:'trigger',title:'Recall Triggered',icon:'🚨',color:'red',sqf:'SQF 2.6.1'},
+  {id:'identify',title:'Identify & Confirm',icon:'🔍',color:'amber',sqf:'SQF 2.6.2'},
+  {id:'backward',title:'Backward Trace',icon:'⬅',color:'amber',sqf:'SQF 2.6.3'},
+  {id:'forward',title:'Forward Trace',icon:'➡',color:'red',sqf:'SQF 2.6.3'},
+  {id:'quarantine',title:'Quarantine & Hold',icon:'🔒',color:'red',sqf:'SQF 2.6.4'},
+  {id:'notify',title:'Customer Notification',icon:'📢',color:'amber',sqf:'SQF 2.6.5'},
+  {id:'fda',title:'Regulatory Assessment',icon:'⚖️',color:'cyan',sqf:'SQF 2.6.6'},
+  {id:'disposition',title:'Disposition',icon:'📦',color:'green',sqf:'SQF 2.6.7'},
+  {id:'close',title:'Close & Document',icon:'📋',color:'green',sqf:'SQF 2.6.8'},
+];
+
+// ═══════════════════════════════════════
+// BOOT / MENU
+// ═══════════════════════════════════════
+function selectScenario(idx, el) {
+  document.querySelectorAll('.scenario-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  state.selectedScenario = idx;
+}
+
+function startGame() {
+  state.scenario = SCENARIOS[state.selectedScenario];
+  state.phase = 0;
+  state.score = 0;
+  state.startTime = Date.now();
+  state.elapsed = 0;
+  state.tasksDone = {};
+  state.notifsSent = 0;
+  state.lotsTraced = 0;
+  state.phaseScores = [];
+
+  showScreen('s-game');
+  buildHUD();
+  startTimer();
+  renderPhase(0);
+  addLog('sys','Exercise started. Incident reported. Clock running.');
+  addLog('err','RECALL TRIGGER: '+state.scenario.short);
+}
+
+// ═══════════════════════════════════════
+// TIMER
+// ═══════════════════════════════════════
+function startTimer() {
+  if(state.timerInterval) clearInterval(state.timerInterval);
+  state.timerInterval = setInterval(()=>{
+    state.elapsed = Math.floor((Date.now()-state.startTime)/1000);
+    const rem = Math.max(0, 7200-state.elapsed);
+    const h = Math.floor(rem/3600).toString().padStart(2,'0');
+    const m = Math.floor((rem%3600)/60).toString().padStart(2,'0');
+    const s = (rem%60).toString().padStart(2,'0');
+    const el = document.getElementById('timer-display');
+    el.textContent=`${h}:${m}:${s}`;
+    if(rem<1800){el.className='timer-val';} // red
+    else if(rem<3600){el.className='timer-val warn';}
+    else {el.className='timer-val ok';}
+    // redline
+    const prog = state.phase/(PHASES.length-1);
+    document.getElementById('redline').style.transform=`scaleX(${prog})`;
+  },1000);
+}
+
+// ═══════════════════════════════════════
+// HUD
+// ═══════════════════════════════════════
+function buildHUD() {
+  document.getElementById('hud-scenario').textContent=state.scenario.title;
+  renderPips();
+  renderStepNav();
+}
+
+function renderPips() {
+  let html='';
+  PHASES.forEach((p,i)=>{
+    const cls = i<state.phase?'done':i===state.phase?'active':'locked';
+    html+=`<div class="step-pip ${cls}" title="${p.title}"></div>`;
+  });
+  document.getElementById('step-pips').innerHTML=html;
+}
+
+function renderStepNav() {
+  let html='';
+  PHASES.forEach((p,i)=>{
+    const cls=i<state.phase?'done':i===state.phase?'active':'locked';
+    html+=`<div class="step-nav-item ${cls}"><div class="step-num">${i<state.phase?'✓':i+1}</div>${p.icon} ${p.title}</div>`;
+  });
+  document.getElementById('step-nav').innerHTML=html;
+  // lot sidebar
+  const s=state.scenario;
+  document.getElementById('sidebar-brief').innerHTML=`<b>Trigger:</b> ${s.trigger.substring(0,180)}...`;
+  let lotHtml='';
+  Object.entries(s.lot).forEach(([k,v])=>{
+    const labels={number:'Lot #',product:'Product',produced:'Produced',qty:'Quantity',press:'Press',substrate:'Substrate',subLot:'Sub Lot',ink:'Ink',inkLot:'Ink Lot',released:'Released',shipped:'Shipped',customer:'Customer'};
+    if(labels[k]) lotHtml+=`<div class="lot-field"><span class="lot-key">${labels[k]}</span><span class="lot-val" style="max-width:140px;text-align:right;font-size:10px">${v}</span></div>`;
+  });
+  document.getElementById('sidebar-lot').innerHTML=lotHtml;
+}
+
+// ═══════════════════════════════════════
+// LOG
+// ═══════════════════════════════════════
+function addLog(type, msg) {
+  const el=document.getElementById('cmd-log');
+  const min=Math.floor(state.elapsed/60).toString().padStart(2,'0');
+  const sec=(state.elapsed%60).toString().padStart(2,'0');
+  const line=document.createElement('div');
+  line.className=`log-line ${type}`;
+  line.innerHTML=`<span class="log-ts">[${min}:${sec}]</span>${msg}`;
+  el.appendChild(line);
+  el.scrollTop=el.scrollHeight;
+}
+
+// ═══════════════════════════════════════
+// SCORE
+// ═══════════════════════════════════════
+function addScore(pts) {
+  state.score+=pts;
+  document.getElementById('score-val').textContent=state.score;
+  // flash
+  const el=document.getElementById('score-val');
+  el.style.color='var(--green)';
+  setTimeout(()=>el.style.color='var(--cyan)',600);
+}
+
+// ═══════════════════════════════════════
+// ADVANCE PHASE
+// ═══════════════════════════════════════
+function nextPhase(pts=50) {
+  addScore(pts);
+  state.phaseScores.push({phase:PHASES[state.phase].title, score:pts, time:state.elapsed});
+  state.phase++;
+  renderPips();
+  renderStepNav();
+  if(state.phase>=PHASES.length){
+    endGame(); return;
+  }
+  renderPhase(state.phase);
+  addLog('ok',`Phase complete: ${PHASES[state.phase-1].title} (+${pts} pts)`);
+}
+
+// ═══════════════════════════════════════
+// PHASE RENDERERS
+// ═══════════════════════════════════════
+function renderPhase(idx) {
+  const area=document.getElementById('step-area');
+  const phaseRenderers=[p0,p1,p2,p3,p4,p5,p6,p7,p8];
+  if(phaseRenderers[idx]) area.innerHTML=phaseRenderers[idx]();
+  area.scrollTop=0;
+}
+
+// Helper: phase banner
+function banner(p,desc){
+  return `<div class="phase-banner fade-up">
+    <div class="phase-icon ${p.color}">${p.icon}</div>
+    <div>
+      <div class="phase-num">PHASE ${PHASES.indexOf(p)+1} OF ${PHASES.length}</div>
+      <div class="phase-title">${p.title}</div>
+      <div class="phase-desc">${desc}</div>
+      <span class="phase-sqf">${p.sqf}</span>
+    </div>
+  </div>`;
+}
+
+// ── PHASE 0: TRIGGER ──
+function p0(){
+  const s=state.scenario;
+  return banner(PHASES[0],'An incident has been reported. Read the brief, understand the trigger, and activate the recall team.')+`
+  <div class="instruct"><b>▶ WHAT TO DO:</b> Read the incident report carefully. Identify the affected lot number and product. Assign a Recall Coordinator. Then click <span class="cmd">Activate Recall Protocol</span> to begin the clock.</div>
+  <div class="task-grid fade-up">
+    <div class="task-card active-task" id="t-read" onclick="doTask('t-read','Read incident report',30,'warn','Incident brief reviewed and acknowledged.')">
+      <div class="task-header"><div class="task-check" id="tc-t-read"></div><div class="task-title">Read incident report and understand the trigger</div></div>
+      <div class="task-body">
+        <b style="color:var(--red)">INCIDENT:</b> ${s.trigger}<br><br>
+        <b>Affected Lot:</b> <span style="color:var(--amber);font-weight:600">${s.lot.number}</span><br>
+        <b>Product:</b> ${s.lot.product}<br>
+        <b>Customer:</b> ${s.lot.customer}<br>
+        <b>Shipped:</b> ${s.lot.shipped}
+      </div>
+      <div class="task-action"><button class="btn btn-red" onclick="event.stopPropagation();doTask('t-read','Read incident report',30,'warn','Incident brief reviewed.')">✓ Acknowledge Incident</button></div>
+    </div>
+    <div class="task-card" id="t-assign" onclick="">
+      <div class="task-header"><div class="task-check" id="tc-t-assign"></div><div class="task-title">Assign Recall Coordinator</div></div>
+      <div class="task-body">
+        Designate who is leading this recall. This person owns all communications and documentation.<br><br>
+        <select id="coordinator-select" style="background:var(--bg3);border:1px solid var(--border);color:var(--text0);padding:6px 10px;border-radius:4px;font-family:var(--mono);font-size:12px;width:100%">
+          <option value="">-- Select Coordinator --</option>
+          <option>Randy Vazquez — COO (Recommended)</option>
+          <option>Alex Martinez — QC Inspector</option>
+          <option>Diana Park — Shipping</option>
+        </select>
+      </div>
+      <div class="task-action"><button class="btn btn-amber" onclick="event.stopPropagation();assignCoord()">Assign →</button></div>
+    </div>
+    <div class="task-card locked" id="t-activate">
+      <div class="task-header"><div class="task-check" id="tc-t-activate"></div><div class="task-title">Activate Recall Protocol — Notify QC &amp; Production to STOP</div></div>
+      <div class="task-body">Stop all production of affected product. Notify production floor. Secure all records. Do not ship any suspect material.</div>
+      <div class="task-action"><button class="btn btn-red" id="activate-btn" disabled onclick="event.stopPropagation();activateProtocol()">⚡ ACTIVATE RECALL PROTOCOL</button></div>
+    </div>
+  </div>`;
+}
+
+function assignCoord(){
+  const v=document.getElementById('coordinator-select').value;
+  if(!v){alert('Please select a coordinator.');return;}
+  doTask('t-assign','Assigned coordinator: '+v,20,'ok','Recall Coordinator assigned: '+v);
+  document.getElementById('activate-btn').disabled=false;
+  document.getElementById('t-activate').classList.remove('locked');
+  document.getElementById('t-activate').classList.add('active-task');
+}
+
+function activateProtocol(){
+  doTask('t-activate','Recall Protocol ACTIVATED',50,'err','🚨 RECALL PROTOCOL ACTIVATED — Production stopped. Floor notified.');
+  setTimeout(()=>nextPhase(100),1200);
+}
+
+// ── PHASE 1: IDENTIFY ──
+function p1(){
+  const s=state.scenario;
+  return banner(PHASES[1],'Confirm the exact lot(s) affected. Pull lot records, link to job tickets, and verify production date and quantity.')+`
+  <div class="instruct"><b>▶ WHAT TO DO:</b> Use the lot scanner below to <b>scan/enter the affected lot number</b>. Then pull the Job Jacket to confirm all production details. Every field must be verified before proceeding to trace.</div>
+  <div class="task-grid fade-up">
+    <div class="task-card active-task">
+      <div class="task-header"><div class="task-check" id="tc-scan1"></div><div class="task-title">Scan or enter the affected lot barcode</div></div>
+      <div class="task-body" style="margin-bottom:10px">In a real recall, you scan the physical label on the lot or enter it from the Job Jacket. Enter the lot number below:</div>
+      <div style="margin-left:30px">
+        <div class="scan-zone" id="scan-lot-zone" onclick="triggerScan('scan-lot-zone','scan-lot-input','scan-lot-result','${s.lot.number}','tc-scan1','btn-pull-jj')">
+          <div class="scan-line"></div>
+          <div class="scan-icon">⬛</div>
+          <div class="scan-label" id="scan-lot-result">Click to scan lot barcode</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <input id="scan-lot-input" class="form-input" placeholder="Or type lot # manually: ${s.lot.number}" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text0);font-family:var(--mono);font-size:12px;outline:none"/>
+          <button class="btn btn-amber" onclick="manualLot()">Enter →</button>
+        </div>
+      </div>
+    </div>
+    <div class="task-card locked" id="tc-jj-card">
+      <div class="task-header"><div class="task-check" id="tc-pull-jj"></div><div class="task-title">Pull Job Jacket — Verify all production details</div></div>
+      <div class="task-body">
+        <div id="jj-table" style="display:none;margin-top:8px">
+          <table class="trace-tbl">
+            <tr><th>Field</th><th>Value</th><th>Verified</th></tr>
+            ${Object.entries({
+              'Lot Number':s.lot.number,'Product':s.lot.product,'Date Produced':s.lot.produced,
+              'Qty':s.lot.qty,'Press':s.lot.press,'Substrate Lot':s.lot.subLot,'Ink Lot':s.lot.inkLot,
+              'Customer':s.lot.customer,'Shipped':s.lot.shipped
+            }).map(([k,v])=>`<tr><td>${k}</td><td style="font-family:var(--mono);font-size:11px">${v}</td><td><span class="badge b-green">✓</span></td></tr>`).join('')}
+          </table>
+        </div>
+        <div id="pull-jj-btn-wrap"><button class="btn btn-cyan" id="btn-pull-jj" disabled onclick="pullJobJacket()">📂 Pull Job Jacket from MFX OS</button></div>
+      </div>
+    </div>
+    <div class="task-card locked" id="tc-confirm-card">
+      <div class="task-header"><div class="task-check" id="tc-confirm-id"></div><div class="task-title">Confirm lot identity — sign off on affected quantity</div></div>
+      <div class="task-body">After verifying the Job Jacket, confirm the affected lot and quantity are correct. This locks in the scope of the recall.</div>
+      <div class="task-action"><button class="btn btn-red" id="btn-confirm-id" disabled onclick="confirmIdentity()">⚠ Confirm Scope &amp; Proceed</button></div>
+    </div>
+  </div>`;
+}
+
+function triggerScan(zoneId,inputId,resultId,expected,checkId,nextBtnId){
+  const z=document.getElementById(zoneId);
+  if(z.classList.contains('scanned'))return;
+  z.classList.add('scanning');
+  setTimeout(()=>{
+    z.classList.remove('scanning');
+    z.classList.add('scanned');
+    document.getElementById(resultId).innerHTML=`<div class="scan-result">✓ LOT: ${expected}</div>`;
+    z.querySelector('.scan-icon').textContent='✓';
+    completeScanStep(checkId,nextBtnId,expected);
+  },1400);
+}
+
+function manualLot(){
+  const v=document.getElementById('scan-lot-input').value.trim();
+  if(!v){alert('Enter the lot number');return;}
+  document.getElementById('scan-lot-zone').classList.add('scanned');
+  document.getElementById('scan-lot-result').innerHTML=`<div class="scan-result">✓ LOT: ${v}</div>`;
+  completeScanStep('tc-scan1','btn-pull-jj',v);
+}
+
+function completeScanStep(checkId,nextBtnId,val){
+  markCheck(checkId);
+  addLog('ok','Lot scanned/entered: '+val);
+  addScore(30);
+  const jjCard=document.getElementById('tc-jj-card');
+  if(jjCard){jjCard.classList.remove('locked');jjCard.classList.add('active-task');}
+  const btn=document.getElementById(nextBtnId);
+  if(btn)btn.disabled=false;
+}
+
+function pullJobJacket(){
+  document.getElementById('jj-table').style.display='block';
+  document.getElementById('pull-jj-btn-wrap').innerHTML='';
+  markCheck('tc-pull-jj');
+  addLog('ok','Job Jacket pulled. All production fields verified.');
+  addScore(40);
+  const cc=document.getElementById('tc-confirm-card');
+  if(cc){cc.classList.remove('locked');cc.classList.add('active-task');}
+  document.getElementById('btn-confirm-id').disabled=false;
+  state.lotsTraced=1;
+}
+
+function confirmIdentity(){
+  markCheck('tc-confirm-id');
+  addLog('err','SCOPE CONFIRMED: '+state.scenario.lot.qty+' units in recall scope.');
+  addScore(50);
+  setTimeout(()=>nextPhase(120),800);
+}
+
+// ── PHASE 2: BACKWARD TRACE ──
+function p2(){
+  const s=state.scenario;
+  return banner(PHASES[2],'Trace backward to all raw material inputs used in the affected lot. Pull COAs, verify supplier records.')+`
+  <div class="instruct">
+    <b>▶ WHAT TO DO:</b> For every raw material used in the affected lot, verify the supplier lot number and COA status. 
+    <b>Flag any materials</b> that are suspect (no COA, out-of-spec, or from an unapproved supplier). 
+    Check: Was any of this material used in <b>other lots</b> that also need to be recalled?
+  </div>
+  <div class="task-grid fade-up">
+    <div class="task-card active-task">
+      <div class="task-header"><div class="task-check" id="tc-bt-table"></div><div class="task-title">Pull input material records from receiving log</div></div>
+      <div class="task-body">
+        <table class="trace-tbl" style="margin-top:8px">
+          <tr><th>Material</th><th>Supplier Lot</th><th>Supplier</th><th>Received</th><th>COA</th><th>Status</th></tr>
+          ${s.backwardTrace.map((r,i)=>`
+            <tr class="${r.status!=='OK'?'hl-red':''}">
+              <td>${r.item}</td>
+              <td style="font-family:var(--mono);font-size:11px">${r.lot}</td>
+              <td>${r.supplier}</td>
+              <td style="font-family:var(--mono);font-size:11px">${r.recvd}</td>
+              <td>${r.coa}</td>
+              <td><span class="badge ${r.status==='OK'?'b-green':r.status==='SUSPECT'?'b-red':'b-amber'}">${r.status}</span></td>
+            </tr>`).join('')}
+        </table>
+        <div style="margin-top:10px"><button class="btn btn-cyan" onclick="pullBTRecords()">📋 Pull from MFX OS Receiving Log</button></div>
+      </div>
+    </div>
+    <div class="task-card" id="bt-suspect-card" style="${s.backwardTrace.some(r=>r.status!=='OK')?'':'display:none'}">
+      <div class="task-header"><div class="task-check" id="tc-bt-suspect"></div><div class="task-title" style="color:var(--red)">⚠ Suspect material found — flag and investigate</div></div>
+      <div class="task-body">
+        ${s.backwardTrace.filter(r=>r.status!=='OK').map(r=>`
+          <div style="background:var(--red2);border:1px solid rgba(255,59,78,0.2);border-radius:6px;padding:10px;margin-bottom:8px">
+            <b style="color:var(--red)">${r.item} — ${r.lot}</b><br>
+            <span style="font-size:11px">Supplier: ${r.supplier} · Status: <b>${r.status}</b><br>${r.coa}</span>
+          </div>`).join('')}
+        <div style="margin-top:8px"><button class="btn btn-red" onclick="flagSuspect()">🚩 Flag Material &amp; Notify Supplier</button></div>
+      </div>
+    </div>
+    <div class="task-card locked" id="bt-expand-card">
+      <div class="task-header"><div class="task-check" id="tc-bt-expand"></div><div class="task-title">Check: Was this material used in any other lots?</div></div>
+      <div class="task-body">
+        Search MFX OS for all jobs that used these same supplier lots. If another lot used the same suspect material, it must be included in the recall scope.
+      </div>
+      <div class="task-action"><button class="btn btn-amber" id="btn-bt-expand" disabled onclick="checkOtherLots()">🔎 Search Other Jobs Using Same Lots</button></div>
+    </div>
+  </div>`;
+}
+
+function pullBTRecords(){
+  markCheck('tc-bt-table');
+  addLog('ok','Backward trace: '+state.scenario.backwardTrace.length+' input materials reviewed.');
+  addScore(50);
+  document.getElementById('bt-expand-card').classList.remove('locked');
+  document.getElementById('btn-bt-expand').disabled=false;
+  if(state.scenario.backwardTrace.some(r=>r.status!=='OK')){
+    addLog('warn','⚠ Suspect material identified in backward trace. Flagging required.');
+  }
+}
+
+function flagSuspect(){
+  markCheck('tc-bt-suspect');
+  addLog('err','Suspect material flagged. Supplier notification queued.');
+  addScore(60);
+}
+
+function checkOtherLots(){
+  markCheck('tc-bt-expand');
+  const extra = state.scenario.id>0 ? 'Additional jobs found in scope — see forward trace.' : 'No additional lots found using same material inputs.';
+  addLog('ok','Cross-lot search complete. '+extra);
+  addScore(70);
+  setTimeout(()=>nextPhase(150),800);
+}
+
+// ── PHASE 3: FORWARD TRACE ──
+function p3(){
+  const s=state.scenario;
+  const total=s.forwardTrace.reduce((a,r)=>a+parseInt(r.qty.replace(/,/g,'')),0);
+  return banner(PHASES[3],'Trace all affected product forward through shipping records to each customer.')+`
+  <div class="instruct">
+    <b>▶ WHAT TO DO:</b> Pull all shipment records for the affected lot. For each shipment: record the customer, PO number, quantity, and contact person. 
+    You must account for <b>100% of manufactured units</b>. 
+    Mark each destination as AFFECTED. SQF requires 100% traceability within 2 hours.
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:12px 18px;flex:1">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:2px">TOTAL UNITS TO ACCOUNT FOR</div>
+      <div style="font-family:var(--display);font-size:24px;font-weight:700;color:var(--red)">${s.lot.qty}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:12px 18px;flex:1" id="ft-traced-box">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:2px">UNITS TRACED</div>
+      <div style="font-family:var(--display);font-size:24px;font-weight:700;color:var(--amber)" id="ft-traced-val">0</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:12px 18px;flex:1">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:2px">DESTINATIONS</div>
+      <div style="font-family:var(--display);font-size:24px;font-weight:700;color:var(--amber)">${s.forwardTrace.length}</div>
+    </div>
+  </div>
+  <div class="task-grid fade-up">
+    <div class="task-card active-task">
+      <div class="task-header"><div class="task-check" id="tc-ft-pull"></div><div class="task-title">Pull shipment records from MFX OS</div></div>
+      <div class="task-body">
+        <div id="ft-table-wrap" style="display:none">
+          <table class="trace-tbl">
+            <tr><th>Customer</th><th>PO#</th><th>Shipped</th><th>Qty</th><th>Contact</th><th>Status</th><th>Action</th></tr>
+            ${s.forwardTrace.map((r,i)=>`
+              <tr class="hl-red" id="ft-row-${i}">
+                <td><b>${r.customer}</b></td>
+                <td style="font-family:var(--mono);font-size:11px">${r.po}</td>
+                <td style="font-family:var(--mono);font-size:11px">${r.shipped}</td>
+                <td style="font-family:var(--mono)">${r.qty}</td>
+                <td style="font-size:11px">${r.contact}</td>
+                <td><span class="badge b-red" id="ft-status-${i}">UNCONFIRMED</span></td>
+                <td><button class="btn" style="font-size:10px;padding:3px 8px" onclick="confirmDestination(${i},'${r.qty}')">Confirm ✓</button></td>
+              </tr>`).join('')}
+          </table>
+        </div>
+        <div id="ft-pull-btn"><button class="btn btn-cyan" onclick="pullFTRecords()">📦 Pull Shipping Records from MFX OS</button></div>
+      </div>
+    </div>
+    <div class="task-card locked" id="ft-complete-card">
+      <div class="task-header"><div class="task-check" id="tc-ft-complete"></div><div class="task-title">100% of product accounted for — Confirm traceability complete</div></div>
+      <div class="task-body" id="ft-complete-body">Confirm all destinations have been identified and all quantities reconcile.</div>
+      <div class="task-action"><button class="btn btn-green" id="btn-ft-complete" disabled onclick="completeForwardTrace()">✓ Confirm 100% Traced</button></div>
+    </div>
+  </div>`;
+}
+
+let ftConfirmed=0;
+let ftTotal=0;
+
+function pullFTRecords(){
+  document.getElementById('ft-table-wrap').style.display='block';
+  document.getElementById('ft-pull-btn').style.display='none';
+  markCheck('tc-ft-pull');
+  addLog('ok','Shipping records pulled. '+state.scenario.forwardTrace.length+' destination(s) found.');
+  addScore(50);
+  ftConfirmed=0;
+  ftTotal=state.scenario.forwardTrace.length;
+}
+
+function confirmDestination(i,qty){
+  document.getElementById('ft-status-'+i).className='badge b-green';
+  document.getElementById('ft-status-'+i).textContent='CONFIRMED';
+  document.getElementById('ft-row-'+i).classList.remove('hl-red');
+  document.getElementById('ft-row-'+i).classList.add('hl-amber');
+  ftConfirmed++;
+  const units=parseInt(qty.replace(/,/g,''));
+  const el=document.getElementById('ft-traced-val');
+  const cur=parseInt(el.textContent.replace(/,/g,'')||0)+units;
+  el.textContent=cur.toLocaleString();
+  if(cur>0)el.style.color='var(--green)';
+  addLog('ok','Destination confirmed: '+state.scenario.forwardTrace[i].customer+' ('+qty+' units)');
+  addScore(30);
+  if(ftConfirmed>=ftTotal){
+    document.getElementById('ft-complete-card').classList.remove('locked');
+    document.getElementById('ft-complete-card').classList.add('active-task');
+    document.getElementById('btn-ft-complete').disabled=false;
+    addLog('ok','All destinations confirmed. 100% traceability achieved.');
+  }
+}
+
+function completeForwardTrace(){
+  markCheck('tc-ft-complete');
+  state.lotsTraced=ftTotal;
+  addScore(150);
+  addLog('ok','Forward trace 100% complete. Time: '+Math.floor(state.elapsed/60)+' min.');
+  setTimeout(()=>nextPhase(200),800);
+}
+
+// ── PHASE 4: QUARANTINE ──
+function p4(){
+  const s=state.scenario;
+  return banner(PHASES[4],'Place physical and system holds on all affected material — on-site inventory, WIP, and retain samples.')+`
+  <div class="instruct">
+    <b>▶ WHAT TO DO:</b> For every location that has affected material, you must: 
+    (1) place a <b>HOLD status</b> in MFX OS, 
+    (2) <b>physically tag</b> the material with a RED HOLD label, 
+    (3) <b>move to quarantine zone</b> if accessible. 
+    No affected material may be used, shipped, or released without written authorization.
+  </div>
+  <div class="task-grid fade-up">
+    ${s.onSite.map((loc,i)=>`
+      <div class="task-card ${loc.status.includes('IMMEDIATELY')||loc.status.includes('DO NOT')?'active-task':''}" id="q-card-${i}">
+        <div class="task-header">
+          <div class="task-check" id="tc-q-${i}"></div>
+          <div class="task-title">${loc.location}</div>
+          <span class="badge ${loc.status.includes('HOLD')||loc.status.includes('DO NOT')?'b-red':loc.status.includes('Required')?'b-amber':'b-gray'}">${loc.status}</span>
+        </div>
+        <div class="task-body">
+          Quantity: <b>${loc.qty}</b><br><br>
+          ${loc.status.includes('Shipped')?'Product shipped — no on-site action needed. Recall notification to customer will handle this.':
+            loc.status.includes('Required')||loc.status.includes('HOLD')||loc.status.includes('DO NOT')?
+            `<b style="color:var(--red)">ACTION REQUIRED:</b> Place system hold in MFX OS and physically tag material.<br>
+             Print and affix RED HOLD label. Move to <b>quarantine Zone E</b>.`:
+            'No action needed — verify and document.'}
+        </div>
+        ${!loc.status.includes('Shipped')?`
+        <div class="task-action" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-red" onclick="placeSystemHold(${i},'${loc.location}')">🔒 Place System Hold</button>
+          <button class="btn btn-amber" onclick="printHoldTag(${i})">🏷 Print Hold Tag</button>
+          <button class="btn" onclick="completeQuarantine(${i},'${loc.location}')">✓ Quarantine Complete</button>
+        </div>`:'<div class="task-action"><button class="btn btn-green" onclick="completeQuarantine('+i+',\''+loc.location+'\')">✓ Acknowledge — No On-site Action</button></div>'}
+      </div>`).join('')}
+    <div class="task-card locked" id="q-complete-card">
+      <div class="task-header"><div class="task-check" id="tc-q-all"></div><div class="task-title">All on-site material accounted for and held</div></div>
+      <div class="task-body">Confirm all locations have been addressed. You may not proceed to customer notification until all on-site holds are in place.</div>
+      <div class="task-action"><button class="btn btn-green" id="btn-q-complete" disabled onclick="completeAllQuarantine()">✓ All Holds Confirmed — Proceed</button></div>
+    </div>
+  </div>`;
+}
+
+let qDone={};
+function placeSystemHold(i,loc){addLog('err','System HOLD placed: '+loc);addScore(20);}
+function printHoldTag(i){addLog('warn','Hold tag printed for location '+i);addScore(10);}
+function completeQuarantine(i,loc){
+  qDone[i]=true;
+  markCheck('tc-q-'+i);
+  document.getElementById('q-card-'+i).classList.add('done');
+  addLog('ok','Quarantine complete: '+loc);
+  addScore(40);
+  if(Object.keys(qDone).length>=state.scenario.onSite.length){
+    document.getElementById('q-complete-card').classList.remove('locked');
+    document.getElementById('q-complete-card').classList.add('active-task');
+    document.getElementById('btn-q-complete').disabled=false;
+  }
+}
+function completeAllQuarantine(){
+  markCheck('tc-q-all');
+  addScore(80);
+  setTimeout(()=>nextPhase(150),600);
+}
+
+// ── PHASE 5: NOTIFY ──
+function p5(){
+  const s=state.scenario;
+  return banner(PHASES[5],'Notify all affected customers. SQF requires notification within 24 hours of recall decision.')+`
+  <div class="instruct">
+    <b>▶ WHAT TO DO:</b> For each affected customer, you must send a <b>written recall notification</b> that includes:
+    the affected lot number, the reason for recall, the quantity to be returned, and your contact information.
+    Click <span class="cmd">Review &amp; Send</span> on each notification. Log the send time.
+    <b>Do not delay</b> — each hour past 24 hrs is a compliance risk.
+  </div>
+  <div class="task-grid fade-up" id="notif-cards">
+    ${s.forwardTrace.map((r,i)=>notifCard(r,i,s)).join('')}
+    <div class="task-card locked" id="notif-complete-card">
+      <div class="task-header"><div class="task-check" id="tc-notif-all"></div><div class="task-title">All customer notifications sent — log confirmation</div></div>
+      <div class="task-body">After all customers are notified, document the notification log including sent times and contact names.</div>
+      <div class="task-action"><button class="btn btn-green" id="btn-notif-complete" disabled onclick="completeNotifications()">✓ Notifications Complete</button></div>
+    </div>
+  </div>`;
+}
+
+function notifCard(r,i,s){
+  return `<div class="notif-card" id="notif-${i}">
+    <div class="notif-to">TO: ${r.contact} · ${r.customer}</div>
+    <div class="notif-subject">SUBJECT: Urgent Product Recall Notification — Lot ${s.lot.number}</div>
+    <div class="notif-body-preview">
+      Dear ${r.customer} team,<br><br>
+      Microflex Film Corporation is issuing a voluntary product recall for lot <b>${s.lot.number}</b> (${s.lot.product}) shipped to you on ${r.shipped} under PO ${r.po} (${r.qty} units).<br><br>
+      Reason: ${s.trigger.substring(0,120)}...<br><br>
+      Please immediately quarantine and cease use of all product from this lot. Contact us at (951) 555-0100 or randy@microflexfilm.com to arrange return and replacement.<br><br>
+      We sincerely apologize for this inconvenience and are committed to your safety.
+    </div>
+    <div class="notif-actions">
+      <button class="btn btn-cyan" onclick="previewNotif(${i})">👁 Preview Full</button>
+      <button class="btn btn-red" id="notif-send-${i}" onclick="sendNotif(${i},'${r.customer}')">📨 Send Notification</button>
+      <span id="notif-sent-badge-${i}" style="display:none"><span class="badge b-green">✓ SENT</span></span>
+    </div>
+  </div>`;
+}
+
+let notifsSentArr=[];
+function previewNotif(i){addLog('sys','Reviewing notification for '+state.scenario.forwardTrace[i].customer);}
+function sendNotif(i,customer){
+  document.getElementById('notif-send-'+i).style.display='none';
+  document.getElementById('notif-sent-badge-'+i).style.display='inline';
+  document.getElementById('notif-'+i).classList.add('notif-sent');
+  notifsSentArr.push(i);
+  state.notifsSent++;
+  addLog('ok','✉ Notification SENT → '+customer+' ('+new Date().toLocaleTimeString()+')');
+  addScore(60);
+  if(notifsSentArr.length>=state.scenario.forwardTrace.length){
+    document.getElementById('notif-complete-card').classList.remove('locked');
+    document.getElementById('notif-complete-card').classList.add('active-task');
+    document.getElementById('btn-notif-complete').disabled=false;
+  }
+}
+function completeNotifications(){
+  markCheck('tc-notif-all');
+  addScore(100);
+  setTimeout(()=>nextPhase(180),600);
+}
+
+// ── PHASE 6: FDA ──
+function p6(){
+  const s=state.scenario;
+  const fdaRequired=s.fda;
+  return banner(PHASES[6],'Determine if regulatory notification is required. For food-contact packaging, assess FDA 21 CFR Part 110 obligations.')+`
+  <div class="instruct">
+    <b>▶ WHAT TO DO:</b> Evaluate whether this recall requires FDA notification under <b>21 CFR Part 110</b> or <b>FSMA Reportable Food Registry</b>.
+    Consider: Is the hazard a food safety risk? Is the product food-contact? Has the product already entered the food supply?
+    When in doubt, consult your food safety attorney. <b>Voluntary early notification is always better than mandatory late notification.</b>
+  </div>
+  <div class="task-grid fade-up">
+    <div class="task-card active-task">
+      <div class="task-header"><div class="task-check" id="tc-fda-assess"></div><div class="task-title">Complete regulatory assessment decision tree</div></div>
+      <div class="task-body">
+        <div style="display:grid;gap:8px;margin-top:8px">
+          ${[
+            {q:'Is the product food-contact or used for food packaging?',a:'YES — MFX labels are applied directly to food packaging'},
+            {q:'Does the defect create a food safety risk (chemical, biological, physical)?',a:fdaRequired?'YES — '+s.trigger.substring(0,80)+'...':'LIKELY NO — Physical defect (metal fragment) in label, not in food product'},
+            {q:'Has affected product been sold/shipped to customers?',a:'YES — See forward trace'},
+            {q:'Is there reasonable probability of serious adverse health consequences?',a:fdaRequired?'YES — Must assess with food safety counsel':'LOW — But document decision'},
+          ].map((item,i)=>`
+            <div style="background:var(--bg2);border-radius:6px;padding:10px;border:1px solid var(--border)">
+              <div style="font-size:11px;color:var(--text2);margin-bottom:3px">Q${i+1}:</div>
+              <div style="font-size:12px;color:var(--text0)">${item.q}</div>
+              <div style="font-size:11px;color:${fdaRequired&&i>0?'var(--amber)':'var(--green)'};margin-top:4px">→ ${item.a}</div>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:12px"><button class="btn btn-cyan" onclick="completeAssessment()">✓ Assessment Complete</button></div>
+      </div>
+    </div>
+    <div class="task-card locked" id="fda-decision-card">
+      <div class="task-header"><div class="task-check" id="tc-fda-decision"></div>
+        <div class="task-title">${fdaRequired?'⚠ FDA Notification REQUIRED — File within 24 hours':'FDA Notification — Document decision not to notify'}</div>
+      </div>
+      <div class="task-body">
+        ${fdaRequired?
+          `<div class="hold-badge" style="margin-bottom:10px">FDA NOTIFICATION REQUIRED</div><br>
+           <b>Action:</b> File Reportable Food Registry (RFR) report at <b>fda.gov/food/reportable-food-registry</b> within 24 hours.<br><br>
+           Include: product description, lot numbers, quantity, distribution, hazard description, and corrective actions taken.`:
+          `<b>Decision:</b> FDA notification not required for this scenario.<br><br>
+           Document the decision rationale, the date/time of assessment, and the name of the person who made the determination. Keep on file for SQF audit.`}
+      </div>
+      <div class="task-action">
+        <button class="btn ${fdaRequired?'btn-red':'btn-amber'}" id="btn-fda-action" disabled onclick="completeFDA()">
+          ${fdaRequired?'📋 Log FDA Notification Filed':'📝 Document Decision — No FDA Notification'}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function completeAssessment(){
+  markCheck('tc-fda-assess');
+  addScore(60);
+  document.getElementById('fda-decision-card').classList.remove('locked');
+  document.getElementById('fda-decision-card').classList.add('active-task');
+  document.getElementById('btn-fda-action').disabled=false;
+}
+function completeFDA(){
+  markCheck('tc-fda-decision');
+  addScore(80);
+  addLog(state.scenario.fda?'err':'ok',state.scenario.fda?'FDA RFR notification logged.':'Decision documented: no FDA notification required.');
+  setTimeout(()=>nextPhase(140),600);
+}
+
+// ── PHASE 7: DISPOSITION ──
+function p7(){
+  const s=state.scenario;
+  return banner(PHASES[7],'Decide the final disposition for all recalled product — destroy, rework, or return.')+`
+  <div class="instruct">
+    <b>▶ WHAT TO DO:</b> For every unit in the recall scope, you must document its final fate. 
+    Options: (1) <b>Destroy</b> — obtain certificate of destruction, (2) <b>Return</b> — customer ships back, issue RMA, (3) <b>Rework/Retest</b> — if hazard can be verified not present.
+    Record the disposition of every lot and every quantity. This document is critical for SQF audit.
+  </div>
+  <div class="task-grid fade-up">
+    <div class="task-card active-task">
+      <div class="task-header"><div class="task-check" id="tc-dis-decision"></div><div class="task-title">Select disposition method for recalled product</div></div>
+      <div class="task-body">
+        <div style="display:grid;gap:8px;margin-top:8px">
+          ${[
+            {id:'dis-destroy',label:'🗑 Destroy — Issue RMA, customer ships back, destroy on receipt',recommended:true},
+            {id:'dis-rework',label:'🔧 Rework — 100% re-inspection, release only if cleared'},
+            {id:'dis-donate',label:'♻ Donate/Redirect — Only if hazard does not apply to alternate use'},
+          ].map(opt=>`
+            <label style="display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;cursor:pointer">
+              <input type="radio" name="disposition" value="${opt.id}" style="accent-color:var(--amber)"/>
+              <span style="font-size:13px">${opt.label}</span>
+              ${opt.recommended?'<span class="badge b-green">Recommended</span>':''}
+            </label>`).join('')}
+        </div>
+        <div style="margin-top:12px"><button class="btn btn-amber" onclick="selectDisposition()">Apply Disposition Decision →</button></div>
+      </div>
+    </div>
+    <div class="task-card locked" id="dis-rma-card">
+      <div class="task-header"><div class="task-check" id="tc-dis-rma"></div><div class="task-title">Issue RMA numbers and document quantity by customer</div></div>
+      <div class="task-body" id="rma-table-body">Loading...</div>
+    </div>
+    <div class="task-card locked" id="dis-cert-card">
+      <div class="task-header"><div class="task-check" id="tc-dis-cert"></div><div class="task-title">Obtain / log certificate of destruction or disposition proof</div></div>
+      <div class="task-body">
+        For destroyed product: get a signed certificate of destruction from your certified waste vendor.<br>
+        For returned product: retain return shipping documentation.<br>
+        Log certificate numbers below.
+      </div>
+      <div class="task-action">
+        <input id="cert-num" placeholder="Certificate # or ref number" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text0);font-family:var(--mono);font-size:12px;width:100%;outline:none;margin-bottom:8px"/>
+        <button class="btn btn-green" onclick="logCert()">✓ Log Certificate</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function selectDisposition(){
+  const v=document.querySelector('input[name="disposition"]:checked');
+  if(!v){alert('Select a disposition method');return;}
+  markCheck('tc-dis-decision');
+  addScore(50);
+  addLog('ok','Disposition selected: '+v.value);
+  const s=state.scenario;
+  document.getElementById('rma-table-body').innerHTML=`
+    <table class="trace-tbl">
+      <tr><th>Customer</th><th>Qty</th><th>RMA#</th><th>Status</th></tr>
+      ${s.forwardTrace.map((r,i)=>`<tr><td>${r.customer}</td><td>${r.qty}</td><td style="font-family:var(--mono)">RMA-MFX-${String(2400+i).padStart(4,'0')}</td><td><span class="badge b-amber">ISSUED</span></td></tr>`).join('')}
+    </table>
+    <div style="margin-top:8px"><button class="btn btn-amber" onclick="confirmRMAs()">✓ Confirm All RMAs Issued</button></div>`;
+  document.getElementById('dis-rma-card').classList.remove('locked');
+  document.getElementById('dis-rma-card').classList.add('active-task');
+}
+function confirmRMAs(){
+  markCheck('tc-dis-rma');
+  addScore(60);
+  addLog('ok','RMAs issued to all customers.');
+  document.getElementById('dis-cert-card').classList.remove('locked');
+  document.getElementById('dis-cert-card').classList.add('active-task');
+}
+function logCert(){
+  const v=document.getElementById('cert-num').value.trim();
+  if(!v){alert('Enter cert number');return;}
+  markCheck('tc-dis-cert');
+  addScore(70);
+  addLog('ok','Disposition certificate logged: '+v);
+  setTimeout(()=>nextPhase(160),600);
+}
+
+// ── PHASE 8: CLOSE ──
+function p8(){
+  const s=state.scenario;
+  return banner(PHASES[8],'Document the exercise, complete the recall report, and identify corrective actions.')+`
+  <div class="instruct">
+    <b>▶ WHAT TO DO:</b> Complete the recall report. Record root cause, corrective action, and lessons learned. 
+    This document becomes your <b>SQF 2.6 audit evidence</b>. Review performance against the 2-hour trace target.
+  </div>
+  <div class="task-grid fade-up">
+    <div class="task-card active-task">
+      <div class="task-header"><div class="task-check" id="tc-rc-doc"></div><div class="task-title">Document root cause analysis</div></div>
+      <div class="task-body">
+        <div style="background:var(--red2);border:1px solid rgba(255,59,78,0.2);border-radius:6px;padding:12px;margin-bottom:10px">
+          <b style="color:var(--red)">Root Cause:</b> ${s.rootCause}
+        </div>
+        <div style="background:var(--amber2);border:1px solid rgba(255,170,44,0.2);border-radius:6px;padding:12px">
+          <b style="color:var(--amber)">Recommended Disposition:</b> ${s.disposition}
+        </div>
+      </div>
+      <div class="task-action">
+        <textarea id="rc-notes" placeholder="Add additional notes, contributing factors, or observations..." style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:8px;color:var(--text0);font-family:var(--mono);font-size:11px;min-height:60px;outline:none;resize:vertical"></textarea>
+        <button class="btn btn-amber" onclick="docRootCause()" style="margin-top:8px">✓ Document Root Cause</button>
+      </div>
+    </div>
+    <div class="task-card locked" id="ca-card">
+      <div class="task-header"><div class="task-check" id="tc-ca"></div><div class="task-title">Create Corrective Action in MFX OS CAPA module</div></div>
+      <div class="task-body">Every recall must generate a formal CAPA. Select the primary corrective action to prevent recurrence.</div>
+      <div class="task-action">
+        <select id="ca-select" style="background:var(--bg2);border:1px solid var(--border);color:var(--text0);padding:7px 10px;border-radius:4px;font-family:var(--mono);font-size:12px;width:100%;margin-bottom:8px">
+          <option>Update preventive maintenance schedule — UV lamp replacement at 900hr threshold</option>
+          <option>Revise receiving procedure — dual-verify all COAs against approved spec sheet</option>
+          <option>Add post-changeover metal detector verification to press startup checklist</option>
+          <option>Implement supplier qualification re-evaluation for suspect materials</option>
+        </select>
+        <button class="btn btn-cyan" onclick="createCA()">📋 Create CAPA in System</button>
+      </div>
+    </div>
+    <div class="task-card locked" id="lessons-card">
+      <div class="task-header"><div class="task-check" id="tc-lessons"></div><div class="task-title">Record lessons learned &amp; performance metrics</div></div>
+      <div class="task-body" id="lessons-body">Complete previous steps to see performance report.</div>
+    </div>
+    <div class="task-card locked" id="close-card">
+      <div class="task-header"><div class="task-check" id="tc-close"></div><div class="task-title">Sign off &amp; close the recall exercise</div></div>
+      <div class="task-body">Recall Coordinator signs off that all actions are complete and the recall file is closed.</div>
+      <div class="task-action">
+        <button class="btn btn-green" id="btn-close" disabled onclick="closeRecall()">🏁 CLOSE RECALL EXERCISE &amp; VIEW RESULTS</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function docRootCause(){
+  markCheck('tc-rc-doc');
+  addScore(60);
+  document.getElementById('ca-card').classList.remove('locked');
+  document.getElementById('ca-card').classList.add('active-task');
+}
+function createCA(){
+  markCheck('tc-ca');
+  addScore(80);
+  addLog('ok','CAPA created: '+document.getElementById('ca-select').value.substring(0,50)+'...');
+  // show lessons
+  const el=document.getElementById('lessons-card');
+  el.classList.remove('locked');el.classList.add('active-task');
+  const mins=Math.floor(state.elapsed/60);
+  const target=state.elapsed<=7200;
+  document.getElementById('lessons-body').innerHTML=`
+    <div style="display:grid;gap:8px;margin-top:8px">
+      <div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg2);border-radius:5px">
+        <span style="font-size:12px">Time to complete trace</span>
+        <span style="font-family:var(--mono);font-size:12px;color:${target?'var(--green)':'var(--red)'}">${mins} min ${target?'✓ Within 2hr':'✗ Exceeded 2hr'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg2);border-radius:5px">
+        <span style="font-size:12px">Products traced forward</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--green)">100% ✓</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg2);border-radius:5px">
+        <span style="font-size:12px">Customer notifications sent</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--green)">${state.notifsSent} / ${state.scenario.forwardTrace.length} ✓</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px;background:var(--bg2);border-radius:5px">
+        <span style="font-size:12px">Current score</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--cyan)">${state.score} pts</span>
+      </div>
+    </div>
+    <div style="margin-top:10px"><button class="btn btn-cyan" onclick="completeLessons()">✓ Lessons Recorded</button></div>`;
+}
+function completeLessons(){
+  markCheck('tc-lessons');
+  addScore(60);
+  document.getElementById('close-card').classList.remove('locked');
+  document.getElementById('close-card').classList.add('active-task');
+  document.getElementById('btn-close').disabled=false;
+}
+function closeRecall(){
+  markCheck('tc-close');
+  addScore(100);
+  addLog('ok','Recall exercise CLOSED. Generating debrief...');
+  clearInterval(state.timerInterval);
+  setTimeout(()=>endGame(),1000);
+}
+
+// ═══════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════
+function markCheck(id){
+  const el=document.getElementById(id);
+  if(el){el.classList.add('checked');el.textContent='✓';}
+  const parent=el&&el.closest('.task-card');
+  if(parent){parent.classList.remove('active-task');parent.classList.add('done');}
+}
+
+function doTask(id,label,pts,logType,logMsg){
+  state.tasksDone[id]=true;
+  markCheck('tc-'+id);
+  addScore(pts);
+  addLog(logType||'ok',logMsg||label);
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+
+// ═══════════════════════════════════════
+// END GAME / DEBRIEF
+// ═══════════════════════════════════════
+function endGame(){
+  const mins=Math.floor(state.elapsed/60);
+  const secs=state.elapsed%60;
+  const maxScore=state.scenario.maxScore;
+  const pct=Math.min(100,Math.round(state.score/maxScore*100));
+  let grade,gradeLabel,gradeClass;
+  if(pct>=90){grade='A';gradeLabel='Outstanding — SQF Ready';gradeClass='grade-a';}
+  else if(pct>=75){grade='B';gradeLabel='Proficient — Minor gaps to address';gradeClass='grade-b';}
+  else if(pct>=60){grade='C';gradeLabel='Acceptable — Improvements recommended';gradeClass='grade-c';}
+  else{grade='D';gradeLabel='Needs Work — Re-train before audit';gradeClass='grade-d';}
+
+  document.getElementById('final-score-display').textContent=grade;
+  document.getElementById('final-score-display').className=`big-score ${gradeClass}`;
+  document.getElementById('final-grade-label').textContent=`${gradeLabel} · ${state.score} / ${maxScore} points`;
+  document.getElementById('final-time-label').textContent=`Completed in ${mins}m ${secs}s · ${state.elapsed<=7200?'✓ Within 2-hour SQF requirement':'⚠ Exceeded 2-hour SQF requirement'}`;
+  document.getElementById('dm-trace').textContent='100%';
+  document.getElementById('dm-time').textContent=`${mins}m`;
+  document.getElementById('dm-notif').textContent=`${state.notifsSent}/${state.scenario.forwardTrace.length}`;
+
+  // Findings
+  const findings=[
+    {icon:'✅',text:`Forward traceability: 100% of product traced to ${state.scenario.forwardTrace.length} customer(s)`,good:true},
+    {icon:state.elapsed<=7200?'✅':'⚠',text:`Trace completed in ${mins} minutes — SQF requires under 120 min`,good:state.elapsed<=7200},
+    {icon:`${state.notifsSent>=state.scenario.forwardTrace.length?'✅':'⚠'}`,text:`${state.notifsSent} of ${state.scenario.forwardTrace.length} customer notifications sent`,good:state.notifsSent>=state.scenario.forwardTrace.length},
+    {icon:'✅',text:'Backward trace completed — all input materials reviewed',good:true},
+    {icon:'✅',text:'On-site quarantine and system holds placed on all affected material',good:true},
+    {icon:'✅',text:'Root cause documented and CAPA created',good:true},
+    {icon:state.scenario.fda?'✅':'ℹ',text:state.scenario.fda?'FDA notification requirement assessed and logged':'FDA assessment completed — notification not required for this scenario',good:true},
+  ];
+  document.getElementById('debrief-findings').innerHTML=findings.map(f=>`
+    <div class="finding-row"><div class="finding-icon">${f.icon}</div><div style="font-size:12px;color:${f.good?'var(--text1)':'var(--amber)'}">${f.text}</div></div>`).join('');
+
+  // SQF checklist
+  const sqfItems=[
+    {clause:'2.6.1',text:'Recall procedure documented and available',done:true},
+    {clause:'2.6.2',text:'Affected lot(s) identified and confirmed',done:true},
+    {clause:'2.6.3',text:'Forward and backward traceability 100% complete',done:true},
+    {clause:'2.6.4',text:'Product quarantine and holds placed within exercise',done:true},
+    {clause:'2.6.5',text:'Customer notifications issued',done:state.notifsSent>0},
+    {clause:'2.6.6',text:'Regulatory assessment completed (FDA/FSMA)',done:true},
+    {clause:'2.6.7',text:'Disposition documented for all recalled product',done:true},
+    {clause:'2.6.8',text:'Recall exercise report generated with date/time/performance',done:true},
+    {clause:'2.6.9',text:'Annual mock recall exercise conducted (this exercise)',done:true},
+    {clause:'2.6.10',text:'CAPA created to prevent recurrence',done:true},
+  ];
+  document.getElementById('debrief-sqf').innerHTML=sqfItems.map(i=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(0,212,245,0.05);font-size:12px">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text2);width:48px;flex-shrink:0">${i.clause}</span>
+      <span style="flex:1;color:var(--text1)">${i.text}</span>
+      <span class="badge ${i.done?'b-green':'b-red'}">${i.done?'MET':'GAP'}</span>
+    </div>`).join('');
+
+  showScreen('s-debrief');
+}
+
+function generateReport(){
+  const s=state.scenario;
+  const mins=Math.floor(state.elapsed/60);
+  const w=window.open('','_blank','width=700,height=900');
+  w.document.write(`<html><head><title>SQF 2.6 Mock Recall Report</title><style>
+    body{font-family:monospace;padding:40px;background:#fff;color:#111;max-width:700px;margin:0 auto}
+    h1{font-size:20px;border-bottom:3px solid #000;padding-bottom:8px}
+    h2{font-size:14px;margin-top:24px;margin-bottom:8px;border-bottom:1px solid #ccc}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px;text-align:left}
+    th{background:#f0f0f0}
+    .red{color:#cc0000;font-weight:bold}
+    .green{color:#007700}
+    @media print{body{padding:20px}}
+  </style></head><body>
+    <h1>SQF Edition 10 · Clause 2.6<br>Mock Recall Exercise Report</h1>
+    <table><tr><th>Company</th><td>Microflex Film Corporation · Riverside, CA</td></tr>
+    <tr><th>Exercise Date</th><td>${new Date().toLocaleDateString()}</td></tr>
+    <tr><th>Scenario</th><td>${s.title}</td></tr>
+    <tr><th>Affected Lot</th><td>${s.lot.number}</td></tr>
+    <tr><th>Product</th><td>${s.lot.product}</td></tr>
+    <tr><th>Time to Complete</th><td>${mins} minutes (SQF target: &lt;120 min)</td></tr>
+    <tr><th>Score</th><td>${state.score} / ${s.maxScore} points</td></tr>
+    <tr><th>% Product Traced</th><td>100%</td></tr>
+    <tr><th>Customer Notifications</th><td>${state.notifsSent} sent</td></tr></table>
+    <h2>Root Cause</h2><p>${s.rootCause}</p>
+    <h2>Disposition</h2><p>${s.disposition}</p>
+    <h2>Forward Trace — Affected Customers</h2>
+    <table><tr><th>Customer</th><th>PO</th><th>Shipped</th><th>Qty</th></tr>
+    ${s.forwardTrace.map(r=>`<tr><td>${r.customer}</td><td>${r.po}</td><td>${r.shipped}</td><td>${r.qty}</td></tr>`).join('')}</table>
+    <h2>SQF 2.6 Compliance</h2>
+    <table><tr><th>Clause</th><th>Requirement</th><th>Status</th></tr>
+    <tr><td>2.6.1</td><td>Recall procedure documented</td><td class="green">MET</td></tr>
+    <tr><td>2.6.2</td><td>Affected lots identified</td><td class="green">MET</td></tr>
+    <tr><td>2.6.3</td><td>100% forward/backward trace</td><td class="green">MET</td></tr>
+    <tr><td>2.6.4</td><td>Quarantine placed</td><td class="green">MET</td></tr>
+    <tr><td>2.6.5</td><td>Customer notification</td><td class="green">MET</td></tr>
+    <tr><td>2.6.9</td><td>Annual drill conducted</td><td class="green">MET</td></tr></table>
+    <p style="margin-top:32px;font-size:11px;color:#666">Generated by MFX OS · HACCP &amp; Training Module · ${new Date().toLocaleString()}<br>
+    Document reference: MOCK-RECALL-${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}</p>
+    <script>window.print();<\/script>
+  </body></html>`);
+}
+
+function restartGame(){showScreen('s-boot');}
+function backToMenu(){showScreen('s-boot');}
+</script>
+</body>
+</html>

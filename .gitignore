@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Build artifacts
+public/js/mfx-bundle.*.js
+
+# Firebase
+.firebase/
+# .firebaserc tracked (needed for deploy targets)
+
+# Environment
+.env
+.env.local
+.env.production
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Backups
+*.bak
+*.fuse_hidden*
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+firebase-debug.log*
+
+# Temporary
+/tmp/

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mfx-local",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["/opt/homebrew/bin/serve", "public", "-l", "5000", "--no-clipboard"],
+      "port": 5000
+    }
+  ]
+}

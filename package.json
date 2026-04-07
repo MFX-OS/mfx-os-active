@@ -1,0 +1,16 @@
+{
+  "name": "mfx-os",
+  "version": "3.0.0",
+  "private": true,
+  "description": "MFX OS — Microflex Film Corporation Manufacturing Operations System",
+  "scripts": {
+    "build": "node build.js",
+    "build:dev": "node build.js --dev",
+    "deploy": "node build.js && firebase deploy --only hosting:os",
+    "deploy:all": "node build.js && firebase deploy",
+    "clean": "node build.js --clean"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
+}

@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MFX OS · Pipeline Audit</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#060d14;color:#e0f2fe;font-family:'Inter','SF Pro',system-ui,sans-serif;padding:20px;max-width:1100px;margin:0 auto}
+h1{font-size:26px;font-weight:900;color:#00e5ff;margin-bottom:2px}
+.sub{font-size:11px;color:#64748b;margin-bottom:20px;letter-spacing:1px}
+
+/* Pipeline arrow strip */
+.pipeline{display:flex;gap:2px;margin-bottom:24px;overflow-x:auto;padding-bottom:6px}
+.pipe-step{flex:1;min-width:80px;padding:10px 6px;text-align:center;border-radius:10px;cursor:pointer;transition:all .15s;border:2px solid transparent}
+.pipe-step:hover{border-color:rgba(0,229,255,.3)}
+.pipe-step.sel{border-color:#00e5ff;box-shadow:0 0 16px rgba(0,229,255,.2)}
+.pipe-ico{font-size:22px;margin-bottom:3px}
+.pipe-lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8}
+.pipe-pct{font-size:14px;font-weight:900;margin-top:2px}
+.pipe-bar{height:4px;background:#142636;border-radius:99px;margin-top:4px;overflow:hidden}
+.pipe-fill{height:100%;border-radius:99px}
+
+/* Detail panel */
+.detail{background:#0f1d2b;border:1px solid #1e3a4f;border-radius:14px;padding:20px;margin-bottom:16px;display:none}
+.detail.active{display:block}
+.d-title{font-size:18px;font-weight:800;color:#e0f2fe;margin-bottom:2px}
+.d-sub{font-size:11px;color:#64748b;margin-bottom:16px}
+.d-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.d-grid{grid-template-columns:1fr}}
+
+.d-col{background:#0a1520;border:1px solid #1e3a4f;border-radius:10px;padding:14px}
+.d-col-title{font-size:12px;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.d-item{font-size:11px;color:#94a3b8;line-height:1.7;padding-left:16px;position:relative}
+.d-item::before{content:'';position:absolute;left:0;top:8px;width:8px;height:8px;border-radius:50%}
+.d-item.has::before{background:#22c55e}
+.d-item.partial::before{background:#fbbf24}
+.d-item.miss::before{background:#ef4444}
+.d-item code{font-size:10px;color:#00e5ff;background:#142636;padding:1px 5px;border-radius:4px}
+.d-item strong{color:#e0f2fe;font-weight:600}
+
+/* Build items */
+.build-item{background:#0a1520;border:1px solid #1e3a4f;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:flex-start}
+.build-num{font-size:10px;font-weight:800;color:#00e5ff;background:rgba(0,229,255,.12);width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.build-text{font-size:11px;color:#94a3b8;line-height:1.5}
+.build-text strong{color:#e0f2fe}
+.build-tag{font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;margin-top:4px;display:inline-block}
+.tag-sw{background:rgba(34,197,94,.15);color:#22c55e}
+.tag-hw{background:rgba(251,191,36,.15);color:#fbbf24}
+.tag-api{background:rgba(0,229,255,.12);color:#00e5ff}
+
+/* Summary bar */
+.sumbar{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
+.sumcard{background:#0f1d2b;border:1px solid #1e3a4f;border-radius:12px;padding:14px;text-align:center}
+.sumval{font-size:28px;font-weight:900}
+.sumlbl{font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+
+.footer{text-align:center;padding:20px 0;font-size:9px;color:#1e3a4f;letter-spacing:2px;text-transform:uppercase}
+</style>
+</head>
+<body>
+
+<h1>MFX OS · Pipeline Gap Analysis</h1>
+<div class="sub">LEAD → QUOTE → PO → SO → PASSPORT → TICKET → VENDOR → TRACKING → SHIP → INVOICE → PAYMENT</div>
+
+<div class="sumbar">
+  <div class="sumcard"><div class="sumval" style="color:#22c55e">52%</div><div class="sumlbl">Average Coverage</div></div>
+  <div class="sumcard"><div class="sumval" style="color:#fbbf24">6</div><div class="sumlbl">Partially Built</div></div>
+  <div class="sumcard"><div class="sumval" style="color:#ef4444">1</div><div class="sumlbl">Nearly Missing (Shipping)</div></div>
+</div>
+
+<!-- PIPELINE STRIP -->
+<div class="pipeline" id="pipeline"></div>
+
+<!-- DETAIL PANELS -->
+<div id="details"></div>
+
+<div class="footer">MFX OS v2.2 · Pipeline Audit · April 2026</div>
+
+<script>
+const steps = [
+  {
+    id:'leads', ico:'📥', label:'Leads / RFQ', pct:60, color:'#fbbf24',
+    summary:'RFQ intake works. No lead scoring, no auto-quote creation.',
+    have:[
+      {s:'has',t:'<code>openRFQRequest()</code> — full RFQ intake form with company, contact, specs, notes'},
+      {s:'has',t:'<code>submitRFQRequest()</code> → Firestore <code>requests</code> collection'},
+      {s:'has',t:'Request board with status workflow: pending → accepted → in_progress → completed'},
+      {s:'has',t:'Request detail modal with comments, collaboration, reassignment'},
+      {s:'has',t:'Calendar event creation from requests'},
+    ],
+    need:[
+      {s:'miss',t:'No <strong>RFQ → Quote conversion</strong> — manual re-entry required'},
+      {s:'miss',t:'No <strong>lead scoring</strong> — all RFQs treated equal priority'},
+      {s:'miss',t:'No <strong>client history pull</strong> — doesn\'t show past quotes/orders when RFQ comes in'},
+      {s:'miss',t:'No <strong>quote template suggestion</strong> based on RFQ type'},
+    ],
+    build:[
+      {t:'<strong>convertRFQToQuote(rqId)</strong> — Auto-create quote pre-filled from RFQ data',tag:'sw'},
+      {t:'<strong>getClientHistoryForRFQ(company)</strong> — Pull prior quotes, orders, payment behavior',tag:'sw'},
+      {t:'<strong>scoreLeadPriority(rfq)</strong> — Auto-rank by customer size and margin potential',tag:'sw'},
+    ]
+  },
+  {
+    id:'quotes', ico:'📊', label:'Quotes', pct:70, color:'#22c55e',
+    summary:'Strong quoting engine with material calc, revisions, and PDF export. Needs BOM and approval gate.',
+    have:[
+      {s:'has',t:'<code>newQuote()</code> — Create from template or blank with full spec fields'},
+      {s:'has',t:'<code>bakePricing(q)</code> — MSI material cost, die charges, setup, markup calculation'},
+      {s:'has',t:'Revision tracking (Rev A, B, C) with <code>dupQuote(qid, asRev)</code>'},
+      {s:'has',t:'Quote PDF preview and export via html2canvas + jsPDF'},
+      {s:'has',t:'CEO approval portal for ready quotes'},
+      {s:'has',t:'Quote library with status filters: draft, ready, sent, won, lost'},
+    ],
+    need:[
+      {s:'partial',t:'Pricing exists but <strong>hard-coded material costs</strong> — not linked to vendor prices'},
+      {s:'miss',t:'No <strong>Bill of Materials (BOM)</strong> breakdown per quote'},
+      {s:'miss',t:'No <strong>multi-SKU handling</strong> — assumes single product per quote'},
+      {s:'miss',t:'No <strong>margin tracking</strong> — can\'t see profitability per quote'},
+      {s:'miss',t:'No <strong>revision comparison</strong> — can\'t diff Rev A vs Rev B'},
+    ],
+    build:[
+      {t:'<strong>generateBOM(quoteId)</strong> — Auto-create bill of materials from spec fields',tag:'sw'},
+      {t:'<strong>syncVendorCosts()</strong> — Pull live material costs from vendor PO history',tag:'sw'},
+      {t:'<strong>getQuoteMargin(quoteId)</strong> — Real-time gross margin calculation',tag:'sw'},
+      {t:'<strong>Multi-SKU quote line items</strong> — Break quote into itemized SKU rows',tag:'sw'},
+    ]
+  },
+  {
+    id:'po', ico:'📄', label:'Client PO', pct:40, color:'#fbbf24',
+    summary:'PO fields exist on quotes but no dedicated PO workflow, validation, or acknowledgment.',
+    have:[
+      {s:'has',t:'PO number, signature, date, and file attachment fields on quote object'},
+      {s:'has',t:'PO file upload to Google Drive via <code>uploadToDrive</code> Cloud Function'},
+      {s:'has',t:'PO Library view showing won quotes with PO metadata'},
+    ],
+    need:[
+      {s:'partial',t:'PO fields <strong>scattered on quote object</strong> — no dedicated collection'},
+      {s:'miss',t:'No <strong>PO validation</strong> — doesn\'t check qty/price matches quote'},
+      {s:'miss',t:'No <strong>PO acknowledgment email</strong> — client doesn\'t know PO was received'},
+      {s:'miss',t:'No <strong>PO amendment tracking</strong> — if client revises, no version control'},
+      {s:'miss',t:'No <strong>PO-to-SO auto-trigger</strong> — manual SO creation after PO received'},
+    ],
+    build:[
+      {t:'<strong>purchaseOrders</strong> Firestore collection — dedicated PO records',tag:'sw'},
+      {t:'<strong>validatePOvsQuote()</strong> — Check qty, price, terms match approved quote',tag:'sw'},
+      {t:'<strong>sendPOAcknowledgment()</strong> — Auto-email client when PO is logged',tag:'sw'},
+      {t:'<strong>autoCreateSOFromPO()</strong> — Trigger SO creation when validated PO received',tag:'sw'},
+    ]
+  },
+  {
+    id:'so', ico:'📦', label:'Sales Order', pct:75, color:'#22c55e',
+    summary:'SO creation, approval, and client send work. Needs multi-SKU, commitment dates, and auto-passport trigger.',
+    have:[
+      {s:'has',t:'<code>createSOFromPO(quoteId)</code> — Creates SO from won quote + PO data'},
+      {s:'has',t:'Server-side SO numbering via <code>nextSequence</code> Cloud Function'},
+      {s:'has',t:'CEO approval flow with <code>approveSO(soId)</code>'},
+      {s:'has',t:'<code>sendSOToClient(soId)</code> — Email SO to customer via Gmail API'},
+      {s:'has',t:'SO status workflow: pending → approved → sent → closed/invoiced'},
+      {s:'has',t:'Real-time Firestore listener on <code>salesOrders</code> collection'},
+    ],
+    need:[
+      {s:'partial',t:'Only pulls <strong>first quantity row</strong> from quote — no multi-SKU line items'},
+      {s:'miss',t:'No <strong>commitment/delivery date</strong> stored on SO'},
+      {s:'miss',t:'No <strong>SO → Passport auto-trigger</strong> — manual passport creation'},
+      {s:'miss',t:'No <strong>SO amendment</strong> — if client changes qty/spec, no versioning'},
+      {s:'miss',t:'No <strong>inventory check</strong> — doesn\'t verify materials available'},
+    ],
+    build:[
+      {t:'<strong>generateSOLineItems(quoteId)</strong> — Break down into per-SKU line items',tag:'sw'},
+      {t:'<strong>setCommitmentDate(soId, date)</strong> — Lock promised delivery date',tag:'sw'},
+      {t:'<strong>autoCreatePassport(soId)</strong> — Auto-trigger on SO approval',tag:'sw'},
+      {t:'<strong>checkInventoryForSO(soId)</strong> — Validate material availability',tag:'sw'},
+    ]
+  },
+  {
+    id:'passport', ico:'🛂', label:'Job Passport', pct:40, color:'#fbbf24',
+    summary:'Passport structure exists with listeners and status flow. Creation logic needs full implementation.',
+    have:[
+      {s:'has',t:'<code>jobPassports</code> Firestore collection with real-time listener'},
+      {s:'has',t:'<code>genJPNum()</code> — Server-side passport numbering (JP+YYMM+###)'},
+      {s:'has',t:'Passport status workflow: active → prepress → production → shipping → complete'},
+      {s:'has',t:'Passport list view in Production module linked to SO'},
+    ],
+    need:[
+      {s:'partial',t:'<code>createPassportFromSO()</code> <strong>stubbed but incomplete</strong> — no SKU population'},
+      {s:'miss',t:'No <strong>SKU detail population</strong> — passport doesn\'t carry per-SKU specs'},
+      {s:'miss',t:'No <strong>blueprint linking</strong> — no reference to die/plate/artwork specs'},
+      {s:'miss',t:'No <strong>material allocation</strong> — doesn\'t reserve vendor stock to passport'},
+      {s:'miss',t:'No <strong>production routing</strong> — no work order or step-by-step instructions'},
+      {s:'miss',t:'No <strong>delay alerts</strong> — no notification if passport stuck in a stage'},
+    ],
+    build:[
+      {t:'<strong>createPassportFromSO(soId)</strong> — Full implementation with SKU specs auto-populated',tag:'sw'},
+      {t:'<strong>linkPassportToBlueprintTemplate(jpId, bpId)</strong> — Attach die/plate/artwork specs',tag:'sw'},
+      {t:'<strong>reserveMaterials(jpId)</strong> — Allocate vendor PO materials to this job',tag:'sw'},
+      {t:'<strong>passportSLAAlert(jpId)</strong> — Alert if stage exceeds time threshold',tag:'sw'},
+    ]
+  },
+  {
+    id:'tickets', ico:'🎫', label:'Job Tickets', pct:30, color:'#ef4444',
+    summary:'Ticket collection and numbering exist. Creation from passport and operator assignment are missing.',
+    have:[
+      {s:'has',t:'<code>jobTickets</code> Firestore collection with real-time listener'},
+      {s:'has',t:'<code>genJTNum()</code> — Server-side ticket numbering (JT+YYMM+###)'},
+      {s:'has',t:'PPD module creates tickets from intake via <code>createPPDJobFromSource()</code>'},
+      {s:'has',t:'Job Tracker v3 (external iframe app for tracking)'},
+    ],
+    need:[
+      {s:'miss',t:'No <strong>bulk ticket creation from passport</strong> — can\'t auto-generate per-SKU tickets'},
+      {s:'miss',t:'No <strong>operator assignment</strong> — tickets don\'t assign to specific people/stations'},
+      {s:'miss',t:'No <strong>SLA tracking</strong> — no deadline enforcement per ticket'},
+      {s:'miss',t:'No <strong>ticket routing rules</strong> — no auto-assign based on job type'},
+      {s:'miss',t:'No <strong>ticket dependency chain</strong> — prepress must complete before production starts'},
+    ],
+    build:[
+      {t:'<strong>createTicketsFromPassport(jpId)</strong> — Auto-generate ticket per SKU with specs',tag:'sw'},
+      {t:'<strong>assignTicketToOperator(jtId, operator, station)</strong> — Route to person + workstation',tag:'sw'},
+      {t:'<strong>setTicketSLA(jtId, dueDate)</strong> — Lock deadline with overdue alerts',tag:'sw'},
+      {t:'<strong>enforceTicketDependency(jtId)</strong> — Block production until prepress released',tag:'sw'},
+    ]
+  },
+  {
+    id:'vendor', ico:'🏪', label:'Vendor POs', pct:70, color:'#22c55e',
+    summary:'Vendor PO creation, receiving, and payment tracking work in the Finance app. Needs multi-line and inventory.',
+    have:[
+      {s:'has',t:'<code>showNewVPOModal()</code> — Full vendor PO creation form'},
+      {s:'has',t:'<code>createVPO()</code> → Firestore <code>vendorPOs</code> collection'},
+      {s:'has',t:'<code>receiveVPO(id)</code> — Log material received with lot number + qty'},
+      {s:'has',t:'VPO status workflow: sent → received → paid'},
+      {s:'has',t:'VPO linked to SO number via <code>forSONum</code> field'},
+      {s:'has',t:'Terms support: Net 30, 45, 60, Due on Receipt, Prepaid'},
+    ],
+    need:[
+      {s:'partial',t:'<strong>Single line item only</strong> — can\'t order multiple materials per VPO'},
+      {s:'miss',t:'No <strong>vendor master database</strong> — re-enter vendor info each time'},
+      {s:'miss',t:'No <strong>inventory tracking</strong> — receiving doesn\'t update stock levels'},
+      {s:'miss',t:'No <strong>auto-reorder</strong> — no low-stock alerts or auto-VPO creation'},
+      {s:'miss',t:'No <strong>VPO-to-passport allocation</strong> — materials not linked to specific jobs'},
+    ],
+    build:[
+      {t:'<strong>vendors</strong> Firestore collection — master vendor database with contacts & pricing',tag:'sw'},
+      {t:'<strong>createMultiLineVPO(lines[])</strong> — Multiple materials per PO',tag:'sw'},
+      {t:'<strong>updateInventoryOnReceive(vpoId)</strong> — Auto-update stock levels',tag:'sw'},
+      {t:'<strong>lowStockAlert(material, threshold)</strong> — Auto-notify when below 15%',tag:'sw'},
+    ]
+  },
+  {
+    id:'tracking', ico:'📍', label:'Job Tracking', pct:50, color:'#fbbf24',
+    summary:'PPD has 13-stage prepress tracking. Production has basic status. Needs unified view and SLA enforcement.',
+    have:[
+      {s:'has',t:'PPD 13-stage Kanban: Intake → Validation → Art Review → ... → Released'},
+      {s:'has',t:'<code>openPPDJobStudio()</code> — Per-ticket stage control with checklist'},
+      {s:'has',t:'Production statuses: pending → prepress → in_progress → qc → shipping → closed'},
+      {s:'has',t:'Plate incident logging with cost tracking in PPD'},
+      {s:'has',t:'Cross-module dependency dashboard (SOs without passports, passports without tickets)'},
+    ],
+    need:[
+      {s:'partial',t:'PPD stages and production statuses are <strong>separate systems</strong> — not unified'},
+      {s:'miss',t:'No <strong>operator time logging</strong> — can\'t track labor hours per ticket'},
+      {s:'miss',t:'No <strong>SLA enforcement</strong> — no deadline alerts per stage'},
+      {s:'miss',t:'No <strong>QC hold workflow</strong> — can\'t flag defects and block shipment'},
+      {s:'miss',t:'No <strong>cycle time analytics</strong> — can\'t measure average time per stage'},
+    ],
+    build:[
+      {t:'<strong>Unified stage model</strong> — Merge PPD + production into one continuous pipeline',tag:'sw'},
+      {t:'<strong>logTimeOnTicket(jtId, mins)</strong> — Operator labor hour tracking',tag:'sw'},
+      {t:'<strong>stageTimeoutAlert(jtId)</strong> — Auto-alert if stage exceeds threshold',tag:'sw'},
+      {t:'<strong>logQCDefect(jtId, defect)</strong> — Quality hold with resolution workflow',tag:'sw'},
+    ]
+  },
+  {
+    id:'shipping', ico:'🚚', label:'Shipping', pct:10, color:'#ef4444',
+    summary:'Only a status field on passports. No packing slips, carrier integration, labels, or tracking.',
+    have:[
+      {s:'has',t:'Passport status includes "shipping" as a stage'},
+      {s:'has',t:'Shipping cost estimate field on quotes'},
+    ],
+    need:[
+      {s:'miss',t:'No <strong>shipments</strong> Firestore collection — nowhere to store shipment data'},
+      {s:'miss',t:'No <strong>packing slip generation</strong> — no itemized list for warehouse'},
+      {s:'miss',t:'No <strong>carrier integration</strong> — no FedEx, UPS, or freight API'},
+      {s:'miss',t:'No <strong>shipping label generation</strong> — no barcode/QR labels'},
+      {s:'miss',t:'No <strong>tracking number capture</strong> — nowhere to log carrier tracking ID'},
+      {s:'miss',t:'No <strong>dispatch notification</strong> — client doesn\'t get shipping email'},
+      {s:'miss',t:'No <strong>delivery confirmation</strong> — no proof of delivery'},
+    ],
+    build:[
+      {t:'<strong>shipments</strong> Firestore collection with packing, carrier, tracking data',tag:'sw'},
+      {t:'<strong>createPackingSlip(jpId)</strong> — Generate PDF with SKU breakdown',tag:'sw'},
+      {t:'<strong>logDispatch(shipmentId, carrier, tracking)</strong> — Record shipment with tracking #',tag:'sw'},
+      {t:'<strong>notifyCustomerShipment()</strong> — Auto-email tracking link',tag:'sw'},
+      {t:'<strong>FedEx/UPS API integration</strong> — Rate quotes + label generation',tag:'api'},
+    ]
+  },
+  {
+    id:'invoice', ico:'💰', label:'Invoice', pct:80, color:'#22c55e',
+    summary:'Invoice creation from SO, email sending, payment logging, and reminders all work. Needs tax calc and line items.',
+    have:[
+      {s:'has',t:'<code>createInvFromSO(soId)</code> — Auto-create invoice from sales order'},
+      {s:'has',t:'<code>sendInvoice(id)</code> — Email invoice to client via Gmail API'},
+      {s:'has',t:'<code>recordPay(id)</code> — Log payment with method, amount, reference'},
+      {s:'has',t:'<code>sendReminder(id)</code> — Payment reminder emails'},
+      {s:'has',t:'<code>printInv(id)</code> — Printable HTML invoice generation'},
+      {s:'has',t:'Invoice status workflow: draft → sent → overdue → partial → paid'},
+      {s:'has',t:'Payment history array on each invoice with full audit trail'},
+    ],
+    need:[
+      {s:'partial',t:'Line items are <strong>single entry (job description)</strong> — not itemized by SKU'},
+      {s:'partial',t:'Tax is <strong>hardcoded to $0</strong> — no tax rate configuration'},
+      {s:'miss',t:'No <strong>invoice amendments</strong> — if qty/price changes, no revision workflow'},
+      {s:'miss',t:'No <strong>payment link</strong> — no Stripe/Square checkout URL for online payment'},
+      {s:'miss',t:'No <strong>credit memos</strong> — no handling for returns or adjustments'},
+    ],
+    build:[
+      {t:'<strong>generateInvoiceLineItems(soId)</strong> — Per-SKU itemization with unit prices',tag:'sw'},
+      {t:'<strong>calculateTax(invoiceId, region)</strong> — Sales tax by jurisdiction',tag:'sw'},
+      {t:'<strong>createPaymentLink(invoiceId)</strong> — Stripe Checkout or QB Payments URL',tag:'api'},
+      {t:'<strong>createCreditMemo(invoiceId, amount)</strong> — Handle returns/adjustments',tag:'sw'},
+    ]
+  },
+  {
+    id:'payment', ico:'✅', label:'Payment', pct:50, color:'#fbbf24',
+    summary:'Manual payment recording works with partial payment support. Needs bank integration and A/R reporting.',
+    have:[
+      {s:'has',t:'<code>savePay(id)</code> — Record payment with amount, date, method, reference #'},
+      {s:'has',t:'Payment methods: Check, ACH, Wire, Credit Card, Cash'},
+      {s:'has',t:'Auto status update: paid vs partial based on amount vs total'},
+      {s:'has',t:'Payment history displayed in invoice detail modal'},
+    ],
+    need:[
+      {s:'partial',t:'All payments are <strong>manual entry</strong> — no bank feed or auto-matching'},
+      {s:'miss',t:'No <strong>payment receipt email</strong> — client doesn\'t get confirmation'},
+      {s:'miss',t:'No <strong>A/R aging report</strong> — no 30/60/90 day overdue buckets'},
+      {s:'miss',t:'No <strong>bank reconciliation</strong> — can\'t match deposits to invoices'},
+      {s:'miss',t:'No <strong>online payment</strong> — no credit card or ACH processing'},
+      {s:'miss',t:'No <strong>bad debt write-off</strong> — no way to mark uncollectible'},
+    ],
+    build:[
+      {t:'<strong>sendPaymentReceipt(invoiceId)</strong> — Auto-email confirmation to customer',tag:'sw'},
+      {t:'<strong>getARAgingReport()</strong> — Current / 30 / 60 / 90+ day aging buckets',tag:'sw'},
+      {t:'<strong>Stripe integration</strong> — Online card + ACH payment processing',tag:'api'},
+      {t:'<strong>syncBankFeed()</strong> — Auto-import transactions from bank via Plaid',tag:'api'},
+      {t:'<strong>writeOffBadDebt(invoiceId)</strong> — Mark uncollectible with reason',tag:'sw'},
+    ]
+  }
+];
+
+// Render pipeline strip
+const pl = document.getElementById('pipeline');
+steps.forEach((s,i) => {
+  const bg = s.pct >= 70 ? 'rgba(34,197,94,.1)' : s.pct >= 40 ? 'rgba(251,191,36,.1)' : 'rgba(239,68,68,.1)';
+  pl.innerHTML += `<div class="pipe-step" id="ps-${s.id}" onclick="showStep('${s.id}')" style="background:${bg}">
+    <div class="pipe-ico">${s.ico}</div>
+    <div class="pipe-lbl">${s.label}</div>
+    <div class="pipe-pct" style="color:${s.color}">${s.pct}%</div>
+    <div class="pipe-bar"><div class="pipe-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
+  </div>`;
+});
+
+// Render detail panels
+const det = document.getElementById('details');
+steps.forEach(s => {
+  let h = `<div class="detail" id="d-${s.id}">`;
+  h += `<div class="d-title">${s.ico} ${s.label}</div>`;
+  h += `<div class="d-sub">${s.summary}</div>`;
+  h += `<div class="d-grid">`;
+
+  // HAVE column
+  h += `<div class="d-col"><div class="d-col-title" style="color:#22c55e">✅ What We Have</div>`;
+  s.have.forEach(item => { h += `<div class="d-item ${item.s}">${item.t}</div>`; });
+  h += `</div>`;
+
+  // NEED column
+  h += `<div class="d-col"><div class="d-col-title" style="color:#ef4444">❌ What's Missing</div>`;
+  s.need.forEach(item => { h += `<div class="d-item ${item.s}">${item.t}</div>`; });
+  h += `</div>`;
+
+  h += `</div>`; // close grid
+
+  // BUILD section
+  h += `<div style="margin-top:14px"><div style="font-size:12px;font-weight:800;color:#00e5ff;margin-bottom:8px">🔧 What To Build</div>`;
+  s.build.forEach((b,i) => {
+    const tagClass = b.tag === 'sw' ? 'tag-sw' : b.tag === 'api' ? 'tag-api' : 'tag-hw';
+    const tagLabel = b.tag === 'sw' ? 'Software' : b.tag === 'api' ? 'API Integration' : 'Hardware';
+    h += `<div class="build-item"><div class="build-num">${i+1}</div><div><div class="build-text">${b.t}</div><div class="build-tag ${tagClass}">${tagLabel}</div></div></div>`;
+  });
+  h += `</div>`;
+
+  h += `</div>`;
+  det.innerHTML += h;
+});
+
+// Show first step
+function showStep(id) {
+  document.querySelectorAll('.pipe-step').forEach(el => el.classList.remove('sel'));
+  document.querySelectorAll('.detail').forEach(el => el.classList.remove('active'));
+  document.getElementById('ps-'+id).classList.add('sel');
+  document.getElementById('d-'+id).classList.add('active');
+}
+showStep('leads');
+</script>
+</body>
+</html>

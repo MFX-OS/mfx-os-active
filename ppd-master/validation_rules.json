@@ -1,0 +1,11 @@
+{
+  "hardRules": [
+    "No job without ticket",
+    "No release without approval record"
+  ],
+  "softWarnings": [
+    "Released stage without Drive folder prompts confirmation",
+    "Approved/rejected approval without version prompts confirmation"
+  ],
+  "folderPolicy": "Google Shared Drive is the internal source of truth; Dropbox is optional edge exchange only"
+}

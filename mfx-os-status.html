@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MFX OS — Full System Status</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060d14;color:#c8d6e5;font-family:Inter,-apple-system,sans-serif;padding:20px;max-width:1400px;margin:0 auto}
+h1{font-family:Outfit,sans-serif;font-size:28px;font-weight:900;color:#e0f2fe;margin-bottom:4px}
+h2{font-size:16px;font-weight:700;color:#00e5ff;margin:24px 0 12px;letter-spacing:.5px}
+h3{font-size:13px;font-weight:700;color:#e0f2fe;margin:16px 0 8px}
+.sub{font-size:10px;color:#00838f;letter-spacing:2px;text-transform:uppercase;margin-bottom:20px}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+@media(max-width:900px){.g3,.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+@media(max-width:600px){.g3,.g4,.g2{grid-template-columns:1fr}}
+.card{background:#0a1628;border:1px solid #1a2a40;border-radius:10px;padding:16px}
+.card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.card-title{font-size:13px;font-weight:700;color:#e0f2fe}
+.badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px}
+.b-live{background:#00e5ff;color:#000}
+.b-ready{background:#22c55e;color:#000}
+.b-partial{background:#f59e0b;color:#000}
+.b-stub{background:#64748b;color:#fff}
+.b-new{background:#a78bfa;color:#000}
+.b-missing{background:#ef4444;color:#fff}
+.stat{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #111d2e;font-size:11px}
+.stat:last-child{border:none}
+.stat-label{color:#8899aa}
+.stat-val{font-weight:600;color:#e0f2fe}
+.stat-val.ac{color:#00e5ff}
+.stat-val.gn{color:#22c55e}
+.stat-val.or{color:#f59e0b}
+.stat-val.rd{color:#ef4444}
+.stat-val.pr{color:#a78bfa}
+.meter{height:6px;background:#111d2e;border-radius:3px;margin-top:4px;overflow:hidden}
+.meter-fill{height:100%;border-radius:3px;transition:width .5s}
+.file-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:10px;border-bottom:1px solid #0d1a2a}
+.file-name{color:#8899aa;font-family:monospace}
+.file-lines{color:#00e5ff;font-weight:600}
+.pipe-step{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0d1a2a;border-radius:8px;margin-bottom:6px;border-left:3px solid #1a2a40}
+.pipe-step.high{border-left-color:#22c55e}
+.pipe-step.med{border-left-color:#f59e0b}
+.pipe-step.low{border-left-color:#ef4444}
+.pipe-num{font-size:20px;font-weight:800;min-width:36px;text-align:center}
+.pipe-num.high{color:#22c55e}
+.pipe-num.med{color:#f59e0b}
+.pipe-num.low{color:#ef4444}
+.pipe-info{flex:1}
+.pipe-name{font-size:12px;font-weight:700;color:#e0f2fe}
+.pipe-detail{font-size:10px;color:#6b7b8d;margin-top:2px}
+.conn{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:10px}
+.conn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.conn-dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e}
+.conn-dot.off{background:#ef4444}
+.conn-dot.partial{background:#f59e0b}
+.section-divider{border:none;border-top:1px solid #1a2a40;margin:20px 0}
+.tag{display:inline-block;font-size:8px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px;vertical-align:middle}
+.t-new{background:rgba(167,139,250,.15);color:#a78bfa}
+.t-upgrade{background:rgba(0,229,255,.1);color:#00e5ff}
+.t-fix{background:rgba(34,197,94,.1);color:#22c55e}
+.big-num{font-size:32px;font-weight:900;font-family:Outfit,sans-serif;line-height:1}
+.timestamp{font-size:9px;color:#3a4a5c;text-align:center;margin-top:24px;letter-spacing:1px}
+</style>
+</head>
+<body>
+
+<h1>MFX OS — Full System Status</h1>
+<div class="sub">Microflex Film Corporation · mfx-2026.web.app · April 3, 2026</div>
+
+<!-- ══════════ TOP-LEVEL METRICS ══════════ -->
+<div class="grid g4" style="margin-bottom:20px">
+  <div class="card" style="text-align:center">
+    <div class="big-num" style="color:#00e5ff">15,917</div>
+    <div style="font-size:10px;color:#6b7b8d;margin-top:4px">Total Lines of Code</div>
+    <div style="font-size:9px;color:#00838f;margin-top:2px">OS: 13,940 · Finance: 969 · Functions: 537 · Rules: 471</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="big-num" style="color:#22c55e">31</div>
+    <div style="font-size:10px;color:#6b7b8d;margin-top:4px">JavaScript Modules</div>
+    <div style="font-size:9px;color:#00838f;margin-top:2px">27 client · 4 finance</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="big-num" style="color:#a78bfa">5</div>
+    <div style="font-size:10px;color:#6b7b8d;margin-top:4px">Cloud Functions (v2)</div>
+    <div style="font-size:9px;color:#00838f;margin-top:2px">All deployed · Cloud Run 2nd Gen</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="big-num" style="color:#f59e0b">68</div>
+    <div style="font-size:10px;color:#6b7b8d;margin-top:4px">Total Files in Deploy</div>
+    <div style="font-size:9px;color:#00838f;margin-top:2px">HTML · JS · CSS · JSON · Rules</div>
+  </div>
+</div>
+
+<!-- ══════════ MODULES ══════════ -->
+<h2>📦 System Modules</h2>
+
+<div class="grid g3">
+
+<!-- CORE -->
+<div class="card">
+  <div class="card-head"><div class="card-title">🧠 Core Platform</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">core.js</span><span class="stat-val">731 lines</span></div>
+  <div class="stat"><span class="stat-label">app.js</span><span class="stat-val">1,652 lines</span></div>
+  <div class="stat"><span class="stat-label">platform-services.js</span><span class="stat-val">137 lines</span></div>
+  <div class="stat"><span class="stat-label">modules.js</span><span class="stat-val">1,297 lines</span></div>
+  <div class="stat"><span class="stat-label">sound.js / intro.js</span><span class="stat-val">456 lines</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">Google OAuth · Firestore · Event Bus · View Router · User Profiles · PWA Shell · MFX_API · Role-Based Security</div>
+</div>
+
+<!-- QUOTES & CRM -->
+<div class="card">
+  <div class="card-head"><div class="card-title">📊 Quotes & CRM</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">Built into core.js + app.js</span><span class="stat-val ac">~2,400 lines</span></div>
+  <div class="stat"><span class="stat-label">Quote Editor</span><span class="stat-val gn">Full CRUD</span></div>
+  <div class="stat"><span class="stat-label">Client Profiles</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">Quote Templates</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">Portal (portal.html)</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">Google Drive Registry</span><span class="stat-val gn">Synced</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">Full estimating engine · PDF generation · Google Drive sync · Client portal with e-signature · Quote → PO flow</div>
+</div>
+
+<!-- ORDERS -->
+<div class="card">
+  <div class="card-head"><div class="card-title">📦 Orders & POs</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">orders.js</span><span class="stat-val">439 lines</span></div>
+  <div class="stat"><span class="stat-label">so-workflow.js</span><span class="stat-val">3 lines (stub)</span></div>
+  <div class="stat"><span class="stat-label">PO → Sales Order</span><span class="stat-val gn">Auto-create</span></div>
+  <div class="stat"><span class="stat-label">SO → Job Passport</span><span class="stat-val gn">Server-numbered</span></div>
+  <div class="stat"><span class="stat-label">CEO Approval</span><span class="stat-val gn">Active</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">PO intake from portal · SO creation with sequence numbering · CEO approval gate · Status workflow</div>
+</div>
+
+<!-- PRODUCTION -->
+<div class="card">
+  <div class="card-head"><div class="card-title">🏭 Production</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">production.js</span><span class="stat-val">592 lines</span></div>
+  <div class="stat"><span class="stat-label">Job Passports</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">Job Tickets</span><span class="stat-val gn">Auto-generate</span></div>
+  <div class="stat"><span class="stat-label">Blueprints</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">Pre-Press Tracking</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">→ Vendor PO link</span><span class="stat-val pr">NEW</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">Job passport → tickets → pre-press status · Blueprint management · PPD metadata · "Order Materials" button on tickets</div>
+</div>
+
+<!-- PPD -->
+<div class="card">
+  <div class="card-head"><div class="card-title">🎨 PPD · PrePress Design</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">ppd.js</span><span class="stat-val">856 lines</span></div>
+  <div class="stat"><span class="stat-label">ppd-master.js</span><span class="stat-val">353 lines</span></div>
+  <div class="stat"><span class="stat-label">Request Types</span><span class="stat-val gn">8 types</span></div>
+  <div class="stat"><span class="stat-label">Shared Inbox</span><span class="stat-val gn">Polling</span></div>
+  <div class="stat"><span class="stat-label">Dashboards</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">Control Tab</span><span class="stat-val gn">Overlay</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">8 request types · Inbox polling · Cross-module metrics · Control overlay with validation, permissions, audit logging · Drive folder auto-provisioning</div>
+</div>
+
+<!-- VENDOR POs — NEW -->
+<div class="card" style="border-color:#a78bfa">
+  <div class="card-head"><div class="card-title">📦 Vendor PO System</div><span class="badge b-new">NEW</span></div>
+  <div class="stat"><span class="stat-label">vendor-pos.js</span><span class="stat-val pr">1,675 lines</span></div>
+  <div class="stat"><span class="stat-label">vendor-profile.js</span><span class="stat-val pr">1,532 lines</span></div>
+  <div class="stat"><span class="stat-label">vendor-workspace.js</span><span class="stat-val pr">1,022 lines</span></div>
+  <div class="stat"><span class="stat-label">vendor-patches.js</span><span class="stat-val pr">212 lines</span></div>
+  <div class="stat"><span class="stat-label">Tiered Approval</span><span class="stat-val pr">$500/2.5K/CEO</span></div>
+  <div class="stat"><span class="stat-label">SQF Ed.10</span><span class="stat-val pr">Compliance</span></div>
+  <div style="font-size:10px;color:#a78bfa;margin-top:8px">Full lifecycle: create → approve → send PDF → receive → pay · 8-tab vendor hub · AI scorecards · 3-way invoice match · Google Drive/Gmail/Sheets/Calendar/Chat integration · SQF qualification tracking</div>
+</div>
+
+<!-- FINANCE -->
+<div class="card">
+  <div class="card-head"><div class="card-title">💰 Finance App</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">finance-core.js</span><span class="stat-val">441 lines</span></div>
+  <div class="stat"><span class="stat-label">finance-invoices.js</span><span class="stat-val">244 lines</span></div>
+  <div class="stat"><span class="stat-label">finance-salesorders.js</span><span class="stat-val">171 lines</span></div>
+  <div class="stat"><span class="stat-label">finance-vendors.js</span><span class="stat-val">113 lines</span></div>
+  <div class="stat"><span class="stat-label">Vendor Activity Sync</span><span class="stat-val pr">NEW</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">Separate Firebase target · Invoice CRUD · SO auto-create from PO · Payment tracking · Now receives real-time vendor workspace events</div>
+</div>
+
+<!-- COLLABORATION -->
+<div class="card">
+  <div class="card-head"><div class="card-title">💬 Collaboration</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">features.js</span><span class="stat-val">521 lines</span></div>
+  <div class="stat"><span class="stat-label">notifications.js</span><span class="stat-val">1,449 lines</span></div>
+  <div class="stat"><span class="stat-label">realtime.js</span><span class="stat-val">185 lines</span></div>
+  <div class="stat"><span class="stat-label">Team Chat / DMs</span><span class="stat-val gn">Active</span></div>
+  <div class="stat"><span class="stat-label">@Mentions</span><span class="stat-val gn">Active</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">Real-time presence · Team chat · Direct messages · @mentions · Tasks · Notification center · Activity feed</div>
+</div>
+
+<!-- EXTRAS -->
+<div class="card">
+  <div class="card-head"><div class="card-title">⚡ Extras</div><span class="badge b-live">LIVE</span></div>
+  <div class="stat"><span class="stat-label">gamification.js</span><span class="stat-val">382 lines</span></div>
+  <div class="stat"><span class="stat-label">analytics.js</span><span class="stat-val">130 lines</span></div>
+  <div class="stat"><span class="stat-label">ceo-dash.js</span><span class="stat-val">53 lines</span></div>
+  <div class="stat"><span class="stat-label">job-tracker.js</span><span class="stat-val">53 lines</span></div>
+  <div class="stat"><span class="stat-label">data-sync.js</span><span class="stat-val">33 lines</span></div>
+  <div class="stat"><span class="stat-label">drive-listener.js</span><span class="stat-val">174 lines</span></div>
+  <div style="font-size:10px;color:#6b7b8d;margin-top:8px">XP points · Leaderboards · Streaks · CEO daily dash · Analytics · Data sync utilities · Drive polling</div>
+</div>
+
+</div>
+
+<!-- ══════════ CLOUD FUNCTIONS ══════════ -->
+<h2>☁️ Cloud Functions (v2 · 2nd Gen)</h2>
+<div class="grid g3" style="margin-bottom:8px">
+  <div class="card">
+    <div class="card-head"><div class="card-title">uploadToDrive</div><span class="badge b-live">LIVE</span></div>
+    <div style="font-size:10px;color:#6b7b8d">File upload to Google Drive MFX-CORE shared drive</div>
+    <div class="stat"><span class="stat-label">URL</span><span class="stat-val" style="font-size:9px">uploadtodrive-ocomjsgeqa-uc.a.run.app</span></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">getClientFolder</div><span class="badge b-live">LIVE</span></div>
+    <div style="font-size:10px;color:#6b7b8d">Lookup/create client folders in shared drive</div>
+    <div class="stat"><span class="stat-label">URL</span><span class="stat-val" style="font-size:9px">getclientfolder-ocomjsgeqa-uc.a.run.app</span></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">nextSequence</div><span class="badge b-live">LIVE</span></div>
+    <div style="font-size:10px;color:#6b7b8d">Server-side sequence numbering (SO, JP, JT)</div>
+    <div class="stat"><span class="stat-label">Memory</span><span class="stat-val">256 MiB</span></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">provisionPPDWorkspace</div><span class="badge b-live">LIVE</span></div>
+    <div style="font-size:10px;color:#6b7b8d">Auto-creates 11 subfolders per job ticket in Drive</div>
+    <div class="stat"><span class="stat-label">Memory</span><span class="stat-val">256 MiB · 120s timeout</span></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">ingestSharedInbox</div><span class="badge b-live">LIVE</span></div>
+    <div style="font-size:10px;color:#6b7b8d">Gmail shared inbox ingestion for PPD requests</div>
+    <div class="stat"><span class="stat-label">Memory</span><span class="stat-val">256 MiB · 120s timeout</span></div>
+  </div>
+</div>
+
+<!-- ══════════ FIRESTORE COLLECTIONS ══════════ -->
+<h2>🗄️ Firestore Collections & Security Rules</h2>
+<div class="grid g4">
+  <div class="card">
+    <h3 style="margin:0 0 8px;font-size:11px;color:#00e5ff">Commercial</h3>
+    <div class="stat"><span class="stat-label">quotes</span><span class="stat-val gn">canEditCommercial</span></div>
+    <div class="stat"><span class="stat-label">customers</span><span class="stat-val gn">canEditCommercial</span></div>
+    <div class="stat"><span class="stat-label">salesOrders</span><span class="stat-val gn">canEditCommercial</span></div>
+    <div class="stat"><span class="stat-label">quoteTemplates</span><span class="stat-val gn">commercial+PPD</span></div>
+    <div class="stat"><span class="stat-label">invoices</span><span class="stat-val gn">commercial+mgmt</span></div>
+  </div>
+  <div class="card">
+    <h3 style="margin:0 0 8px;font-size:11px;color:#a78bfa">PPD / Production</h3>
+    <div class="stat"><span class="stat-label">jobPassports</span><span class="stat-val gn">PPD+commercial</span></div>
+    <div class="stat"><span class="stat-label">jobTickets</span><span class="stat-val gn">canEditPPD</span></div>
+    <div class="stat"><span class="stat-label">blueprints</span><span class="stat-val gn">canEditPPD</span></div>
+    <div class="stat"><span class="stat-label">requests</span><span class="stat-val gn">companyUser</span></div>
+    <div class="stat"><span class="stat-label">prepressInbox</span><span class="stat-val gn">PPD+mgmt</span></div>
+    <div class="stat"><span class="stat-label">approvalRecords</span><span class="stat-val gn">canEditPPD</span></div>
+    <div class="stat"><span class="stat-label">plateAssets</span><span class="stat-val gn">canEditPPD</span></div>
+    <div class="stat"><span class="stat-label">ppdEvents</span><span class="stat-val gn">PPD+mgmt</span></div>
+    <div class="stat"><span class="stat-label">controlConfigs</span><span class="stat-val gn">mgmt only</span></div>
+  </div>
+  <div class="card" style="border-color:#a78bfa">
+    <h3 style="margin:0 0 8px;font-size:11px;color:#a78bfa">Purchasing <span class="tag t-new">NEW</span></h3>
+    <div class="stat"><span class="stat-label">vendorPOs</span><span class="stat-val pr">canEditPurchasing</span></div>
+    <div class="stat"><span class="stat-label">vendors</span><span class="stat-val pr">canEditPurchasing</span></div>
+    <div class="stat"><span class="stat-label">materials</span><span class="stat-val pr">purchasing+PPD</span></div>
+    <div class="stat"><span class="stat-label">vendorComms</span><span class="stat-val pr">canEditPurchasing</span></div>
+    <div class="stat"><span class="stat-label">vendorInvoices</span><span class="stat-val pr">canEditPurchasing</span></div>
+    <div class="stat"><span class="stat-label">materialLots</span><span class="stat-val pr">canEditPurchasing</span></div>
+    <div class="stat"><span class="stat-label">vendorCerts</span><span class="stat-val pr">canEditPurchasing</span></div>
+  </div>
+  <div class="card">
+    <h3 style="margin:0 0 8px;font-size:11px;color:#22c55e">Collaboration & System</h3>
+    <div class="stat"><span class="stat-label">activity</span><span class="stat-val gn">companyUser</span></div>
+    <div class="stat"><span class="stat-label">notifications</span><span class="stat-val gn">self+mgmt</span></div>
+    <div class="stat"><span class="stat-label">chat / threads</span><span class="stat-val gn">collaboration</span></div>
+    <div class="stat"><span class="stat-label">tasks / dms</span><span class="stat-val gn">collaboration</span></div>
+    <div class="stat"><span class="stat-label">users</span><span class="stat-val gn">self+mgmt write</span></div>
+    <div class="stat"><span class="stat-label">systemCounters</span><span class="stat-val or">server-only</span></div>
+    <div class="stat"><span class="stat-label">syncEvents</span><span class="stat-val or">server-only</span></div>
+  </div>
+</div>
+
+<!-- ══════════ PIPELINE ══════════ -->
+<h2>🔄 Full Pipeline Coverage</h2>
+<div class="grid g2">
+<div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">90%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">1. Lead / Estimate → Quote</div>
+    <div class="pipe-detail">Full quote editor · Template library · Client profiles · Google Drive registry · PDF generation</div>
+  </div>
+</div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">95%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">2. Quote → Client PO</div>
+    <div class="pipe-detail">Client portal (portal.html) · E-signature · PO upload · Auto-notification to Finance</div>
+  </div>
+</div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">85%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">3. PO → Sales Order</div>
+    <div class="pipe-detail">Auto-create SO from PO · Server-side sequence numbering · CEO approval gate</div>
+  </div>
+</div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">75%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">4. SO → Job Passport</div>
+    <div class="pipe-detail">createPassportFromSO() · Server-numbered · SKU breakdown · Status tracking</div>
+  </div>
+</div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">80%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">5. JP → Job Tickets</div>
+    <div class="pipe-detail">Auto-generate from passport · Server-numbered · PPD metadata block · Drive folder provisioning</div>
+  </div>
+</div>
+
+<div class="pipe-step high" style="border-left-color:#a78bfa">
+  <div class="pipe-num" style="color:#a78bfa">85%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">6. Vendor POs <span class="tag t-new">NEW</span></div>
+    <div class="pipe-detail">Full lifecycle · Tiered approval · Gmail PDF send · Drive storage · Material tracking · 3-way invoice match · SQF compliance</div>
+  </div>
+</div>
+
+</div>
+<div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">80%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">7. Job Ticket Tracking</div>
+    <div class="pipe-detail">Status workflow (open → prepress → running → QA → closed) · PPD stage tracking · VPO linkage</div>
+  </div>
+</div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">75%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">8. Pre-Press / PPD</div>
+    <div class="pipe-detail">8 request types · Inbox polling · Combined intake · Control overlay · Dashboards · Cross-module metrics</div>
+  </div>
+</div>
+
+<div class="pipe-step low">
+  <div class="pipe-num low">10%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">9. Shipping</div>
+    <div class="pipe-detail">⚠️ Biggest gap — No shipping module. Need: BOL generation, carrier tracking, ship notifications, delivery confirmation</div>
+  </div>
+</div>
+
+<div class="pipe-step high">
+  <div class="pipe-num high">70%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">10. Invoice</div>
+    <div class="pipe-detail">Finance app: invoice CRUD · Email sending · Payment recording · Reminders · PDF printing</div>
+  </div>
+</div>
+
+<div class="pipe-step med">
+  <div class="pipe-num med">55%</div>
+  <div class="pipe-info">
+    <div class="pipe-name">11. Payment & Reconciliation</div>
+    <div class="pipe-detail">Payment recording · Status tracking · Partial payments · Vendor AP sync. Need: aging reports, auto-reminders, bank reconciliation</div>
+  </div>
+</div>
+
+<div class="pipe-step" style="border-left-color:#00e5ff;background:#0a1628;margin-top:16px">
+  <div class="pipe-num" style="color:#00e5ff;font-size:24px">73%</div>
+  <div class="pipe-info">
+    <div class="pipe-name" style="color:#00e5ff">Overall Pipeline Coverage</div>
+    <div class="pipe-detail">Up from 42% → 73% after vendor system integration</div>
+    <div class="meter" style="margin-top:6px"><div class="meter-fill" style="width:73%;background:linear-gradient(90deg,#00e5ff,#22c55e)"></div></div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- ══════════ CONNECTIONS MAP ══════════ -->
+<h2>🔗 Cross-Module Connections</h2>
+<div class="grid g3">
+  <div class="card">
+    <div class="card-title" style="margin-bottom:8px">OS → Finance</div>
+    <div class="conn"><div class="conn-dot on"></div><span>po.approved → Auto-create SO</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>vpo.sent → AP queue updated</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>vpo.received → AP payable flagged</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>vpo.invoice_logged → Ready for payment</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>vpo.payment_recorded → AP reconciled</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>Invoice discrepancy → Finance alert</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>vpo.overdue → Finance alert</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:8px">Production ↔ Vendor</div>
+    <div class="conn"><div class="conn-dot on"></div><span>JT card → "Order Materials" button</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>vpAutoGenerateFromJT() prefills VPO</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>VPO links shown on JT cards</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>Material received → JT unblocked</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>Low stock → Auto-reorder alert</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:8px">Google Workspace</div>
+    <div class="conn"><div class="conn-dot on"></div><span>Google Drive — MFX-CORE shared drive</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>Gmail — PO PDFs + email flows</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>Google Sheets — Quote + VPO registries</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>Google Calendar — ETA + warning events</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>Google Chat — 9 notification types</span></div>
+    <div class="conn"><div class="conn-dot on"></div><span>OAuth — @microflexfilm.com domain lock</span></div>
+  </div>
+</div>
+
+<!-- ══════════ WHAT'S NEXT ══════════ -->
+<h2>🎯 Priority Gaps to Close</h2>
+<div class="grid g3">
+  <div class="card" style="border-color:#ef4444">
+    <div class="card-head"><div class="card-title">🚚 Shipping Module</div><span class="badge b-missing">10%</span></div>
+    <div style="font-size:10px;color:#6b7b8d;margin-top:4px">
+      Need: BOL generation · Carrier selection · Tracking numbers · Ship notifications · Delivery confirmation · Packing list PDF · Weight/dims capture
+    </div>
+  </div>
+  <div class="card" style="border-color:#f59e0b">
+    <div class="card-head"><div class="card-title">💳 Payment & AR</div><span class="badge b-partial">55%</span></div>
+    <div style="font-size:10px;color:#6b7b8d;margin-top:4px">
+      Need: Aging reports (30/60/90) · Auto payment reminders · Bank reconciliation · AR dashboard · Collections workflow
+    </div>
+  </div>
+  <div class="card" style="border-color:#f59e0b">
+    <div class="card-head"><div class="card-title">📈 Reporting & BI</div><span class="badge b-partial">30%</span></div>
+    <div style="font-size:10px;color:#6b7b8d;margin-top:4px">
+      Need: Revenue reports · Margin analysis · Production throughput · Vendor spend analytics · Client profitability · SQF audit reports
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ DEPLOY PENDING ══════════ -->
+<h2>⚠️ Deploy Status</h2>
+<div class="card" style="border-color:#f59e0b">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div style="font-size:32px">🚀</div>
+    <div>
+      <div style="font-size:14px;font-weight:700;color:#f59e0b">Pending Deploy</div>
+      <div style="font-size:11px;color:#6b7b8d;margin-top:4px">
+        The vendor system (4,441 lines) + all cross-module wiring is ready. Run this command from <code style="background:#111d2e;padding:2px 6px;border-radius:4px;font-size:10px">C:\Users\A10ti\mfx-deploy</code>:
+      </div>
+      <div style="background:#111d2e;border:1px solid #1a2a40;border-radius:6px;padding:10px;margin-top:8px;font-family:monospace;font-size:12px;color:#00e5ff">
+        firebase deploy --only "hosting,firestore:rules" --project mfx-2026
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="timestamp">Generated April 3, 2026 · MFX OS v2.2 · Microflex Film Corporation</div>
+
+</body>
+</html>

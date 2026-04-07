@@ -1,0 +1,29 @@
+{
+  "artist": [
+    "edit_files",
+    "log_notes"
+  ],
+  "prepress": [
+    "update_stage",
+    "manage_checklist",
+    "provision_folders"
+  ],
+  "qa": [
+    "approve",
+    "reject",
+    "release_review"
+  ],
+  "lead": [
+    "override",
+    "rebalance",
+    "approve"
+  ],
+  "operations": [
+    "override",
+    "capacity_view",
+    "reassign"
+  ],
+  "ceo": [
+    "read_only"
+  ]
+}

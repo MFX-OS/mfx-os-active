@@ -1,0 +1,14 @@
+{
+  "name": "mfx-os-functions",
+  "description": "MFX OS Cloud Functions — Upload proxy to Google Drive",
+  "engines": {
+    "node": "22"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^7.2.3",
+    "googleapis": "^144.0.0"
+  }
+}
