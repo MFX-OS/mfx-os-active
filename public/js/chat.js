@@ -735,6 +735,18 @@ function icShowPreview(){
     h+='<div style="flex:1"><div style="font-size:10px;color:rgba(255,255,255,.4)">GIF ready to send</div></div>';
     h+='<span onclick="icClearGif()" style="cursor:pointer;color:rgba(255,255,255,.3);font-size:14px">&times;</span></div>';
   }
+  // File preview
+  if(_icPendingFile){
+    h+='<div style="display:flex;align-items:center;gap:8px">';
+    if(_icPendingFile.type&&_icPendingFile.type.indexOf('image')===0){
+      h+='<img src="'+esc(_icPendingFile.url)+'" style="height:60px;border-radius:8px;border:1px solid rgba(255,255,255,.1)">';
+    }else{
+      h+='<div style="width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:20px">&#128196;</div>';
+    }
+    h+='<div style="flex:1;min-width:0"><div style="font-size:10px;color:#00e5ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(_icPendingFile.name)+'</div>';
+    h+='<div style="font-size:9px;color:rgba(255,255,255,.3)">'+(_icPendingFile.size?Math.round(_icPendingFile.size/1024)+'KB':'File')+' ready to send</div></div>';
+    h+='<span onclick="_icPendingFile=null;icShowPreview()" style="cursor:pointer;color:rgba(255,255,255,.3);font-size:14px">&times;</span></div>';
+  }
   if(!h){bar.remove();return}
   bar.innerHTML=h;
   bar.style.display='flex';
@@ -929,12 +941,20 @@ var IC={
   view:'list', // 'list' or 'conversation'
   activeChat:null, // channel id
   listener:null,
+  _channelListener:null,
   messages:[],
   unreadCount:0,
   unreadListener:null,
   onlineUsers:[],
-  allUsers:[]
+  allUsers:[],
+  _editingMsgId:null
 };
+
+var _icTypingThrottle=0;
+var _icTypingTimeout=null;
+var _icPendingFile=null;
+var _icPriority=false;
+var _icMutedChannels=[];
 
 function toggleInstantChat(){
   var popup=document.getElementById('instantChatPopup');
@@ -954,6 +974,7 @@ function icShowList(){
   IC.view='list';
   IC.activeChat=null;
   if(IC.listener){IC.listener();IC.listener=null;}
+  if(IC._channelListener){IC._channelListener();IC._channelListener=null;}
   var title=document.getElementById('icTitle');
   if(title)title.textContent='Instant Chat';
   var inputBar=document.getElementById('icInputBar');
@@ -1104,8 +1125,24 @@ function icOpenChat(channelId,displayName){
     .orderBy('timestamp','asc')
     .limit(50)
     .onSnapshot(function(snap){
-      IC.messages=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
-      icRenderMessages();
+      var serverMsgs=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
+      // Merge: keep optimistic messages that haven't arrived from server yet
+      var serverIds={};
+      serverMsgs.forEach(function(m){serverIds[m.id]=true});
+      // Remove optimistic messages whose real version has arrived
+      var pending=IC.messages.filter(function(m){
+        if(!m._optimistic)return false;
+        // Check if server has this message by realId or by matching text+user+timestamp
+        if(m._realId&&serverIds[m._realId])return false;
+        // Also remove if a server message matches same text+user within last 5s
+        for(var i=serverMsgs.length-1;i>=Math.max(0,serverMsgs.length-5);i--){
+          var s=serverMsgs[i];
+          if(s.user===m.user&&s.text===m.text&&!m._failed)return false;
+        }
+        return true; // keep — still pending
+      });
+      IC.messages=serverMsgs.concat(pending);
+      if(!IC._editingMsgId)icRenderMessages();
       // Mark as read
       var uid=getUserId();
       var markOps=[];
@@ -1117,6 +1154,46 @@ function icOpenChat(channelId,displayName){
       });
       // After marking all read, the global unread listener will re-fire and update the badge
     },function(err){console.warn('IC messages:',err.message)});
+
+  // Typing indicator listener on channel doc
+  if(IC._channelListener){IC._channelListener();IC._channelListener=null;}
+  IC._channelListener=fbDb.collection('chat_channels').doc(channelId).onSnapshot(function(docSnap){
+    var data=docSnap.data();if(!data)return;
+    var typing=data.typing||{};
+    var myUid=getUserId();
+    var now=Date.now();
+    var typers=[];
+    Object.keys(typing).forEach(function(tUid){
+      if(tUid===myUid)return;
+      var entry=typing[tUid];
+      if(!entry||!entry.at)return;
+      var atMs=entry.at.seconds?entry.at.seconds*1000:0;
+      if(now-atMs>6000)return;
+      typers.push(entry.name||'Someone');
+    });
+    var typingBar=document.getElementById('icTypingBar');
+    if(!typingBar){
+      var body2=document.getElementById('icBody');
+      if(body2){
+        typingBar=document.createElement('div');
+        typingBar.id='icTypingBar';
+        typingBar.style.cssText='padding:2px 14px;font-size:10px;color:rgba(255,255,255,.4);min-height:16px';
+        body2.parentNode.insertBefore(typingBar,body2.nextSibling);
+      }
+    }
+    if(typingBar){
+      if(typers.length===0){
+        typingBar.innerHTML='';
+      }else if(typers.length===1){
+        typingBar.innerHTML=esc(typers[0])+' is typing<span class="ic-typing-dots"><span>.</span><span>.</span><span>.</span></span>';
+      }else{
+        typingBar.innerHTML=esc(typers[0])+' and '+esc(typers[1])+' are typing<span class="ic-typing-dots"><span>.</span><span>.</span><span>.</span></span>';
+      }
+    }
+  },function(err){console.warn('IC typing:',err.message)});
+
+  // Setup drag-drop for file sharing
+  icSetupDragDrop();
 
   // Focus input
   setTimeout(function(){var inp=document.getElementById('icInput');if(inp)inp.focus()},300);
@@ -1138,7 +1215,33 @@ function icRenderMessages(){
     var timeStr=ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     var bubbleRadius=isMe?'18px 18px 4px 18px':'18px 18px 18px 4px';
 
-    h+='<div class="ic-msg-wrap" style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';padding:'+(sameUser?'1px':'6px')+' 14px 1px;position:relative" data-icmsg="'+esc(m.id)+'">';
+    // Deleted message
+    if(m.deleted){
+      h+='<div class="ic-msg-wrap" style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';padding:6px 14px 1px;position:relative" data-icmsg="'+esc(m.id)+'">';
+      h+='<div style="max-width:78%;padding:8px 14px;border-radius:'+bubbleRadius+';background:rgba(255,255,255,.03);font-size:12px;color:rgba(255,255,255,.25);font-style:italic">This message was deleted</div>';
+      h+='</div>';
+      lastUser=m.user;
+      return;
+    }
+
+    // Priority wrapper
+    var priorityStyle='';
+    if(m.priority==='urgent'){
+      priorityStyle='border-left:3px solid #ef4444;padding-left:11px;';
+    }
+
+    h+='<div class="ic-msg-wrap" style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';padding:'+(sameUser?'1px':'6px')+' 14px 1px;position:relative;'+priorityStyle+'" data-icmsg="'+esc(m.id)+'">';
+
+    // Forwarded header
+    if(m.forwardedFrom){
+      h+='<div style="font-size:9px;color:rgba(255,255,255,.35);margin-bottom:2px;display:flex;align-items:center;gap:3px">';
+      h+='<span style="font-size:11px">&#8599;</span> Forwarded from '+esc(m.forwardedFrom.user)+'</div>';
+    }
+
+    // Pinned icon
+    if(m.pinned){
+      h+='<div style="font-size:9px;color:rgba(255,255,255,.3);margin-bottom:1px">&#128204; Pinned</div>';
+    }
 
     // Sender name
     if(!isMe&&!sameUser)h+='<span style="font-size:10px;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:2px;margin-left:4px">'+esc(m.user)+'</span>';
@@ -1154,9 +1257,25 @@ function icRenderMessages(){
     if(m.gif){
       h+='<div style="max-width:75%;border-radius:'+bubbleRadius+';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+esc(m.gif)+'" style="max-width:220px;max-height:160px;display:block"></div>';
     }
+
+    // Attachments
+    if(m.attachments&&m.attachments.length){
+      m.attachments.forEach(function(att){
+        if(att.type==='image'){
+          h+='<div style="max-width:75%;border-radius:'+bubbleRadius+';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.2);margin-bottom:4px"><img src="'+esc(att.url)+'" style="max-width:220px;max-height:160px;display:block"></div>';
+        }else{
+          h+='<a href="'+esc(att.url)+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.06);border-radius:10px;text-decoration:none;max-width:75%;margin-bottom:4px">';
+          h+='<span style="font-size:20px">&#128196;</span>';
+          h+='<div style="flex:1;min-width:0"><div style="font-size:11px;color:#00e5ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(att.name)+'</div>';
+          h+='<div style="font-size:9px;color:rgba(255,255,255,.3)">'+(att.size?Math.round(att.size/1024)+'KB':'File')+'</div></div></a>';
+        }
+      });
+    }
+
     // Text bubble
     if(m.text){
-      h+='<div style="max-width:78%;padding:10px 14px;border-radius:'+bubbleRadius+';background:'+(isMe?'linear-gradient(135deg,#00b4d8,#0099cc)':'rgba(255,255,255,.08)')+';font-size:13px;color:'+(isMe?'#fff':'rgba(255,255,255,.85)')+';line-height:1.45;word-wrap:break-word;'+(isMe?'box-shadow:0 2px 8px rgba(0,180,216,.15)':'')+'">'+formatChatText(m.text)+'</div>';
+      var editedLabel=m.editedAt?' <span style="font-size:9px;color:rgba(255,255,255,.3);font-style:italic">(edited)</span>':'';
+      h+='<div style="max-width:78%;padding:10px 14px;border-radius:'+bubbleRadius+';background:'+(isMe?'linear-gradient(135deg,#00b4d8,#0099cc)':'rgba(255,255,255,.08)')+';font-size:13px;color:'+(isMe?'#fff':'rgba(255,255,255,.85)')+';line-height:1.45;word-wrap:break-word;'+(isMe?'box-shadow:0 2px 8px rgba(0,180,216,.15)':'')+'">'+formatChatText(m.text)+editedLabel+'</div>';
     }
 
     // Reactions row
@@ -1174,14 +1293,27 @@ function icRenderMessages(){
       h+='</div>';
     }
 
-    // Action buttons (reply + react) — show on hover
-    h+='<div class="ic-msg-actions" style="display:none;position:absolute;'+(isMe?'left:14px':'right:14px')+';top:50%;transform:translateY(-50%);gap:2px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:2px">';
-    h+='<span onclick="event.stopPropagation();icSetReply(\''+esc(m.id)+'\')" style="cursor:pointer;padding:3px 6px;font-size:12px;border-radius:4px" title="Reply">↩</span>';
-    h+='<span onclick="event.stopPropagation();icShowReactPicker(\''+esc(m.id)+'\')" style="cursor:pointer;padding:3px 6px;font-size:12px;border-radius:4px" title="React">😊</span>';
+    // Action menu button (⋯) — show on hover
+    h+='<div class="ic-msg-actions" style="display:none;position:absolute;'+(isMe?'left:14px':'right:14px')+';top:50%;transform:translateY(-50%)">';
+    h+='<span onclick="event.stopPropagation();icShowActionMenu(\''+esc(m.id)+'\',event)" style="cursor:pointer;padding:4px 7px;font-size:14px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(255,255,255,.6);line-height:1" title="More actions">&#8943;</span>';
     h+='</div>';
 
-    // Time
-    if(!sameUser||dateStr!==lastDate)h+='<span style="font-size:8px;color:rgba(255,255,255,.2);margin-top:2px;padding:0 4px">'+timeStr+(isMe?' ✓':'')+'</span>';
+    // Time + delivery status
+    if(!sameUser||dateStr!==lastDate){
+      var statusHtml='';
+      if(isMe){
+        if(m._optimistic&&!m._failed){
+          statusHtml=' <span style="color:rgba(255,255,255,.2)">&#10003;</span>';
+        }else if(m._failed){
+          statusHtml=' <span style="color:#ef4444">&#10007; Failed</span>';
+        }else if(m.readBy&&m.readBy.length>1){
+          statusHtml=' <span style="color:#00e5ff">&#10003;&#10003;</span>';
+        }else{
+          statusHtml=' <span style="color:#00e5ff">&#10003;</span>';
+        }
+      }
+      h+='<span style="font-size:8px;color:rgba(255,255,255,.2);margin-top:2px;padding:0 4px">'+timeStr+statusHtml+'</span>';
+    }
     h+='</div>';
     lastUser=m.user;
   });
@@ -1243,38 +1375,104 @@ window.icShowReactPicker=icShowReactPicker;
 function icSendMsg(){
   var input=document.getElementById('icInput');
   var text=input?input.value.trim():'';
-  if(!text&&!_icPendingGif)return;
+  if(!text&&!_icPendingGif&&!_icPendingFile)return;
   if(!fbDb||!IC.activeChat)return;
-  var msgData={
+
+  var userName=getUserName();
+  var userId=getUserId();
+  var tempId='_tmp_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
+
+  // Build local optimistic message (shows instantly)
+  var localMsg={
+    id:tempId,
     channelId:IC.activeChat,
     text:text,
-    user:getUserName(),
-    userId:getUserId(),
+    user:userName,
+    userId:userId,
     dept:window.CURRENT_USER&&window.CURRENT_USER._dept||'',
+    timestamp:{seconds:Math.floor(Date.now()/1000)},
+    reactions:{},
+    readBy:[userId],
+    _optimistic:true
+  };
+  if(_icPendingGif){localMsg.gif=_icPendingGif}
+  if(_icReplyTo){localMsg.replyTo={id:_icReplyTo.id,user:_icReplyTo.user,text:(_icReplyTo.text||'').substring(0,80)}}
+
+  // Immediately push to local messages and re-render
+  IC.messages.push(localMsg);
+  icRenderMessages();
+
+  // Build server data
+  var serverData={
+    channelId:IC.activeChat,
+    text:text,
+    user:userName,
+    userId:userId,
+    dept:localMsg.dept,
     timestamp:firebase.firestore.FieldValue.serverTimestamp(),
     reactions:{},
-    readBy:[getUserId()]
+    readBy:[userId]
   };
-  // Attach GIF if pending
-  if(_icPendingGif){
-    msgData.gif=_icPendingGif;
-    _icPendingGif=null;
+  if(localMsg.gif)serverData.gif=localMsg.gif;
+  if(localMsg.replyTo)serverData.replyTo=localMsg.replyTo;
+
+  // Mentions
+  var mentionMatches=text.match(/@(\w+)/g);
+  if(mentionMatches&&mentionMatches.length){
+    serverData.mentions=mentionMatches.map(function(mm){return mm.substring(1)});
   }
-  // Attach reply context if replying
-  if(_icReplyTo){
-    msgData.replyTo={id:_icReplyTo.id,user:_icReplyTo.user,text:(_icReplyTo.text||'').substring(0,80)};
-    _icReplyTo=null;
+
+  // File attachment
+  if(_icPendingFile){
+    var attType=(_icPendingFile.type&&_icPendingFile.type.indexOf('image')===0)?'image':'file';
+    serverData.attachments=[{type:attType,url:_icPendingFile.url,name:_icPendingFile.name,size:_icPendingFile.size}];
+    localMsg.attachments=serverData.attachments;
   }
-  fbDb.collection('chat_messages').add(msgData);
+
+  // Priority
+  if(_icPriority){
+    serverData.priority='urgent';
+    localMsg.priority='urgent';
+  }
+
+  // Clear state
+  _icPendingGif=null;
+  _icReplyTo=null;
+  _icPendingFile=null;
+  _icPriority=false;
+  var prioBtn=document.getElementById('icPriorityBtn');
+  if(prioBtn){prioBtn.style.background='';prioBtn.style.color='';}
+  if(input){input.value='';input.style.height='auto';input.focus()}
+  var bar=document.getElementById('icPreviewBar');if(bar)bar.remove();
+
+  // Write to Firestore — when snapshot arrives, it will replace the optimistic message
+  fbDb.collection('chat_messages').add(serverData).then(function(docRef){
+    // Mark the optimistic message so snapshot can match it
+    for(var i=0;i<IC.messages.length;i++){
+      if(IC.messages[i].id===tempId){
+        IC.messages[i]._realId=docRef.id;
+        break;
+      }
+    }
+  }).catch(function(e){
+    console.warn('icSend error:',e);
+    // Mark as failed
+    for(var i=0;i<IC.messages.length;i++){
+      if(IC.messages[i].id===tempId){
+        IC.messages[i]._failed=true;
+        break;
+      }
+    }
+    icRenderMessages();
+    if(typeof toast==='function')toast('Message failed to send','err');
+  });
+
   // Update channel lastMessage
-  var preview=text?text.substring(0,100):(msgData.gif?'sent a GIF':'');
+  var preview=text?text.substring(0,100):(serverData.gif?'sent a GIF':'');
   fbDb.collection('chat_channels').doc(IC.activeChat).update({
     lastMessage:preview,
     lastMessageAt:firebase.firestore.FieldValue.serverTimestamp()
   }).catch(function(e){console.warn('icLastMsg:',e)});
-  if(input){input.value='';input.style.height='auto';input.focus()}
-  // Clear preview bar
-  var bar=document.getElementById('icPreviewBar');if(bar)bar.remove();
 }
 
 function icKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();icSendMsg()}}
@@ -1296,6 +1494,8 @@ function icStartUnreadListener(){
       snap.docs.forEach(function(d){
         var data=d.data();
         if(data.userId!==uid&&(!data.readBy||data.readBy.indexOf(uid)<0)){
+          // Skip muted channels
+          if(data.channelId&&_icMutedChannels.indexOf(data.channelId)>=0)return;
           count++;
           var t=data.timestamp?data.timestamp.seconds*1000:0;
           if(t&&(!oldest||t<oldest))oldest=t;
@@ -1388,6 +1588,522 @@ function icFilterList(query){
 }
 window.icFilterList=icFilterList;
 
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 1: Action Menu
+// ══════════════════════════════════════════════════════════════════
+function icShowActionMenu(msgId,evt){
+  icCloseActionMenu();
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg)return;
+  var me=getUserName();
+  var isOwn=msg.user===me;
+  var menu=document.createElement('div');
+  menu.id='icActionMenu';
+  menu.style.cssText='position:fixed;z-index:9999;background:rgba(13,17,23,.96);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:4px;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:160px';
+
+  var items=[];
+  items.push({icon:'\u21A9',label:'Reply',fn:'icSetReply(\''+esc(msgId)+'\')'});
+  items.push({icon:'\uD83D\uDE0A',label:'React',fn:'icShowReactPicker(\''+esc(msgId)+'\')'});
+  if(isOwn)items.push({icon:'\u270F',label:'Edit',fn:'icStartEdit(\''+esc(msgId)+'\')'});
+  if(isOwn)items.push({icon:'\uD83D\uDDD1',label:'Delete',fn:'icDeleteMsg(\''+esc(msgId)+'\')'});
+  items.push({icon:'\uD83D\uDCCC',label:(msg.pinned?'Unpin':'Pin'),fn:'icPinMsg(\''+esc(msgId)+'\')'});
+  items.push({icon:'\u2197',label:'Forward',fn:'icForwardMsg(\''+esc(msgId)+'\')'});
+  items.push({icon:'\uD83D\uDCCB',label:'Copy Text',fn:'icCopyText(\''+esc(msgId)+'\')'});
+
+  var h='';
+  items.forEach(function(item){
+    h+='<div onclick="event.stopPropagation();icCloseActionMenu();'+item.fn+'" style="padding:7px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;border-radius:8px;font-size:12px;color:rgba(255,255,255,.8);transition:background .15s" onmouseover="this.style.background=\'rgba(255,255,255,.08)\'" onmouseout="this.style.background=\'none\'">';
+    h+='<span style="font-size:14px;width:20px;text-align:center">'+item.icon+'</span>'+item.label+'</div>';
+  });
+  menu.innerHTML=h;
+
+  document.body.appendChild(menu);
+
+  // Position near the click
+  var x=evt.clientX||200;
+  var y=evt.clientY||200;
+  if(x+menu.offsetWidth>window.innerWidth)x=window.innerWidth-menu.offsetWidth-8;
+  if(y+menu.offsetHeight>window.innerHeight)y=window.innerHeight-menu.offsetHeight-8;
+  menu.style.left=x+'px';
+  menu.style.top=y+'px';
+
+  // Auto-close on outside click
+  setTimeout(function(){
+    document.addEventListener('click',function _icMenuClose(){
+      icCloseActionMenu();
+      document.removeEventListener('click',_icMenuClose);
+    });
+  },50);
+}
+
+function icCloseActionMenu(){
+  var m=document.getElementById('icActionMenu');
+  if(m)m.remove();
+}
+
+function icCopyText(msgId){
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg||!msg.text)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(msg.text).then(function(){
+      if(typeof toast==='function')toast('Copied to clipboard','ok');
+    });
+  }else{
+    var ta=document.createElement('textarea');
+    ta.value=msg.text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    if(typeof toast==='function')toast('Copied to clipboard','ok');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 2: Typing Indicators
+// ══════════════════════════════════════════════════════════════════
+function icSetTyping(){
+  if(!fbDb||!IC.activeChat)return;
+  var now=Date.now();
+  if(now-_icTypingThrottle<3000)return;
+  _icTypingThrottle=now;
+  var uid=getUserId();
+  var update={};
+  update['typing.'+uid]={name:getUserName(),at:firebase.firestore.FieldValue.serverTimestamp()};
+  fbDb.collection('chat_channels').doc(IC.activeChat).update(update).catch(function(e){console.warn('icTyping:',e)});
+  if(_icTypingTimeout)clearTimeout(_icTypingTimeout);
+  _icTypingTimeout=setTimeout(function(){icClearTyping()},5000);
+}
+
+function icClearTyping(){
+  if(!fbDb||!IC.activeChat)return;
+  var uid=getUserId();
+  var update={};
+  update['typing.'+uid]=firebase.firestore.FieldValue.delete();
+  fbDb.collection('chat_channels').doc(IC.activeChat).update(update).catch(function(e){console.warn('icClearTyping:',e)});
+  if(_icTypingTimeout){clearTimeout(_icTypingTimeout);_icTypingTimeout=null;}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 3: Message Editing
+// ══════════════════════════════════════════════════════════════════
+function icStartEdit(msgId){
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg||msg.user!==getUserName())return;
+  IC._editingMsgId=msgId;
+  var el=document.querySelector('[data-icmsg="'+msgId+'"]');
+  if(!el)return;
+  var bubbles=el.querySelectorAll('div');
+  var bubble=null;
+  for(var i=0;i<bubbles.length;i++){
+    if(bubbles[i].style.borderRadius&&bubbles[i].textContent){bubble=bubbles[i];break;}
+  }
+  if(!bubble)return;
+  var currentText=msg.text||'';
+  bubble.innerHTML='<textarea id="icEditArea" style="width:100%;min-height:40px;background:rgba(0,0,0,.3);border:1px solid #00e5ff;border-radius:8px;color:#fff;padding:6px 8px;font-size:12px;font-family:inherit;resize:vertical;outline:none">'+esc(currentText)+'</textarea>'
+    +'<div style="display:flex;gap:4px;margin-top:4px">'
+    +'<button onclick="icSaveEdit(\''+esc(msgId)+'\')" style="padding:3px 10px;background:#00e5ff;color:#000;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Save</button>'
+    +'<button onclick="icCancelEdit()" style="padding:3px 10px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.6);border:none;border-radius:6px;font-size:10px;cursor:pointer">Cancel</button>'
+    +'</div>';
+  var area=document.getElementById('icEditArea');
+  if(area)area.focus();
+}
+
+function icSaveEdit(msgId){
+  var area=document.getElementById('icEditArea');
+  if(!area)return;
+  var newText=area.value.trim();
+  if(!newText){icCancelEdit();return;}
+  if(!fbDb)return;
+  fbDb.collection('chat_messages').doc(msgId).update({
+    text:newText,
+    editedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    editedBy:getUserName()
+  }).then(function(){
+    IC._editingMsgId=null;
+    icRenderMessages();
+  }).catch(function(e){
+    console.warn('icSaveEdit:',e);
+    IC._editingMsgId=null;
+    icRenderMessages();
+  });
+}
+
+function icCancelEdit(){
+  IC._editingMsgId=null;
+  icRenderMessages();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 4: Message Deletion
+// ══════════════════════════════════════════════════════════════════
+function icDeleteMsg(msgId){
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg||msg.user!==getUserName())return;
+  if(!confirm('Delete this message?'))return;
+  if(!fbDb)return;
+  fbDb.collection('chat_messages').doc(msgId).update({
+    deleted:true,
+    deletedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    deletedBy:getUserName(),
+    text:''
+  }).catch(function(e){console.warn('icDeleteMsg:',e)});
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 5: Pinned Messages
+// ══════════════════════════════════════════════════════════════════
+function icPinMsg(msgId){
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg||!fbDb)return;
+  if(msg.pinned){
+    fbDb.collection('chat_messages').doc(msgId).update({pinned:false,pinnedAt:null,pinnedBy:null}).catch(function(e){console.warn('icUnpin:',e)});
+  }else{
+    fbDb.collection('chat_messages').doc(msgId).update({
+      pinned:true,
+      pinnedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      pinnedBy:getUserName()
+    }).catch(function(e){console.warn('icPin:',e)});
+  }
+}
+
+function icShowPinnedMessages(){
+  var bar=document.getElementById('icPinnedBar');
+  if(bar&&bar.style.display!=='none'){
+    bar.style.display='none';
+    return;
+  }
+  var pinned=IC.messages.filter(function(m){return m.pinned===true});
+  if(!bar){
+    var body=document.getElementById('icBody');
+    if(!body)return;
+    bar=document.createElement('div');
+    bar.id='icPinnedBar';
+    bar.style.cssText='max-height:200px;overflow-y:auto;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2)';
+    body.parentNode.insertBefore(bar,body);
+  }
+  if(!pinned.length){
+    bar.innerHTML='<div style="padding:12px;text-align:center;font-size:11px;color:rgba(255,255,255,.3)">No pinned messages</div>';
+  }else{
+    var h='<div style="padding:6px 12px;font-size:10px;font-weight:700;color:rgba(255,255,255,.4)">PINNED MESSAGES ('+pinned.length+')</div>';
+    pinned.forEach(function(m){
+      h+='<div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.03);font-size:11px">';
+      h+='<div style="color:#00e5ff;font-size:9px;font-weight:600">'+esc(m.user)+'</div>';
+      h+='<div style="color:rgba(255,255,255,.6)">'+esc((m.text||'').substring(0,80))+'</div></div>';
+    });
+    bar.innerHTML=h;
+  }
+  bar.style.display='block';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 6: @Mention Autocomplete
+// ══════════════════════════════════════════════════════════════════
+function icCheckMention(el){
+  var val=el.value||'';
+  var cursorPos=el.selectionStart||val.length;
+  var textUpToCursor=val.substring(0,cursorPos);
+  var match=textUpToCursor.match(/@(\w*)$/);
+  var picker=document.getElementById('icMentionPicker');
+  if(!match){
+    if(picker)picker.style.display='none';
+    return;
+  }
+  var partial=match[1].toLowerCase();
+  var users=window._allTeamUsers||[];
+  var filtered=users.filter(function(u){
+    var name=(typeof u==='string')?u:(u.displayName||u.name||'');
+    return name.toLowerCase().indexOf(partial)>=0;
+  }).slice(0,8);
+
+  if(!filtered.length){
+    if(picker)picker.style.display='none';
+    return;
+  }
+
+  if(!picker){
+    var inputBar=document.getElementById('icInputBar');
+    if(!inputBar)return;
+    picker=document.createElement('div');
+    picker.id='icMentionPicker';
+    picker.style.cssText='position:absolute;bottom:100%;left:0;right:0;background:rgba(13,17,23,.96);border:1px solid rgba(255,255,255,.1);border-radius:10px;max-height:180px;overflow-y:auto;z-index:100;box-shadow:0 -4px 16px rgba(0,0,0,.4)';
+    inputBar.style.position='relative';
+    inputBar.appendChild(picker);
+  }
+  var h='';
+  filtered.forEach(function(u){
+    var name=(typeof u==='string')?u:(u.displayName||u.name||'');
+    h+='<div onclick="icInsertMention(\''+esc(name)+'\')" style="padding:8px 12px;cursor:pointer;font-size:12px;color:rgba(255,255,255,.8);transition:background .15s" onmouseover="this.style.background=\'rgba(0,229,255,.1)\'" onmouseout="this.style.background=\'none\'">@'+esc(name)+'</div>';
+  });
+  picker.innerHTML=h;
+  picker.style.display='block';
+}
+
+function icInsertMention(name){
+  var input=document.getElementById('icInput');
+  if(!input)return;
+  var val=input.value;
+  var cursorPos=input.selectionStart||val.length;
+  var textBefore=val.substring(0,cursorPos);
+  var textAfter=val.substring(cursorPos);
+  var replaced=textBefore.replace(/@\w*$/,'@'+name+' ');
+  input.value=replaced+textAfter;
+  var picker=document.getElementById('icMentionPicker');
+  if(picker)picker.style.display='none';
+  input.focus();
+  input.selectionStart=input.selectionEnd=replaced.length;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 7: Message Search
+// ══════════════════════════════════════════════════════════════════
+function icToggleSearch(){
+  var bar=document.getElementById('icSearchBar');
+  if(bar&&bar.style.display!=='none'){
+    icClearSearch();
+    return;
+  }
+  if(!bar){
+    var body=document.getElementById('icBody');
+    if(!body)return;
+    bar=document.createElement('div');
+    bar.id='icSearchBar';
+    bar.style.cssText='padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:6px';
+    bar.innerHTML='<input id="icSearchInput" placeholder="Search messages..." oninput="icSearchMessages(this.value)" style="flex:1;padding:6px 10px;font-size:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:8px;color:#fff;outline:none;font-family:inherit">'
+      +'<span onclick="icClearSearch()" style="cursor:pointer;color:rgba(255,255,255,.3);font-size:14px">&times;</span>';
+    body.parentNode.insertBefore(bar,body);
+  }
+  bar.style.display='flex';
+  var inp=document.getElementById('icSearchInput');
+  if(inp)inp.focus();
+}
+
+function icSearchMessages(query){
+  if(!query||!query.trim()){
+    icRenderMessages();
+    return;
+  }
+  var q=query.toLowerCase();
+  var body=document.getElementById('icBody');if(!body)return;
+  var filtered=IC.messages.filter(function(m){
+    return m.text&&m.text.toLowerCase().indexOf(q)>=0;
+  });
+  var me=getUserName();var uid=getUserId();var h='';
+  if(!filtered.length){
+    h='<div style="padding:30px;text-align:center;font-size:12px;color:rgba(255,255,255,.3)">No messages found</div>';
+  }else{
+    filtered.forEach(function(m){
+      var ts=m.timestamp?new Date(m.timestamp.seconds*1000):new Date();
+      var timeStr=ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      var isMe=m.user===me;
+      var bubbleRadius=isMe?'18px 18px 4px 18px':'18px 18px 18px 4px';
+      // Highlight matches
+      var highlightedText=formatChatText(m.text);
+      var re=new RegExp('('+query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+      highlightedText=highlightedText.replace(re,'<mark style="background:rgba(0,229,255,.3);color:#fff;border-radius:2px;padding:0 2px">$1</mark>');
+
+      h+='<div style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';padding:6px 14px 1px">';
+      if(!isMe)h+='<span style="font-size:10px;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:2px;margin-left:4px">'+esc(m.user)+'</span>';
+      h+='<div style="max-width:78%;padding:10px 14px;border-radius:'+bubbleRadius+';background:'+(isMe?'linear-gradient(135deg,#00b4d8,#0099cc)':'rgba(255,255,255,.08)')+';font-size:13px;color:'+(isMe?'#fff':'rgba(255,255,255,.85)')+';line-height:1.45;word-wrap:break-word">'+highlightedText+'</div>';
+      h+='<span style="font-size:8px;color:rgba(255,255,255,.2);margin-top:2px;padding:0 4px">'+timeStr+'</span>';
+      h+='</div>';
+    });
+  }
+  body.innerHTML=h;
+}
+
+function icClearSearch(){
+  var bar=document.getElementById('icSearchBar');
+  if(bar){bar.style.display='none';var inp=document.getElementById('icSearchInput');if(inp)inp.value='';}
+  icRenderMessages();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 8: File/Image Sharing
+// ══════════════════════════════════════════════════════════════════
+function icAddFile(){
+  var fi=document.createElement('input');
+  fi.type='file';
+  fi.accept='image/*,.pdf,.doc,.docx,.xlsx,.txt';
+  fi.style.display='none';
+  fi.onchange=function(){
+    if(fi.files&&fi.files[0])icUploadFile(fi.files[0]);
+    fi.remove();
+  };
+  document.body.appendChild(fi);
+  fi.click();
+}
+
+function icUploadFile(file){
+  if(!file)return;
+  if(file.size>10*1024*1024){
+    if(typeof toast==='function')toast('File too large (max 10MB)','err');
+    return;
+  }
+  if(!firebase||!firebase.storage){
+    if(typeof toast==='function')toast('Storage not available','err');
+    return;
+  }
+  var storageRef=firebase.storage().ref('chat-files/'+IC.activeChat+'/'+Date.now()+'_'+file.name);
+  var uploadTask=storageRef.put(file);
+
+  // Show progress in preview
+  _icPendingFile={url:'',name:file.name,type:file.type,size:file.size,_uploading:true};
+  icShowPreview();
+
+  uploadTask.on('state_changed',function(snapshot){
+    var progress=Math.round((snapshot.bytesTransferred/snapshot.totalBytes)*100);
+    var bar=document.getElementById('icPreviewBar');
+    if(bar){
+      var progEl=bar.querySelector('.ic-upload-progress');
+      if(!progEl){
+        progEl=document.createElement('div');
+        progEl.className='ic-upload-progress';
+        progEl.style.cssText='height:3px;background:rgba(0,229,255,.2);border-radius:2px;margin-top:4px;overflow:hidden';
+        progEl.innerHTML='<div style="height:100%;background:#00e5ff;border-radius:2px;transition:width .3s;width:0%"></div>';
+        bar.appendChild(progEl);
+      }
+      var inner=progEl.querySelector('div');
+      if(inner)inner.style.width=progress+'%';
+    }
+  },function(error){
+    console.warn('icUpload error:',error);
+    _icPendingFile=null;
+    icShowPreview();
+    if(typeof toast==='function')toast('Upload failed','err');
+  },function(){
+    uploadTask.snapshot.ref.getDownloadURL().then(function(url){
+      _icPendingFile={url:url,name:file.name,type:file.type,size:file.size};
+      icShowPreview();
+    });
+  });
+}
+
+function icSetupDragDrop(){
+  var body=document.getElementById('icBody');
+  if(!body)return;
+  body.addEventListener('dragover',function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    body.style.outline='2px dashed #00e5ff';
+    body.style.outlineOffset='-4px';
+  });
+  body.addEventListener('dragleave',function(e){
+    e.preventDefault();
+    body.style.outline='none';
+  });
+  body.addEventListener('drop',function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    body.style.outline='none';
+    if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]){
+      icUploadFile(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 10: Forward Message
+// ══════════════════════════════════════════════════════════════════
+function icForwardMsg(msgId){
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg)return;
+  if(!fbDb)return;
+  // Load all channels for forward picker
+  fbDb.collection('chat_channels').get().then(function(snap){
+    var channels=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
+    var h='<div style="padding:16px"><h3 style="margin:0 0 12px;font-size:14px;color:#fff">Forward Message</h3>';
+    h+='<div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:12px;padding:8px;background:rgba(255,255,255,.04);border-radius:8px;border-left:3px solid #00e5ff">'+esc((msg.text||'').substring(0,100))+'</div>';
+    h+='<div style="max-height:300px;overflow-y:auto">';
+    channels.forEach(function(c){
+      if(c.id===IC.activeChat)return;
+      var name=c.name||c.id;
+      h+='<div onclick="icDoForward(\''+esc(msgId)+'\',\''+esc(c.id)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;border-radius:8px;transition:background .15s" onmouseover="this.style.background=\'rgba(0,229,255,.08)\'" onmouseout="this.style.background=\'none\'">';
+      h+='<span style="font-size:14px">'+(c.type==='dm'?'\uD83D\uDC64':'#')+'</span>';
+      h+='<span style="font-size:12px;color:rgba(255,255,255,.8)">'+esc(name)+'</span></div>';
+    });
+    h+='</div></div>';
+    if(typeof openModal==='function')openModal(h);
+  }).catch(function(e){console.warn('icForward:',e)});
+}
+
+function icDoForward(msgId,targetChannelId){
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg||!fbDb)return;
+  if(typeof closeModal==='function')closeModal();
+  fbDb.collection('chat_messages').add({
+    channelId:targetChannelId,
+    text:msg.text||'',
+    user:getUserName(),
+    userId:getUserId(),
+    dept:window.CURRENT_USER&&window.CURRENT_USER._dept||'',
+    timestamp:firebase.firestore.FieldValue.serverTimestamp(),
+    reactions:{},
+    readBy:[getUserId()],
+    forwardedFrom:{
+      channelId:IC.activeChat,
+      msgId:msgId,
+      user:msg.user,
+      text:(msg.text||'').substring(0,100)
+    }
+  }).then(function(){
+    if(typeof toast==='function')toast('Message forwarded','ok');
+  }).catch(function(e){console.warn('icForward send:',e)});
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 11: Priority/Urgent Messages
+// ══════════════════════════════════════════════════════════════════
+function icTogglePriority(){
+  _icPriority=!_icPriority;
+  var btn=document.getElementById('icPriorityBtn');
+  if(btn){
+    if(_icPriority){
+      btn.style.background='rgba(239,68,68,.2)';
+      btn.style.color='#ef4444';
+    }else{
+      btn.style.background='';
+      btn.style.color='';
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// IC FEATURE 12: Mute Conversation
+// ══════════════════════════════════════════════════════════════════
+function icMuteChannel(){
+  if(!IC.activeChat||!fbDb)return;
+  var uid=getUserId();
+  var idx=_icMutedChannels.indexOf(IC.activeChat);
+  if(idx>=0){
+    _icMutedChannels.splice(idx,1);
+    fbDb.collection('users').doc(uid).update({
+      mutedChannels:firebase.firestore.FieldValue.arrayRemove(IC.activeChat)
+    }).catch(function(e){console.warn('icUnmute:',e)});
+  }else{
+    _icMutedChannels.push(IC.activeChat);
+    fbDb.collection('users').doc(uid).update({
+      mutedChannels:firebase.firestore.FieldValue.arrayUnion(IC.activeChat)
+    }).catch(function(e){console.warn('icMute:',e)});
+  }
+  var btn=document.getElementById('icMuteBtn');
+  if(btn){
+    btn.textContent=_icMutedChannels.indexOf(IC.activeChat)>=0?'\uD83D\uDD15':'\uD83D\uDD14';
+  }
+  if(typeof toast==='function')toast(_icMutedChannels.indexOf(IC.activeChat)>=0?'Conversation muted':'Conversation unmuted','ok');
+}
+
+// Load muted channels from user doc on init
+function icLoadMutedChannels(){
+  if(!fbDb)return;
+  var uid=getUserId();if(!uid)return;
+  fbDb.collection('users').doc(uid).get().then(function(doc){
+    if(doc.exists&&doc.data().mutedChannels){
+      _icMutedChannels=doc.data().mutedChannels;
+    }
+  }).catch(function(e){console.warn('icLoadMuted:',e)});
+}
+
 function icStartDM(otherUser){
   if(!fbDb)return;
   var me=getUserName();
@@ -1451,11 +2167,33 @@ window.icSendMsg=icSendMsg;
 window.icKeyDown=icKeyDown;
 window.icNewDM=icNewDM;
 window.icStartDM=icStartDM;
+window.icShowActionMenu=icShowActionMenu;
+window.icCloseActionMenu=icCloseActionMenu;
+window.icCopyText=icCopyText;
+window.icSetTyping=icSetTyping;
+window.icClearTyping=icClearTyping;
+window.icStartEdit=icStartEdit;
+window.icSaveEdit=icSaveEdit;
+window.icCancelEdit=icCancelEdit;
+window.icDeleteMsg=icDeleteMsg;
+window.icPinMsg=icPinMsg;
+window.icShowPinnedMessages=icShowPinnedMessages;
+window.icCheckMention=icCheckMention;
+window.icInsertMention=icInsertMention;
+window.icToggleSearch=icToggleSearch;
+window.icSearchMessages=icSearchMessages;
+window.icClearSearch=icClearSearch;
+window.icAddFile=icAddFile;
+window.icForwardMsg=icForwardMsg;
+window.icTogglePriority=icTogglePriority;
+window.icMuteChannel=icMuteChannel;
+window.icDoForward=icDoForward;
 
 // Auto-start unread listener after auth
 var _icAuthCheck=setInterval(function(){
   if(typeof getUserId==='function'&&getUserId()&&typeof fbDb!=='undefined'){
     clearInterval(_icAuthCheck);
+    setTimeout(icLoadMutedChannels,2500);
     setTimeout(icStartUnreadListener,3000);
     setTimeout(icLoadOnlineUsers,3500);
   }
