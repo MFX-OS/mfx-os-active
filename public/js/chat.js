@@ -1118,6 +1118,18 @@ function icOpenChat(channelId,displayName){
   if(convoHeader){convoHeader.style.display='flex'}
   var convoTitle=document.getElementById('icConvoTitle');
   if(convoTitle)convoTitle.textContent=displayName;
+  // Show member count
+  var memberCountEl=document.getElementById('icMemberCount');
+  if(memberCountEl&&fbDb){
+    fbDb.collection('chat_channels').doc(channelId).get().then(function(doc){
+      if(doc.exists){
+        var data=doc.data();
+        var members=data.members||[];
+        if(members.length>0)memberCountEl.textContent=members.length+' members';
+        else memberCountEl.textContent='';
+      }
+    }).catch(function(){});
+  }
   // Highlight active in sidebar
   var items=document.querySelectorAll('[data-ic-channel]');
   for(var si=0;si<items.length;si++){
@@ -2157,6 +2169,155 @@ function icNewDM(){
     var inputBar=document.getElementById('icInputBar');if(inputBar)inputBar.style.display='none';
   }).catch(function(e){console.warn('IC users:',e.message)});
 }
+
+// ── ADD PEOPLE → CREATE GROUP CHAT ──
+var _icAddPeopleSelected=[];
+
+function icAddPeople(){
+  if(!fbDb||!IC.activeChat)return;
+  // Get current channel to know existing members
+  fbDb.collection('chat_channels').doc(IC.activeChat).get().then(function(doc){
+    var channelData=doc.exists?doc.data():{};
+    var existingMembers=channelData.members||[];
+    var me=getUserName();
+    if(existingMembers.indexOf(me)<0)existingMembers.push(me);
+    _icAddPeopleSelected=[];
+
+    // Load all users
+    fbDb.collection('users').get().then(function(snap){
+      var cutoff=new Date(Date.now()-5*60*1000);
+      var users=[];
+      snap.docs.forEach(function(d){
+        var u=d.data();
+        var name=u.displayName||'';
+        if(!name)return;
+        var ls=u.lastSeen?new Date(u.lastSeen.seconds*1000):null;
+        var online=ls&&ls>cutoff;
+        // Skip users already in the chat
+        var alreadyIn=existingMembers.indexOf(name)>=0;
+        users.push({name:name,online:online,dept:u.department||u.dept||'',alreadyIn:alreadyIn});
+      });
+      users.sort(function(a,b){
+        if(a.alreadyIn!==b.alreadyIn)return a.alreadyIn?1:-1;
+        return(b.online?1:0)-(a.online?1:0);
+      });
+
+      var h='<div class="modal-title" style="display:flex;align-items:center;gap:8px">Add People to Chat</div>';
+      h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:8px">Select people to add. A new group chat will be created with everyone.</div>';
+      h+='<div id="icAddPeopleSelected" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;min-height:24px"></div>';
+      h+='<div style="max-height:250px;overflow-y:auto">';
+      users.forEach(function(u){
+        if(u.name===me)return;
+        var dot=u.online?'#2ee89e':'#555';
+        var dim=u.alreadyIn?'opacity:.4;pointer-events:none':'';
+        h+='<div onclick="icToggleAddPerson(\''+esc(u.name)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;'+dim+'" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'" data-addperson="'+esc(u.name)+'">';
+        h+='<span style="width:8px;height:8px;border-radius:50%;background:'+dot+';flex-shrink:0"></span>';
+        h+='<span style="font-size:12px;color:var(--tx);flex:1">'+esc(u.name)+(u.alreadyIn?' <span style="font-size:9px;color:var(--tx3)">(already in chat)</span>':'')+'</span>';
+        h+='<span style="font-size:9px;color:var(--tx3)">'+esc(u.dept)+'</span>';
+        h+='<span class="icAddCheck" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0"></span>';
+        h+='</div>';
+      });
+      h+='</div>';
+      h+='<button id="icCreateGroupBtn" onclick="icCreateGroupChat()" class="btn btn-pr" style="width:100%;margin-top:10px;padding:10px;border-radius:12px;font-size:13px;font-weight:700" disabled>Create Group Chat</button>';
+      h+='<button onclick="closeModal()" class="btn btn-ghost" style="width:100%;margin-top:4px;padding:8px;border-radius:12px;font-size:12px">Cancel</button>';
+      if(typeof openModal==='function')openModal(h);
+    });
+  }).catch(function(e){console.warn('icAddPeople:',e)});
+}
+
+function icToggleAddPerson(name){
+  var idx=_icAddPeopleSelected.indexOf(name);
+  if(idx>=0){
+    _icAddPeopleSelected.splice(idx,1);
+  }else{
+    _icAddPeopleSelected.push(name);
+  }
+  // Update checkmarks
+  var rows=document.querySelectorAll('[data-addperson]');
+  for(var i=0;i<rows.length;i++){
+    var pName=rows[i].getAttribute('data-addperson');
+    var check=rows[i].querySelector('.icAddCheck');
+    if(!check)continue;
+    var selected=_icAddPeopleSelected.indexOf(pName)>=0;
+    check.innerHTML=selected?'✓':'';
+    check.style.background=selected?'#00e5ff':'transparent';
+    check.style.borderColor=selected?'#00e5ff':'var(--bdr)';
+    check.style.color=selected?'#000':'';
+  }
+  // Update selected pills
+  var selEl=document.getElementById('icAddPeopleSelected');
+  if(selEl){
+    selEl.innerHTML=_icAddPeopleSelected.map(function(n){
+      return '<span style="padding:3px 10px;background:rgba(0,229,255,.15);border:1px solid rgba(0,229,255,.3);border-radius:20px;font-size:10px;color:#00e5ff;font-weight:600;display:inline-flex;align-items:center;gap:4px">'+esc(n)+' <span onclick="event.stopPropagation();icToggleAddPerson(\''+esc(n)+'\')" style="cursor:pointer;opacity:.6">&times;</span></span>';
+    }).join('');
+  }
+  // Enable/disable button
+  var btn=document.getElementById('icCreateGroupBtn');
+  if(btn)btn.disabled=_icAddPeopleSelected.length<1;
+}
+
+function icCreateGroupChat(){
+  if(!fbDb||!_icAddPeopleSelected.length)return;
+  var me=getUserName();
+  // Get existing members
+  fbDb.collection('chat_channels').doc(IC.activeChat).get().then(function(doc){
+    var channelData=doc.exists?doc.data():{};
+    var existingMembers=channelData.members||[];
+    if(existingMembers.indexOf(me)<0)existingMembers.push(me);
+
+    // Merge all members
+    var allMembers=existingMembers.slice();
+    _icAddPeopleSelected.forEach(function(name){
+      if(allMembers.indexOf(name)<0)allMembers.push(name);
+    });
+
+    // Create group chat ID
+    var groupId='group_'+allMembers.slice().sort().join('_').replace(/\s/g,'-').toLowerCase().substring(0,60)+'_'+Date.now().toString(36);
+
+    // Group name: first names of all members
+    var groupName=allMembers.map(function(n){return n.split(' ')[0]}).join(', ');
+    if(groupName.length>40)groupName=groupName.substring(0,37)+'...';
+
+    fbDb.collection('chat_channels').doc(groupId).set({
+      name:groupName,
+      type:'dm',
+      group:'personal',
+      desc:'Group chat with '+allMembers.length+' people',
+      dept:null,
+      created:firebase.firestore.FieldValue.serverTimestamp(),
+      owner:me,
+      members:allMembers,
+      lastMessage:'Group chat created',
+      lastMessageAt:firebase.firestore.FieldValue.serverTimestamp(),
+      isGroup:true
+    }).then(function(){
+      // Send a system message
+      fbDb.collection('chat_messages').add({
+        channelId:groupId,
+        text:me+' created a group chat with '+_icAddPeopleSelected.join(', '),
+        user:'System',
+        userId:'system',
+        dept:'',
+        timestamp:firebase.firestore.FieldValue.serverTimestamp(),
+        reactions:{},
+        readBy:[]
+      });
+      if(typeof closeModal==='function')closeModal();
+      if(typeof toast==='function')toast('Group chat created!','ok');
+      _icAddPeopleSelected=[];
+      // Refresh sidebar and open the new group
+      icShowList();
+      setTimeout(function(){icOpenChat(groupId,groupName)},800);
+    });
+  }).catch(function(e){
+    console.warn('icCreateGroup:',e);
+    if(typeof toast==='function')toast('Failed to create group','err');
+  });
+}
+
+window.icAddPeople=icAddPeople;
+window.icToggleAddPerson=icToggleAddPerson;
+window.icCreateGroupChat=icCreateGroupChat;
 
 // Helpers
 function icInitials(name){return(name||'?').split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase()}
