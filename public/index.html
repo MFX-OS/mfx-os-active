@@ -344,8 +344,10 @@
 <span onclick="icAddPeople()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3);border-radius:6px" title="Add people to chat">👥+</span>
 <span onclick="icToggleSearch()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Search">🔍</span>
 <span onclick="icShowPinnedMessages()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Pinned">📌</span>
+<span onclick="icPopOutChat(IC.activeChat, document.getElementById('icConvoTitle').textContent)" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Pop out to window">&#8599;&#65039;</span>
 <span onclick="icMuteChannel()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" id="icMuteBtn" title="Mute">🔔</span>
 </div>
+<div id="icTabBar" style="display:none;padding:0 14px;background:rgba(0,0,0,.15);border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:0;overflow-x:auto;flex-shrink:0"></div>
 <div id="icSearchBar" style="display:none;padding:6px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.04)"><input id="icSearchInput" placeholder="Search messages..." oninput="icSearchMessages(this.value)" style="width:100%;padding:6px 10px;font-size:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;outline:none;font-family:inherit"></div>
 <div id="icPinnedBar" style="display:none"></div>
 <div id="icBody" style="flex:1;overflow-y:auto;display:flex;flex-direction:column"></div>
@@ -407,7 +409,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.e1421e61.js"></script>
+<script src="js/mfx-bundle.86ba2d39.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>

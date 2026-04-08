@@ -1160,6 +1160,10 @@ function icOpenChat(channelId,displayName){
   // Update conversation header
   var convoHeader=document.getElementById('icConvoHeader');
   if(convoHeader){convoHeader.style.display='flex'}
+  // Show workspace tab bar and reset to chat tab
+  var _tabBar=document.getElementById('icTabBar');
+  if(_tabBar){_tabBar.style.display='flex';_tabBar.innerHTML=icWorkspaceTabBar(channelId)}
+  IC._workspaceTab='chat';
   var convoTitle=document.getElementById('icConvoTitle');
   if(convoTitle)convoTitle.textContent=displayName;
   // Show member count
@@ -3950,6 +3954,7 @@ function _icInstantRemove(channelId){
     var body=document.getElementById('icBody');
     if(body)body.innerHTML='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,.2);padding:40px"><div style="font-size:48px;opacity:.3">💬</div><div style="font-size:14px;font-weight:600">Select a conversation</div></div>';
     var convoHeader=document.getElementById('icConvoHeader');if(convoHeader)convoHeader.style.display='none';
+    var tabBarDel=document.getElementById('icTabBar');if(tabBarDel)tabBarDel.style.display='none';
     var inputBar=document.getElementById('icInputBar');if(inputBar)inputBar.style.display='none';
   }
 }
@@ -4068,6 +4073,472 @@ window.icConversationStarter=icConversationStarter;
 window.icTeamMoodSummary=icTeamMoodSummary;
 window.icCycleNotifPriority=icCycleNotifPriority;
 
+// ══════════════════════════════════════════════════════════════════
+// POP-OUT CHAT WINDOWS
+// ══════════════════════════════════════════════════════════════════
+
+function icPopOutChat(channelId, displayName) {
+  if (!channelId) return;
+  var newWin = window.open('', '_blank', 'width=500,height=600,resizable=yes,scrollbars=yes');
+  if (!newWin) { if (typeof toast === 'function') toast('Popup blocked — please allow popups', 'error'); return; }
+  var escapedName = esc(displayName || channelId);
+  var popHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapedName + ' - MFX Chat</title>';
+  popHtml += '<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"><\/script>';
+  popHtml += '<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"><\/script>';
+  popHtml += '<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"><\/script>';
+  popHtml += '<style>';
+  popHtml += '*{margin:0;padding:0;box-sizing:border-box}';
+  popHtml += 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d1117;color:#fff;display:flex;flex-direction:column;height:100vh}';
+  popHtml += '#pop-header{padding:12px 16px;background:rgba(0,0,0,.4);border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;flex-shrink:0}';
+  popHtml += '#pop-header h3{flex:1;font-size:14px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
+  popHtml += '#pop-close{background:none;border:none;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer;padding:4px}';
+  popHtml += '#pop-close:hover{color:#ef4444}';
+  popHtml += '#pop-messages{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:2px}';
+  popHtml += '.pop-date{text-align:center;padding:8px 0 4px;font-size:10px;color:rgba(255,255,255,.25)}';
+  popHtml += '.pop-sender{font-size:10px;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:2px;margin-left:4px}';
+  popHtml += '.pop-bubble-wrap{display:flex;flex-direction:column;padding:1px 0}';
+  popHtml += '.pop-bubble{max-width:78%;padding:8px 14px;font-size:12.5px;line-height:1.5;word-wrap:break-word}';
+  popHtml += '.pop-bubble.me{align-self:flex-end;background:linear-gradient(135deg,#00b4d8,#0077b6);color:#fff;border-radius:18px 18px 4px 18px}';
+  popHtml += '.pop-bubble.them{align-self:flex-start;background:rgba(255,255,255,.07);color:rgba(255,255,255,.85);border-radius:18px 18px 18px 4px}';
+  popHtml += '.pop-time{font-size:9px;color:rgba(255,255,255,.2);margin-top:2px;padding:0 4px}';
+  popHtml += '#pop-input-bar{padding:10px 12px;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;flex-shrink:0}';
+  popHtml += '#pop-input{flex:1;padding:8px 14px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:20px;color:#fff;outline:none;font-family:inherit}';
+  popHtml += '#pop-input:focus{border-color:rgba(0,229,255,.3)}';
+  popHtml += '#pop-send{background:linear-gradient(135deg,#00e5ff,#00b4d8);border:none;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;color:#000;cursor:pointer}';
+  popHtml += '#pop-send:hover{opacity:.85}';
+  popHtml += '</style></head><body>';
+  popHtml += '<div id="pop-header"><h3>' + escapedName + '</h3><button id="pop-close" onclick="window.close()">&times;</button></div>';
+  popHtml += '<div id="pop-messages"></div>';
+  popHtml += '<div id="pop-input-bar"><input id="pop-input" placeholder="Type a message..." autocomplete="off"><button id="pop-send">Send</button></div>';
+  popHtml += '<script>';
+  popHtml += 'var channelId="' + channelId + '";';
+  popHtml += 'var firebaseConfig={apiKey:"AIzaSyBLiYHfaGJoRJXd7fqSsIsNlsObmvKQXWk",authDomain:"mfx-2026.firebaseapp.com",projectId:"mfx-2026",storageBucket:"mfx-2026.firebasestorage.app",messagingSenderId:"507375182062",appId:"1:507375182062:web:ee2c3f6f5c6a0a1b2c3d4e"};';
+  popHtml += 'firebase.initializeApp(firebaseConfig);';
+  popHtml += 'var db=firebase.firestore();';
+  popHtml += 'var currentUser=null;';
+  popHtml += 'function escP(s){if(!s)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}';
+  popHtml += 'firebase.auth().onAuthStateChanged(function(u){';
+  popHtml += '  if(u){currentUser=u;listenMessages()}';
+  popHtml += '  else{document.getElementById("pop-messages").innerHTML="<div style=\\"text-align:center;padding:40px;color:rgba(255,255,255,.3)\\">Not signed in</div>"}';
+  popHtml += '});';
+  popHtml += 'function listenMessages(){';
+  popHtml += '  db.collection("chat_messages").where("channelId","==",channelId).orderBy("timestamp","asc").limit(50).onSnapshot(function(snap){';
+  popHtml += '    var msgs=snap.docs.map(function(d){var data=d.data();data.id=d.id;return data});';
+  popHtml += '    renderPopMsgs(msgs);';
+  popHtml += '  });';
+  popHtml += '}';
+  popHtml += 'function renderPopMsgs(msgs){';
+  popHtml += '  var el=document.getElementById("pop-messages");if(!el)return;';
+  popHtml += '  var me=currentUser?(currentUser.displayName||currentUser.email.split("@")[0]):"";';
+  popHtml += '  var h="";var lastDate="";var lastUser="";';
+  popHtml += '  msgs.forEach(function(m){';
+  popHtml += '    if(m.deleted)return;';
+  popHtml += '    var ts=m.timestamp?new Date(m.timestamp.seconds*1000):new Date();';
+  popHtml += '    var ds=ts.toLocaleDateString();';
+  popHtml += '    if(ds!==lastDate){h+="<div class=\\"pop-date\\">"+ts.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})+"</div>";lastDate=ds;lastUser=""}';
+  popHtml += '    var isMe=m.user===me;';
+  popHtml += '    if(!isMe&&m.user!==lastUser){h+="<div class=\\"pop-sender\\">"+escP(m.user)+"</div>"}';
+  popHtml += '    h+="<div class=\\"pop-bubble-wrap\\" style=\\"align-items:"+(isMe?"flex-end":"flex-start")+"\\">";';
+  popHtml += '    if(m.text){h+="<div class=\\"pop-bubble "+(isMe?"me":"them")+"\\">"+escP(m.text)+"</div>"}';
+  popHtml += '    if(m.gif){h+="<div style=\\"max-width:220px\\"><img src=\\""+escP(m.gif)+"\\" style=\\"max-width:100%;border-radius:12px\\"></div>"}';
+  popHtml += '    h+="<div class=\\"pop-time\\" style=\\"text-align:"+(isMe?"right":"left")+"\\">"+ts.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+"</div>";';
+  popHtml += '    h+="</div>";';
+  popHtml += '    lastUser=m.user;';
+  popHtml += '  });';
+  popHtml += '  var atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<80;';
+  popHtml += '  el.innerHTML=h;';
+  popHtml += '  if(atBottom)el.scrollTop=el.scrollHeight;';
+  popHtml += '}';
+  popHtml += 'function sendPopMsg(){';
+  popHtml += '  var inp=document.getElementById("pop-input");if(!inp)return;';
+  popHtml += '  var txt=inp.value.trim();if(!txt||!currentUser)return;';
+  popHtml += '  inp.value="";';
+  popHtml += '  db.collection("chat_messages").add({';
+  popHtml += '    channelId:channelId,';
+  popHtml += '    text:txt,';
+  popHtml += '    user:currentUser.displayName||currentUser.email.split("@")[0],';
+  popHtml += '    userId:currentUser.uid,';
+  popHtml += '    timestamp:firebase.firestore.FieldValue.serverTimestamp()';
+  popHtml += '  });';
+  popHtml += '  db.collection("chat_channels").doc(channelId).update({lastMessage:txt,lastMessageAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(function(){});';
+  popHtml += '}';
+  popHtml += 'document.getElementById("pop-send").addEventListener("click",sendPopMsg);';
+  popHtml += 'document.getElementById("pop-input").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendPopMsg()}});';
+  popHtml += '<\/script></body></html>';
+  newWin.document.write(popHtml);
+  newWin.document.close();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WORKSPACE TABS — Chat | Files | Whiteboard | Notes | Tasks
+// ══════════════════════════════════════════════════════════════════
+
+function icWorkspaceTabBar(channelId) {
+  var tabs = [
+    { key: 'chat', icon: '\uD83D\uDCAC', label: 'Chat' },
+    { key: 'files', icon: '\uD83D\uDCC1', label: 'Files' },
+    { key: 'whiteboard', icon: '\uD83C\uDFA8', label: 'Whiteboard' },
+    { key: 'notes', icon: '\uD83D\uDCDD', label: 'Notes' },
+    { key: 'tasks', icon: '\u2705', label: 'Tasks' }
+  ];
+  var active = IC._workspaceTab || 'chat';
+  var h = '';
+  tabs.forEach(function(t) {
+    var isActive = t.key === active;
+    h += '<div onclick="icSwitchWorkspaceTab(\'' + t.key + '\')" style="padding:8px 14px;font-size:11px;font-weight:' + (isActive ? '700' : '500') + ';color:' + (isActive ? '#00e5ff' : 'rgba(255,255,255,.45)') + ';cursor:pointer;border-bottom:2px solid ' + (isActive ? '#00e5ff' : 'transparent') + ';white-space:nowrap;transition:all .15s;user-select:none" onmouseover="if(this.style.color!==\'rgb(0, 229, 255)\')this.style.color=\'rgba(255,255,255,.7)\'" onmouseout="if(this.style.borderBottomColor!==\'rgb(0, 229, 255)\')this.style.color=\'rgba(255,255,255,.45)\'">' + t.icon + ' ' + t.label + '</div>';
+  });
+  return h;
+}
+
+function icSwitchWorkspaceTab(tab) {
+  IC._workspaceTab = tab;
+  // Re-render tab bar highlight
+  var tabBar = document.getElementById('icTabBar');
+  if (tabBar && IC.activeChat) tabBar.innerHTML = icWorkspaceTabBar(IC.activeChat);
+  var body = document.getElementById('icBody');
+  var inputBar = document.getElementById('icInputBar');
+  if (!body) return;
+  if (tab === 'chat') {
+    if (inputBar) inputBar.style.display = 'block';
+    // Re-trigger message render
+    if (IC.activeChat && typeof icRenderMessages === 'function') icRenderMessages();
+    else body.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:13px">Select a conversation</div>';
+  } else {
+    if (inputBar) inputBar.style.display = 'none';
+    if (tab === 'files') body.innerHTML = icRenderFilesTab();
+    else if (tab === 'whiteboard') { body.innerHTML = icRenderWhiteboardTab(); _icInitWhiteboardCanvas(); }
+    else if (tab === 'notes') { body.innerHTML = icRenderNotesTab(); _icLoadNotes(); }
+    else if (tab === 'tasks') { body.innerHTML = icRenderTasksTab(); _icListenTasks(); }
+  }
+}
+
+// ── FILES TAB ──
+
+function icRenderFilesTab() {
+  var h = '<div style="padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1">';
+  h += '<div style="font-size:13px;font-weight:700;color:#fff">Shared Files</div>';
+  // Quick-create buttons
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  h += '<button onclick="window.open(\'https://docs.google.com/document/create\',\'_blank\')" style="background:rgba(66,133,244,.15);border:1px solid rgba(66,133,244,.3);padding:6px 12px;border-radius:8px;font-size:11px;color:#4285f4;cursor:pointer;font-family:inherit">\uD83D\uDCC4 New Google Doc</button>';
+  h += '<button onclick="window.open(\'https://docs.google.com/spreadsheets/create\',\'_blank\')" style="background:rgba(52,168,83,.15);border:1px solid rgba(52,168,83,.3);padding:6px 12px;border-radius:8px;font-size:11px;color:#34a853;cursor:pointer;font-family:inherit">\uD83D\uDCCA New Google Sheet</button>';
+  h += '<button onclick="window.open(\'https://docs.google.com/presentation/create\',\'_blank\')" style="background:rgba(251,188,4,.15);border:1px solid rgba(251,188,4,.3);padding:6px 12px;border-radius:8px;font-size:11px;color:#fbbc04;cursor:pointer;font-family:inherit">\uD83D\uDCFD New Google Slides</button>';
+  h += '</div>';
+  // Embed input
+  h += '<div style="display:flex;gap:8px;align-items:center">';
+  h += '<input id="icDocEmbedUrl" placeholder="Paste Google Docs/Sheets/Slides URL to embed..." style="flex:1;padding:7px 12px;font-size:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#fff;outline:none;font-family:inherit">';
+  h += '<button onclick="icAddSharedDoc()" style="background:#00e5ff;border:none;padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;color:#000;cursor:pointer">Embed</button>';
+  h += '</div>';
+  // Shared docs list
+  h += '<div id="icSharedDocsList" style="display:flex;flex-direction:column;gap:8px"></div>';
+  // Files from messages
+  h += '<div style="font-size:11px;font-weight:600;color:rgba(255,255,255,.5);margin-top:8px">Files from messages</div>';
+  h += '<div id="icMessageFilesList" style="display:flex;flex-direction:column;gap:6px">';
+  // Populate from IC.messages
+  var files = [];
+  (IC.messages || []).forEach(function(m) {
+    if (m.attachments && m.attachments.length) {
+      m.attachments.forEach(function(a) { files.push({ name: a.name || 'File', url: a.url, type: a.type, user: m.user }); });
+    }
+    if (m.gif) { files.push({ name: 'GIF', url: m.gif, type: 'image', user: m.user }); }
+  });
+  if (!files.length) {
+    h += '<div style="font-size:11px;color:rgba(255,255,255,.25);padding:8px 0">No files shared yet</div>';
+  } else {
+    files.forEach(function(f) {
+      h += '<a href="' + esc(f.url) + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:8px;text-decoration:none">';
+      h += '<span style="font-size:18px">' + (f.type === 'image' ? '\uD83D\uDDBC' : '\uD83D\uDCC4') + '</span>';
+      h += '<div style="flex:1;min-width:0"><div style="font-size:11px;color:#00e5ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(f.name) + '</div>';
+      h += '<div style="font-size:9px;color:rgba(255,255,255,.3)">Shared by ' + esc(f.user) + '</div></div></a>';
+    });
+  }
+  h += '</div>';
+  h += '</div>';
+  // Load shared docs from Firestore
+  if (fbDb && IC.activeChat) {
+    fbDb.collection('chat_channels').doc(IC.activeChat).get().then(function(doc) {
+      if (!doc.exists) return;
+      var data = doc.data();
+      var docs = data.sharedDocs || [];
+      var el = document.getElementById('icSharedDocsList');
+      if (!el) return;
+      var dh = '';
+      docs.forEach(function(d, idx) {
+        dh += '<div style="background:rgba(255,255,255,.04);border-radius:10px;overflow:hidden">';
+        dh += '<div style="padding:8px 12px;display:flex;align-items:center;gap:8px"><span style="font-size:14px">\uD83D\uDD17</span>';
+        dh += '<a href="' + esc(d.url) + '" target="_blank" rel="noopener" style="flex:1;font-size:11px;color:#00e5ff;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(d.title || d.url) + '</a>';
+        dh += '<span style="font-size:9px;color:rgba(255,255,255,.25)">by ' + esc(d.addedBy || '') + '</span></div>';
+        dh += '<iframe src="' + esc(d.url.replace('/edit', '/preview')) + '" style="width:100%;height:300px;border:none;border-top:1px solid rgba(255,255,255,.06)"></iframe>';
+        dh += '</div>';
+      });
+      el.innerHTML = dh;
+    }).catch(function() {});
+  }
+  return h;
+}
+
+function icAddSharedDoc() {
+  var inp = document.getElementById('icDocEmbedUrl');
+  if (!inp) return;
+  var url = inp.value.trim();
+  if (!url) return;
+  // Basic validation for Google Docs URLs
+  if (url.indexOf('docs.google.com') < 0 && url.indexOf('sheets.google.com') < 0 && url.indexOf('slides.google.com') < 0) {
+    if (typeof toast === 'function') toast('Please paste a Google Docs, Sheets, or Slides URL', 'error');
+    return;
+  }
+  var docType = 'doc';
+  if (url.indexOf('/spreadsheets/') >= 0) docType = 'sheet';
+  else if (url.indexOf('/presentation/') >= 0) docType = 'slides';
+  var newDoc = { url: url, title: docType.charAt(0).toUpperCase() + docType.slice(1) + ' - ' + new Date().toLocaleDateString(), type: docType, addedBy: getUserName(), addedAt: new Date().toISOString() };
+  if (fbDb && IC.activeChat) {
+    fbDb.collection('chat_channels').doc(IC.activeChat).update({
+      sharedDocs: firebase.firestore.FieldValue.arrayUnion(newDoc)
+    }).then(function() {
+      inp.value = '';
+      if (typeof toast === 'function') toast('Document embedded', 'ok');
+      icSwitchWorkspaceTab('files');
+    }).catch(function(e) { if (typeof toast === 'function') toast('Error: ' + e.message, 'error'); });
+  }
+}
+
+// ── WHITEBOARD TAB ──
+
+var _icWbCtx = null;
+var _icWbDrawing = false;
+var _icWbColor = '#ffffff';
+var _icWbWidth = 3;
+var _icWbEraser = false;
+
+function icRenderWhiteboardTab() {
+  var h = '<div style="display:flex;flex-direction:column;flex:1;overflow:hidden">';
+  // Toolbar
+  h += '<div style="padding:8px 14px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;flex-wrap:wrap">';
+  var colors = [['#ffffff', 'White'], ['#ef4444', 'Red'], ['#3b82f6', 'Blue'], ['#22c55e', 'Green'], ['#f59e0b', 'Yellow']];
+  colors.forEach(function(c) {
+    h += '<div onclick="_icWbSetColor(\'' + c[0] + '\')" style="width:20px;height:20px;border-radius:50%;background:' + c[0] + ';cursor:pointer;border:2px solid rgba(255,255,255,.15)" title="' + c[1] + '"></div>';
+  });
+  h += '<div onclick="_icWbSetEraser()" id="icWbEraserBtn" style="padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.08)" title="Eraser">\uD83E\uDDF9 Eraser</div>';
+  h += '<input type="range" min="2" max="10" value="3" oninput="_icWbWidth=parseInt(this.value)" style="width:80px;accent-color:#00e5ff" title="Line width">';
+  h += '<div style="flex:1"></div>';
+  h += '<button onclick="_icWbClear()" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.2);padding:4px 10px;border-radius:6px;font-size:10px;color:#ef4444;cursor:pointer;font-family:inherit">\uD83D\uDDD1 Clear</button>';
+  h += '<button onclick="icSaveWhiteboard()" style="background:#00e5ff;border:none;padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;color:#000;cursor:pointer;font-family:inherit">\uD83D\uDCBE Save</button>';
+  h += '</div>';
+  // Canvas
+  h += '<div style="flex:1;overflow:hidden;position:relative;background:rgba(0,0,0,.3)">';
+  h += '<canvas id="icWbCanvas" style="display:block;width:100%;height:100%;cursor:crosshair"></canvas>';
+  h += '</div></div>';
+  return h;
+}
+
+function _icInitWhiteboardCanvas() {
+  setTimeout(function() {
+    var canvas = document.getElementById('icWbCanvas');
+    if (!canvas) return;
+    var rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width);
+    canvas.height = Math.floor(rect.height);
+    _icWbCtx = canvas.getContext('2d');
+    _icWbCtx.lineCap = 'round';
+    _icWbCtx.lineJoin = 'round';
+    _icWbDrawing = false;
+    // Mouse events
+    canvas.addEventListener('mousedown', _icWbStart);
+    canvas.addEventListener('mousemove', _icWbMove);
+    canvas.addEventListener('mouseup', _icWbEnd);
+    canvas.addEventListener('mouseleave', _icWbEnd);
+    // Touch events
+    canvas.addEventListener('touchstart', function(e) { e.preventDefault(); _icWbStart(_icWbTouchToMouse(e)); });
+    canvas.addEventListener('touchmove', function(e) { e.preventDefault(); _icWbMove(_icWbTouchToMouse(e)); });
+    canvas.addEventListener('touchend', function(e) { e.preventDefault(); _icWbEnd(); });
+  }, 50);
+}
+
+function _icWbTouchToMouse(e) {
+  var t = e.touches[0];
+  var canvas = document.getElementById('icWbCanvas');
+  var r = canvas.getBoundingClientRect();
+  return { offsetX: t.clientX - r.left, offsetY: t.clientY - r.top };
+}
+
+function _icWbStart(e) {
+  _icWbDrawing = true;
+  if (!_icWbCtx) return;
+  _icWbCtx.beginPath();
+  _icWbCtx.moveTo(e.offsetX, e.offsetY);
+}
+
+function _icWbMove(e) {
+  if (!_icWbDrawing || !_icWbCtx) return;
+  _icWbCtx.strokeStyle = _icWbEraser ? '#0d1117' : _icWbColor;
+  _icWbCtx.lineWidth = _icWbEraser ? _icWbWidth * 3 : _icWbWidth;
+  _icWbCtx.lineTo(e.offsetX, e.offsetY);
+  _icWbCtx.stroke();
+}
+
+function _icWbEnd() { _icWbDrawing = false; }
+
+function _icWbSetColor(c) { _icWbColor = c; _icWbEraser = false; var btn = document.getElementById('icWbEraserBtn'); if (btn) btn.style.background = 'rgba(255,255,255,.06)'; }
+function _icWbSetEraser() { _icWbEraser = !_icWbEraser; var btn = document.getElementById('icWbEraserBtn'); if (btn) btn.style.background = _icWbEraser ? 'rgba(0,229,255,.15)' : 'rgba(255,255,255,.06)'; }
+function _icWbClear() { var canvas = document.getElementById('icWbCanvas'); if (canvas && _icWbCtx) _icWbCtx.clearRect(0, 0, canvas.width, canvas.height); }
+
+function icSaveWhiteboard() {
+  var canvas = document.getElementById('icWbCanvas');
+  if (!canvas) return;
+  var dataUrl = canvas.toDataURL('image/png');
+  // Send as image message in chat
+  if (fbDb && IC.activeChat) {
+    fbDb.collection('chat_messages').add({
+      channelId: IC.activeChat,
+      text: '\uD83C\uDFA8 Whiteboard snapshot',
+      user: getUserName(),
+      userId: getUserId(),
+      attachments: [{ name: 'whiteboard.png', url: dataUrl, type: 'image' }],
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function() {
+      if (typeof toast === 'function') toast('Whiteboard saved to chat', 'ok');
+      fbDb.collection('chat_channels').doc(IC.activeChat).update({ lastMessage: '\uD83C\uDFA8 Whiteboard snapshot', lastMessageAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(function() {});
+    }).catch(function(e) { if (typeof toast === 'function') toast('Error: ' + e.message, 'error'); });
+  }
+}
+
+// ── NOTES TAB ──
+
+var _icNotesTimer = null;
+var _icNotesUnsub = null;
+
+function icRenderNotesTab() {
+  var h = '<div style="display:flex;flex-direction:column;flex:1;overflow:hidden;padding:14px">';
+  h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0">';
+  h += '<span style="font-size:13px;font-weight:700;color:#fff">\uD83D\uDCDD Shared Notes</span>';
+  h += '<span id="icNotesStatus" style="font-size:9px;color:rgba(255,255,255,.25);flex:1"></span>';
+  h += '</div>';
+  h += '<textarea id="icNotesArea" placeholder="Start typing shared notes for this channel..." oninput="_icNotesChanged()" onblur="_icSaveNotes()" style="flex:1;width:100%;padding:12px;font-size:12px;line-height:1.6;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:rgba(255,255,255,.85);outline:none;resize:none;font-family:inherit"></textarea>';
+  h += '</div>';
+  return h;
+}
+
+function _icLoadNotes() {
+  if (_icNotesUnsub) { _icNotesUnsub(); _icNotesUnsub = null; }
+  if (!fbDb || !IC.activeChat) return;
+  _icNotesUnsub = fbDb.collection('chat_channels').doc(IC.activeChat).onSnapshot(function(doc) {
+    if (!doc.exists) return;
+    var data = doc.data();
+    var area = document.getElementById('icNotesArea');
+    var status = document.getElementById('icNotesStatus');
+    if (area && document.activeElement !== area) {
+      area.value = data.sharedNotes || '';
+    }
+    if (status && data.notesEditedBy) {
+      var editTime = data.notesEditedAt ? new Date(data.notesEditedAt.seconds * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+      status.textContent = 'Last edited by ' + (data.notesEditedBy || '') + (editTime ? ' at ' + editTime : '');
+    }
+  });
+}
+
+function _icNotesChanged() {
+  if (_icNotesTimer) clearTimeout(_icNotesTimer);
+  _icNotesTimer = setTimeout(_icSaveNotes, 3000);
+}
+
+function _icSaveNotes() {
+  if (_icNotesTimer) { clearTimeout(_icNotesTimer); _icNotesTimer = null; }
+  var area = document.getElementById('icNotesArea');
+  if (!area || !fbDb || !IC.activeChat) return;
+  fbDb.collection('chat_channels').doc(IC.activeChat).update({
+    sharedNotes: area.value,
+    notesEditedBy: getUserName(),
+    notesEditedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function() {});
+}
+
+// ── TASKS TAB ──
+
+var _icTasksUnsub = null;
+
+function icRenderTasksTab() {
+  var h = '<div style="display:flex;flex-direction:column;flex:1;overflow:hidden;padding:14px">';
+  h += '<div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px">\u2705 Channel Tasks</div>';
+  // Add task input
+  h += '<div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0">';
+  h += '<input id="icTaskInput" placeholder="Add a task..." onkeydown="if(event.key===\'Enter\')icAddChannelTask()" style="flex:1;padding:8px 12px;font-size:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#fff;outline:none;font-family:inherit">';
+  h += '<button onclick="icAddChannelTask()" style="background:#00e5ff;border:none;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;color:#000;cursor:pointer;font-family:inherit">Add</button>';
+  h += '</div>';
+  h += '<div id="icTaskList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>';
+  h += '</div>';
+  return h;
+}
+
+function _icListenTasks() {
+  if (_icTasksUnsub) { _icTasksUnsub(); _icTasksUnsub = null; }
+  if (!fbDb || !IC.activeChat) return;
+  _icTasksUnsub = fbDb.collection('chat_channels').doc(IC.activeChat).collection('tasks').orderBy('createdAt', 'desc').onSnapshot(function(snap) {
+    var el = document.getElementById('icTaskList');
+    if (!el) return;
+    if (!snap.docs.length) { el.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,.25);padding:8px 0;text-align:center">No tasks yet</div>'; return; }
+    var h = '';
+    snap.docs.forEach(function(d) {
+      var t = d.data();
+      var tid = d.id;
+      var done = t.completed ? true : false;
+      var assigneeHtml = '';
+      if (t.assignee) {
+        assigneeHtml = '<span style="font-size:9px;color:rgba(255,255,255,.3);margin-left:auto;white-space:nowrap">' + esc(t.assignee) + '</span>';
+      }
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,' + (done ? '.02' : '.04') + ');border-radius:8px">';
+      h += '<input type="checkbox" ' + (done ? 'checked' : '') + ' onchange="icToggleChannelTask(\'' + esc(tid) + '\')" style="accent-color:#00e5ff;cursor:pointer">';
+      h += '<span style="flex:1;font-size:12px;color:' + (done ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.8)') + ';text-decoration:' + (done ? 'line-through' : 'none') + '">' + esc(t.text || '') + '</span>';
+      h += assigneeHtml;
+      h += '<span style="font-size:9px;color:rgba(255,255,255,.2)">' + esc(t.createdBy || '') + '</span>';
+      h += '<span onclick="icDeleteChannelTask(\'' + esc(tid) + '\')" style="cursor:pointer;font-size:12px;color:rgba(255,255,255,.2);padding:2px" title="Delete">&times;</span>';
+      h += '</div>';
+    });
+    el.innerHTML = h;
+  });
+}
+
+function icAddChannelTask() {
+  var inp = document.getElementById('icTaskInput');
+  if (!inp) return;
+  var text = inp.value.trim();
+  if (!text || !fbDb || !IC.activeChat) return;
+  inp.value = '';
+  fbDb.collection('chat_channels').doc(IC.activeChat).collection('tasks').add({
+    text: text,
+    completed: false,
+    createdBy: getUserName(),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    assignee: ''
+  }).catch(function(e) { if (typeof toast === 'function') toast('Error: ' + e.message, 'error'); });
+}
+
+function icToggleChannelTask(taskId) {
+  if (!fbDb || !IC.activeChat || !taskId) return;
+  var ref = fbDb.collection('chat_channels').doc(IC.activeChat).collection('tasks').doc(taskId);
+  ref.get().then(function(doc) {
+    if (doc.exists) ref.update({ completed: !doc.data().completed }).catch(function() {});
+  }).catch(function() {});
+}
+
+function icDeleteChannelTask(taskId) {
+  if (!fbDb || !IC.activeChat || !taskId) return;
+  fbDb.collection('chat_channels').doc(IC.activeChat).collection('tasks').doc(taskId).delete().catch(function() {});
+}
+
+// ── Window exports for pop-out & workspace ──
+window.icPopOutChat = icPopOutChat;
+window.icSwitchWorkspaceTab = icSwitchWorkspaceTab;
+window.icSaveWhiteboard = icSaveWhiteboard;
+window.icAddSharedDoc = icAddSharedDoc;
+window.icAddChannelTask = icAddChannelTask;
+window.icToggleChannelTask = icToggleChannelTask;
+window.icDeleteChannelTask = icDeleteChannelTask;
+window._icWbSetColor = _icWbSetColor;
+window._icWbSetEraser = _icWbSetEraser;
+window._icWbClear = _icWbClear;
+window._icNotesChanged = _icNotesChanged;
+window._icSaveNotes = _icSaveNotes;
+
 console.log('✅ MFX Flex Chat v2 initialized (Instant Chat enabled)');
 console.log('✅ MFX Communication & Engagement features loaded (10 modules)');
+console.log('✅ Pop-out Chat & Workspace Tabs loaded');
 })();

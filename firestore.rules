@@ -621,6 +621,11 @@ match /systemHealth/{docId} {
       }
     }
 
+    // ═══ CHAT WORKSPACE SUBCOLLECTIONS ═══
+    match /chat_channels/{channelId}/tasks/{taskId} {
+      allow read, write: if companyUser();
+    }
+
     // ═══ ENGAGEMENT COLLECTIONS ═══
 
     match /kudos/{docId} {
