@@ -621,6 +621,33 @@ match /systemHealth/{docId} {
       }
     }
 
+    // ═══ ENGAGEMENT COLLECTIONS ═══
+
+    match /kudos/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser(); // likes
+      allow delete: if isManagement();
+    }
+
+    match /polls/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser(); // voting, closing
+      allow delete: if isManagement();
+    }
+
+    match /standups/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+    }
+
+    match /anonymousFeedback/{docId} {
+      allow read: if isManagement();
+      allow create: if signedIn(); // no userId stored — anonymous
+      allow update: if isManagement(); // resolve
+    }
+
     // ═══ AI Agent System Collections ═══
 
     // Agent run history — server writes only, management reads

@@ -481,6 +481,9 @@ function formatChatText(raw){
   t=t.replace(/\*(.+?)\*/g,'<em style="color:rgba(255,255,255,.7)">$1</em>');
   // Strikethrough: ~~text~~
   t=t.replace(/~~(.+?)~~/g,'<del style="opacity:.5">$1</del>');
+  // @channel / @here mentions
+  t=t.replace(/@channel/g,'<span style="color:#ef4444;font-weight:700;background:rgba(239,68,68,.1);padding:1px 4px;border-radius:3px">@channel</span>');
+  t=t.replace(/@here/g,'<span style="color:#22c55e;font-weight:700;background:rgba(34,197,94,.1);padding:1px 4px;border-radius:3px">@here</span>');
   // @mentions
   t=t.replace(/@(\w+)/g,'<span style="color:#00e5ff;font-weight:600">@$1</span>');
   // URLs → clickable
@@ -1250,8 +1253,12 @@ function icRenderMessages(){
 
     // Priority wrapper
     var priorityStyle='';
-    if(m.priority==='urgent'){
+    if(m.priority==='urgent'||m.priority==='critical'){
       priorityStyle='border-left:3px solid #ef4444;padding-left:11px;';
+    }else if(m.priority==='action'){
+      priorityStyle='border-left:3px solid #f59e0b;padding-left:11px;';
+    }else if(m.priority==='fyi'){
+      priorityStyle='border-left:3px solid #3b82f6;padding-left:11px;';
     }
 
     h+='<div class="ic-msg-wrap" style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';padding:'+(sameUser?'1px':'6px')+' 14px 1px;position:relative;'+priorityStyle+'" data-icmsg="'+esc(m.id)+'">';
@@ -2356,6 +2363,8 @@ function icRenderSpaces(){
   h+='<div onclick="icNewDM()" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>✉</span> New Message</div>';
   h+='<div onclick="createChannelInGroup(\'department\')" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>➕</span> New Channel</div>';
   h+='<div onclick="goView(\'supportboard\');toggleInstantChat()" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>💬</span> Full Chat View</div>';
+  h+='<div onclick="icAnonymousFeedback()" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>&#128238;</span> Anonymous Feedback</div>';
+  h+='<div onclick="icScheduleStandup()" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>&#127749;</span> Daily Standup</div>';
   h+='</div>';
 
   el.innerHTML=h;
@@ -3049,5 +3058,677 @@ var _icAuthCheck=setInterval(function(){
   }
 },2000);
 
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 1: KUDOS / SHOUTOUT SYSTEM
+// ══════════════════════════════════════════════════════════════════
+var KUDOS_TYPES=[
+  {key:'great',emoji:'\u2B50',label:'Great Work'},
+  {key:'beyond',emoji:'\uD83D\uDD25',label:'Above & Beyond'},
+  {key:'team',emoji:'\uD83D\uDCAA',label:'Team Player'},
+  {key:'solver',emoji:'\uD83E\uDDE0',label:'Problem Solver'},
+  {key:'goal',emoji:'\uD83C\uDFAF',label:'Goal Crusher'},
+  {key:'innovation',emoji:'\uD83D\uDE80',label:'Innovation'}
+];
+
+function icSendKudos(){
+  if(typeof fbDb==='undefined')return;
+  var name=typeof getUserName==='function'?getUserName():'User';
+  // Build team member list from Firestore users
+  fbDb.collection('users').get().then(function(snap){
+    var members=[];
+    snap.docs.forEach(function(d){
+      var u=d.data();
+      var n=u.displayName||'';
+      if(n&&n!==name)members.push({id:d.id,name:n});
+    });
+    var h='<div class="modal-title">\u2B50 Send a Kudos</div>';
+    h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">Recognize a teammate\'s great work</div>';
+    h+='<select id="kudosTo" style="width:100%;padding:10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;margin-bottom:8px;outline:none">';
+    h+='<option value="">Select team member...</option>';
+    members.forEach(function(m){
+      h+='<option value="'+esc(m.id)+'|'+esc(m.name)+'">'+esc(m.name)+'</option>';
+    });
+    h+='</select>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
+    KUDOS_TYPES.forEach(function(k,i){
+      h+='<label style="display:flex;align-items:center;gap:4px;padding:6px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.7)">';
+      h+='<input type="radio" name="kudosType" value="'+i+'" style="accent-color:#00e5ff"'+(i===0?' checked':'')+'>'+k.emoji+' '+esc(k.label)+'</label>';
+    });
+    h+='</div>';
+    h+='<textarea id="kudosMsg" placeholder="What did they do great?" rows="3" style="width:100%;padding:10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;resize:none;outline:none;font-family:inherit;margin-bottom:8px"></textarea>';
+    h+='<button onclick="_submitKudos()" class="btn btn-pr" style="width:100%;padding:10px;border-radius:12px;font-size:13px">Send Kudos \u2B50</button>';
+    if(typeof openModal==='function')openModal(h);
+  }).catch(function(e){console.warn('kudos:',e)});
+}
+
+function _submitKudos(){
+  var sel=document.getElementById('kudosTo');
+  var msg=document.getElementById('kudosMsg');
+  if(!sel||!sel.value){if(typeof toast==='function')toast('Pick a team member');return;}
+  var parts=sel.value.split('|');
+  var toId=parts[0];var toName=parts[1];
+  var radios=document.getElementsByName('kudosType');
+  var typeIdx=0;
+  for(var i=0;i<radios.length;i++){if(radios[i].checked){typeIdx=parseInt(radios[i].value);break;}}
+  var kudosType=KUDOS_TYPES[typeIdx];
+  var text=msg?msg.value.trim():'';
+  var fromName=typeof getUserName==='function'?getUserName():'User';
+  var fromId=typeof getUserId==='function'?getUserId():'';
+  if(typeof fbDb==='undefined')return;
+  fbDb.collection('kudos').add({
+    from:fromName,fromId:fromId,to:toName,toId:toId,
+    type:kudosType.key,emoji:kudosType.emoji,
+    message:text,createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    likes:[]
+  }).then(function(){
+    // Post to status reel
+    var reelText=kudosType.emoji+' '+fromName+' gave '+toName+' a shoutout: '+(text||kudosType.label+'!');
+    fbDb.collection('statusReel').add({
+      text:reelText,emoji:kudosType.emoji,gif:null,
+      user:'Flex Ai',userId:'system-flexai',dept:'System',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      announcement:false,likes:[],replyCount:0,mentions:[],replies:[]
+    }).catch(function(){});
+    // Award XP
+    if(typeof awardXP==='function')awardXP(toName,10,'kudos');
+    if(typeof toast==='function')toast('Kudos sent to '+toName+'!');
+    if(typeof closeModal==='function')closeModal();
+  }).catch(function(e){console.warn('kudos save:',e)});
+}
+window._submitKudos=_submitKudos;
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 2: QUICK POLLS
+// ══════════════════════════════════════════════════════════════════
+function icCreatePoll(){
+  var h='<div class="modal-title">\uD83D\uDCCA Create a Poll</div>';
+  h+='<input id="pollQ" placeholder="Ask a question..." style="width:100%;padding:10px;font-size:13px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;outline:none;margin-bottom:8px">';
+  h+='<div id="pollOpts">';
+  for(var i=0;i<2;i++){
+    h+='<input class="poll-opt-input" placeholder="Option '+(i+1)+'" style="width:100%;padding:8px 10px;font-size:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;color:#fff;outline:none;margin-bottom:4px">';
+  }
+  h+='</div>';
+  h+='<button onclick="_addPollOption()" style="background:none;border:none;color:#00e5ff;font-size:11px;cursor:pointer;padding:4px 0;margin-bottom:8px">+ Add option (max 4)</button>';
+  h+='<select id="pollDuration" style="width:100%;padding:8px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:#fff;outline:none;margin-bottom:10px">';
+  h+='<option value="3600000">1 hour</option><option value="14400000">4 hours</option><option value="86400000" selected>24 hours</option><option value="604800000">1 week</option>';
+  h+='</select>';
+  h+='<button onclick="_submitPoll()" class="btn btn-pr" style="width:100%;padding:10px;border-radius:12px;font-size:13px">Create Poll \uD83D\uDCCA</button>';
+  if(typeof openModal==='function')openModal(h);
+}
+
+function _addPollOption(){
+  var container=document.getElementById('pollOpts');
+  if(!container)return;
+  var existing=container.querySelectorAll('.poll-opt-input');
+  if(existing.length>=4){if(typeof toast==='function')toast('Max 4 options');return;}
+  var inp=document.createElement('input');
+  inp.className='poll-opt-input';
+  inp.placeholder='Option '+(existing.length+1);
+  inp.style.cssText='width:100%;padding:8px 10px;font-size:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;color:#fff;outline:none;margin-bottom:4px';
+  container.appendChild(inp);
+}
+window._addPollOption=_addPollOption;
+
+function _submitPoll(){
+  var q=document.getElementById('pollQ');
+  var question=q?q.value.trim():'';
+  if(!question){if(typeof toast==='function')toast('Enter a question');return;}
+  var inputs=document.querySelectorAll('.poll-opt-input');
+  var options=[];
+  for(var i=0;i<inputs.length;i++){
+    var v=inputs[i].value.trim();
+    if(v)options.push({text:v,votes:[]});
+  }
+  if(options.length<2){if(typeof toast==='function')toast('Need at least 2 options');return;}
+  var dur=document.getElementById('pollDuration');
+  var duration=dur?parseInt(dur.value):86400000;
+  var now=Date.now();
+  var name=typeof getUserName==='function'?getUserName():'User';
+  var uid=typeof getUserId==='function'?getUserId():'';
+  if(typeof fbDb==='undefined')return;
+  fbDb.collection('polls').add({
+    question:question,options:options,
+    createdBy:name,createdById:uid,
+    createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    expiresAt:new Date(now+duration),
+    channelId:IC.activeChat||'general',
+    closed:false
+  }).then(function(ref){
+    // Post poll to status reel
+    var optText=options.map(function(o){return o.text}).join(' / ');
+    fbDb.collection('statusReel').add({
+      text:'\uD83D\uDCCA Poll: '+question+' ('+optText+')',
+      emoji:'\uD83D\uDCCA',gif:null,
+      user:'Flex Ai',userId:'system-flexai',dept:'System',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      announcement:false,likes:[],replyCount:0,mentions:[],replies:[],
+      pollId:ref.id
+    }).catch(function(){});
+    if(typeof toast==='function')toast('Poll created!');
+    if(typeof closeModal==='function')closeModal();
+  }).catch(function(e){console.warn('poll:',e)});
+}
+window._submitPoll=_submitPoll;
+
+function icRenderPoll(poll){
+  if(!poll)return'';
+  var totalVotes=0;
+  poll.options.forEach(function(o){totalVotes+=(o.votes||[]).length;});
+  var expired=poll.closed||(poll.expiresAt&&(poll.expiresAt.seconds?poll.expiresAt.seconds*1000:new Date(poll.expiresAt).getTime())<Date.now());
+  var h='<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:12px;margin:6px 0;max-width:320px">';
+  h+='<div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:8px">\uD83D\uDCCA '+esc(poll.question)+'</div>';
+  poll.options.forEach(function(opt,idx){
+    var count=(opt.votes||[]).length;
+    var pct=totalVotes>0?Math.round(count/totalVotes*100):0;
+    var uid=typeof getUserId==='function'?getUserId():'';
+    var voted=(opt.votes||[]).indexOf(uid)!==-1;
+    h+='<div onclick="'+(expired?'':'icVotePoll(\''+esc(poll.id)+'\','+idx+')')+'" style="margin-bottom:4px;cursor:'+(expired?'default':'pointer')+';padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.03);position:relative;overflow:hidden;border:1px solid '+(voted?'rgba(0,229,255,.3)':'rgba(255,255,255,.04)')+'">';
+    h+='<div style="position:absolute;top:0;left:0;height:100%;width:'+pct+'%;background:'+(voted?'rgba(0,229,255,.12)':'rgba(255,255,255,.04)')+';border-radius:8px;transition:width .3s"></div>';
+    h+='<div style="position:relative;display:flex;justify-content:space-between;align-items:center">';
+    h+='<span style="font-size:11px;color:'+(voted?'#00e5ff':'rgba(255,255,255,.7)')+'">'+esc(opt.text)+'</span>';
+    h+='<span style="font-size:10px;color:rgba(255,255,255,.4)">'+count+' ('+pct+'%)</span>';
+    h+='</div></div>';
+  });
+  h+='<div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:4px">'+totalVotes+' vote'+(totalVotes!==1?'s':'')+''+(expired?' \u00B7 Closed':'')+'</div>';
+  h+='</div>';
+  return h;
+}
+
+function icVotePoll(pollId,optionIdx){
+  if(typeof fbDb==='undefined')return;
+  var uid=typeof getUserId==='function'?getUserId():'';
+  if(!uid)return;
+  var ref=fbDb.collection('polls').doc(pollId);
+  ref.get().then(function(snap){
+    if(!snap.exists)return;
+    var data=snap.data();
+    if(data.closed)return;
+    // Remove from all options first, then add to selected
+    var batch=fbDb.batch();
+    var updates={};
+    data.options.forEach(function(opt,i){
+      updates['options.'+i+'.votes']=firebase.firestore.FieldValue.arrayRemove(uid);
+    });
+    ref.update(updates).then(function(){
+      ref.update({
+        ['options.'+optionIdx+'.votes']:firebase.firestore.FieldValue.arrayUnion(uid)
+      }).then(function(){
+        if(typeof toast==='function')toast('Vote recorded!');
+      });
+    });
+  }).catch(function(e){console.warn('vote:',e)});
+}
+
+function icClosePoll(pollId){
+  if(typeof fbDb==='undefined')return;
+  var name=typeof getUserName==='function'?getUserName():'';
+  fbDb.collection('polls').doc(pollId).get().then(function(snap){
+    if(!snap.exists)return;
+    var data=snap.data();
+    if(data.createdBy!==name){
+      var profile=typeof getMFXProfile==='function'?getMFXProfile():null;
+      if(!profile||profile.role!=='admin'){
+        if(typeof toast==='function')toast('Only the creator or admin can close polls');return;
+      }
+    }
+    fbDb.collection('polls').doc(pollId).update({closed:true}).then(function(){
+      if(typeof toast==='function')toast('Poll closed');
+    });
+  }).catch(function(e){console.warn('closePoll:',e)});
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 3: DAILY STANDUP BOT
+// ══════════════════════════════════════════════════════════════════
+function icScheduleStandup(){
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  if(localStorage.getItem('mfx_standup_'+todayStr)){
+    if(typeof toast==='function')toast('You already submitted your standup today!');
+    return;
+  }
+  var h='<div class="modal-title">\uD83C\uDF05 Daily Standup</div>';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">What\'s on your plate today?</div>';
+  h+='<label style="font-size:10px;color:rgba(255,255,255,.4);display:block;margin-bottom:2px">What are you working on today?</label>';
+  h+='<textarea id="standupWork" rows="2" placeholder="Main tasks for today..." style="width:100%;padding:8px 10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;resize:none;outline:none;font-family:inherit;margin-bottom:8px"></textarea>';
+  h+='<label style="font-size:10px;color:rgba(255,255,255,.4);display:block;margin-bottom:2px">Any blockers?</label>';
+  h+='<textarea id="standupBlockers" rows="2" placeholder="Anything blocking you..." style="width:100%;padding:8px 10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;resize:none;outline:none;font-family:inherit;margin-bottom:8px"></textarea>';
+  h+='<label style="font-size:10px;color:rgba(255,255,255,.4);display:block;margin-bottom:2px">Need help with anything?</label>';
+  h+='<textarea id="standupHelp" rows="2" placeholder="Any support needed..." style="width:100%;padding:8px 10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;resize:none;outline:none;font-family:inherit;margin-bottom:10px"></textarea>';
+  h+='<button onclick="_submitStandup()" class="btn btn-pr" style="width:100%;padding:10px;border-radius:12px;font-size:13px">Submit Standup \uD83C\uDF05</button>';
+  if(typeof openModal==='function')openModal(h);
+}
+
+function _submitStandup(){
+  var work=document.getElementById('standupWork');
+  var blockers=document.getElementById('standupBlockers');
+  var help=document.getElementById('standupHelp');
+  var workText=work?work.value.trim():'';
+  if(!workText){if(typeof toast==='function')toast('Tell us what you\'re working on');return;}
+  var blockersText=blockers?blockers.value.trim():'';
+  var helpText=help?help.value.trim():'';
+  var name=typeof getUserName==='function'?getUserName():'User';
+  var uid=typeof getUserId==='function'?getUserId():'';
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  if(typeof fbDb!=='undefined'){
+    fbDb.collection('standups').add({
+      user:name,userId:uid,date:todayStr,
+      workingOn:workText,blockers:blockersText,needHelp:helpText,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function(){
+      // Post to status reel
+      var reelText='\uD83C\uDF05 '+name+'\'s standup: Working on: '+workText;
+      if(blockersText)reelText+=' | Blockers: '+blockersText;
+      fbDb.collection('statusReel').add({
+        text:reelText,emoji:'\uD83C\uDF05',gif:null,
+        user:name,userId:uid,dept:'',
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        announcement:false,likes:[],replyCount:0,mentions:[],replies:[]
+      }).catch(function(){});
+      localStorage.setItem('mfx_standup_'+todayStr,'1');
+      if(typeof toast==='function')toast('Standup submitted!');
+      if(typeof closeModal==='function')closeModal();
+    }).catch(function(e){console.warn('standup:',e)});
+  }
+}
+window._submitStandup=_submitStandup;
+
+function _postMorningPrompt(){
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  if(localStorage.getItem('mfx_morning_prompt_'+todayStr))return;
+  if(typeof fbDb==='undefined')return;
+  fbDb.collection('statusReel').add({
+    text:'Good morning team! What\'s everyone working on today? \uD83C\uDF05',
+    emoji:'\uD83C\uDF05',gif:null,
+    user:'Flex Ai',userId:'system-flexai',dept:'System',
+    createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    announcement:true,likes:[],replyCount:0,mentions:[],replies:[]
+  }).then(function(){
+    localStorage.setItem('mfx_morning_prompt_'+todayStr,'1');
+  }).catch(function(){});
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 4: SMART NOTIFICATION PRIORITY
+// ══════════════════════════════════════════════════════════════════
+var _notifPriorityLevel='normal';
+
+function icSetNotifPriority(level){
+  // level: 'critical', 'action', 'fyi', 'normal'
+  _notifPriorityLevel=level||'normal';
+  var btn=document.getElementById('icPriorityBtn');
+  if(btn){
+    if(level==='critical'){btn.textContent='\uD83D\uDD34';btn.title='Priority: Critical';}
+    else if(level==='action'){btn.textContent='\uD83D\uDFE1';btn.title='Priority: Action Needed';}
+    else if(level==='fyi'){btn.textContent='\uD83D\uDD35';btn.title='Priority: FYI';}
+    else{btn.textContent='\u2757';btn.title='Mark urgent';}
+  }
+}
+
+function icCycleNotifPriority(){
+  var order=['normal','critical','action','fyi'];
+  var idx=order.indexOf(_notifPriorityLevel);
+  idx=(idx+1)%order.length;
+  icSetNotifPriority(order[idx]);
+  if(typeof toast==='function'){
+    var labels={normal:'Normal',critical:'\uD83D\uDD34 Critical',action:'\uD83D\uDFE1 Action Needed',fyi:'\uD83D\uDD35 FYI'};
+    toast('Priority: '+(labels[order[idx]]||'Normal'));
+  }
+}
+window.icCycleNotifPriority=icCycleNotifPriority;
+
+function icSetQuietHours(start,end){
+  localStorage.setItem('mfx_quiet_start',start||'22:00');
+  localStorage.setItem('mfx_quiet_end',end||'07:00');
+  if(typeof toast==='function')toast('Quiet hours set: '+start+' - '+end);
+}
+
+function _isQuietHours(){
+  var start=localStorage.getItem('mfx_quiet_start');
+  var end=localStorage.getItem('mfx_quiet_end');
+  if(!start||!end)return false;
+  var now=new Date();
+  var h=now.getHours();var m=now.getMinutes();
+  var nowMin=h*60+m;
+  var sParts=start.split(':');var startMin=parseInt(sParts[0])*60+parseInt(sParts[1]);
+  var eParts=end.split(':');var endMin=parseInt(eParts[0])*60+parseInt(eParts[1]);
+  if(startMin>endMin){
+    return nowMin>=startMin||nowMin<endMin;
+  }
+  return nowMin>=startMin&&nowMin<endMin;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 5: WORKFLOW AUTO-ALERTS
+// ══════════════════════════════════════════════════════════════════
+function icCheckWorkflowAlerts(){
+  if(typeof fbDb==='undefined')return;
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  var alertsKey='mfx_workflow_alerts_'+todayStr;
+  var posted=JSON.parse(localStorage.getItem(alertsKey)||'{}');
+  var twoHoursAgo=new Date(Date.now()-2*60*60*1000);
+  var twentyFourHoursAgo=new Date(Date.now()-24*60*60*1000);
+  var sevenDaysFromNow=new Date(Date.now()+7*24*60*60*1000);
+
+  function postAlert(key,text){
+    if(posted[key])return;
+    posted[key]=1;
+    localStorage.setItem(alertsKey,JSON.stringify(posted));
+    fbDb.collection('statusReel').add({
+      text:text,emoji:'\u26A0\uFE0F',gif:null,
+      user:'Flex Ai',userId:'system-flexai',dept:'System',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      announcement:false,likes:[],replyCount:0,mentions:[],replies:[]
+    }).catch(function(){});
+  }
+
+  // Quotes pending approval > 2 hours
+  fbDb.collection('quotes').where('status','==','approval')
+    .get().then(function(snap){
+      snap.docs.forEach(function(d){
+        var q=d.data();
+        var created=q.createdAt;
+        if(!created)return;
+        var cDate=created.seconds?new Date(created.seconds*1000):new Date(created);
+        if(cDate<twoHoursAgo){
+          var hrs=Math.round((Date.now()-cDate.getTime())/3600000);
+          postAlert('quote_'+d.id,'\u23F0 Quote '+(q.quoteNumber||d.id)+' pending approval for '+hrs+' hours');
+        }
+      });
+    }).catch(function(){});
+
+  // Job tickets stuck in same stage > 24 hours
+  fbDb.collection('jobTickets').get().then(function(snap){
+    snap.docs.forEach(function(d){
+      var j=d.data();
+      var updated=j.stageUpdatedAt||j.updatedAt;
+      if(!updated)return;
+      var uDate=updated.seconds?new Date(updated.seconds*1000):new Date(updated);
+      if(uDate<twentyFourHoursAgo){
+        var days=Math.round((Date.now()-uDate.getTime())/86400000);
+        postAlert('job_'+d.id,'\uD83D\uDEA7 Job '+(j.jobNumber||d.id)+' stuck in '+(j.stage||'unknown')+' for '+days+' day'+(days!==1?'s':''));
+      }
+    });
+  }).catch(function(){});
+
+  // Training records expiring < 7 days
+  fbDb.collection('trainingRecords').get().then(function(snap){
+    snap.docs.forEach(function(d){
+      var t=d.data();
+      if(!t.expiresAt)return;
+      var eDate=t.expiresAt.seconds?new Date(t.expiresAt.seconds*1000):new Date(t.expiresAt);
+      if(eDate>today&&eDate<sevenDaysFromNow){
+        var daysLeft=Math.round((eDate.getTime()-Date.now())/86400000);
+        postAlert('train_'+d.id,'\uD83D\uDCCB '+(t.userName||'Employee')+'\'s '+(t.trainingName||'training')+' expires in '+daysLeft+' day'+(daysLeft!==1?'s':''));
+      }
+    });
+  }).catch(function(){});
+
+  // Vendor POs overdue
+  fbDb.collection('vendorPOs').where('status','==','sent')
+    .get().then(function(snap){
+      snap.docs.forEach(function(d){
+        var po=d.data();
+        if(!po.eta)return;
+        var eta=po.eta.seconds?new Date(po.eta.seconds*1000):new Date(po.eta);
+        if(eta<today){
+          postAlert('vpo_'+d.id,'\uD83D\uDCE6 '+(po.poNumber||d.id)+' is overdue from '+(po.vendorName||'vendor'));
+        }
+      });
+    }).catch(function(){});
+}
+
+// Run workflow alerts every 5 minutes
+var _workflowAlertTimer=setInterval(function(){
+  if(typeof getUserId==='function'&&getUserId())icCheckWorkflowAlerts();
+},300000);
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 6: DAILY DIGEST
+// ══════════════════════════════════════════════════════════════════
+function icPostDailyDigest(){
+  if(typeof fbDb==='undefined')return;
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  if(localStorage.getItem('mfx_digest_'+todayStr))return;
+  var startOfDay=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+
+  var stats={quotes:0,jobs:0,messages:0,ncrs:0};
+  var promises=[];
+
+  promises.push(
+    fbDb.collection('quotes').where('createdAt','>=',startOfDay)
+      .get().then(function(s){stats.quotes=s.size;}).catch(function(){})
+  );
+  promises.push(
+    fbDb.collection('jobTickets').where('status','==','completed')
+      .where('completedAt','>=',startOfDay)
+      .get().then(function(s){stats.jobs=s.size;}).catch(function(){stats.jobs=0;})
+  );
+  promises.push(
+    fbDb.collection('messages').where('createdAt','>=',startOfDay)
+      .get().then(function(s){stats.messages=s.size;}).catch(function(){})
+  );
+  promises.push(
+    fbDb.collection('ncrs').where('createdAt','>=',startOfDay)
+      .get().then(function(s){stats.ncrs=s.size;}).catch(function(){})
+  );
+
+  Promise.all(promises).then(function(){
+    var text='\uD83D\uDCCA Today: '+stats.quotes+' quotes sent, '+stats.jobs+' jobs completed, '+stats.messages+' messages, '+stats.ncrs+' new NCRs';
+    fbDb.collection('statusReel').add({
+      text:text,emoji:'\uD83D\uDCCA',gif:null,
+      user:'Flex Ai',userId:'system-flexai',dept:'System',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      announcement:true,likes:[],replyCount:0,mentions:[],replies:[]
+    }).then(function(){
+      localStorage.setItem('mfx_digest_'+todayStr,'1');
+    }).catch(function(){});
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 7: @CHANNEL / @HERE MENTIONS (send-side logic)
+// ══════════════════════════════════════════════════════════════════
+function _handleChannelMentions(text,channelId){
+  if(typeof fbDb==='undefined')return;
+  if(!text)return;
+  var hasChannel=text.indexOf('@channel')!==-1;
+  var hasHere=text.indexOf('@here')!==-1;
+  if(!hasChannel&&!hasHere)return;
+  var fromName=typeof getUserName==='function'?getUserName():'User';
+  // Get all users
+  fbDb.collection('users').get().then(function(snap){
+    snap.docs.forEach(function(d){
+      var u=d.data();
+      if(!u.displayName)return;
+      if(hasHere&&u.presence!=='online')return;
+      // Write notification
+      fbDb.collection('notifications').add({
+        userId:d.id,
+        type:hasChannel?'channel_mention':'here_mention',
+        text:fromName+' mentioned '+(hasChannel?'@channel':'@here')+' in '+(channelId||'chat'),
+        channelId:channelId||'',
+        read:false,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    });
+  }).catch(function(){});
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 8: ANONYMOUS FEEDBACK BOX
+// ══════════════════════════════════════════════════════════════════
+function icAnonymousFeedback(){
+  var h='<div class="modal-title">\uD83D\uDCEE Anonymous Feedback</div>';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">Your identity will NOT be recorded. Be honest!</div>';
+  h+='<select id="feedbackCat" style="width:100%;padding:10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;outline:none;margin-bottom:8px">';
+  h+='<option value="suggestion">Suggestion</option><option value="concern">Concern</option><option value="praise">Praise</option><option value="question">Question</option>';
+  h+='</select>';
+  h+='<textarea id="feedbackText" rows="4" placeholder="Share your feedback..." style="width:100%;padding:10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;resize:none;outline:none;font-family:inherit;margin-bottom:10px"></textarea>';
+  h+='<button onclick="_submitFeedback()" class="btn btn-pr" style="width:100%;padding:10px;border-radius:12px;font-size:13px">Submit Anonymously \uD83D\uDCEE</button>';
+  if(typeof openModal==='function')openModal(h);
+}
+
+function _submitFeedback(){
+  var cat=document.getElementById('feedbackCat');
+  var text=document.getElementById('feedbackText');
+  var feedbackText=text?text.value.trim():'';
+  if(!feedbackText){if(typeof toast==='function')toast('Please write your feedback');return;}
+  var category=cat?cat.value:'suggestion';
+  if(typeof fbDb==='undefined')return;
+  // No userId — truly anonymous
+  fbDb.collection('anonymousFeedback').add({
+    text:feedbackText,
+    category:category,
+    createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    resolved:false
+  }).then(function(){
+    if(typeof toast==='function')toast('Feedback submitted anonymously. Thank you!');
+    if(typeof closeModal==='function')closeModal();
+  }).catch(function(e){console.warn('feedback:',e)});
+}
+window._submitFeedback=_submitFeedback;
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 9: CONVERSATION STARTERS
+// ══════════════════════════════════════════════════════════════════
+var CONVO_STARTERS=[
+  'What\'s your favorite thing about working here?',
+  'If you could automate one task, what would it be?',
+  'What\'s the best lunch spot near the office?',
+  'Share a win from this week!',
+  'What podcast are you listening to?',
+  'Coffee or tea today?',
+  'What\'s your hot take on the industry?',
+  'Teach us something in 1 sentence',
+  'What tool can\'t you live without?',
+  'Rate your Monday 1-10',
+  'What\'s one thing you learned this week?',
+  'If you could swap roles for a day, whose would you pick?',
+  'What keeps you motivated on tough days?',
+  'Best book or article you read recently?',
+  'What\'s your go-to productivity hack?',
+  'Describe your workday in 3 emojis',
+  'What\'s a skill you\'re working on improving?',
+  'What would your dream project look like?',
+  'Early bird or night owl?',
+  'What\'s one thing you appreciate about a coworker?',
+  'What song gets you pumped up for work?',
+  'If you could add one perk to the office, what would it be?'
+];
+
+function icConversationStarter(){
+  var today=new Date();
+  var todayStr=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  if(localStorage.getItem('mfx_convo_starter_'+todayStr))return;
+  if(typeof fbDb==='undefined')return;
+  var idx=Math.floor(Math.random()*CONVO_STARTERS.length);
+  var prompt=CONVO_STARTERS[idx];
+  // Delay randomly within first 2 hours (0-120 min)
+  var delay=Math.floor(Math.random()*120*60*1000);
+  setTimeout(function(){
+    if(localStorage.getItem('mfx_convo_starter_'+todayStr))return;
+    fbDb.collection('statusReel').add({
+      text:'\uD83D\uDCAC '+prompt,
+      emoji:'\uD83D\uDCAC',gif:null,
+      user:'Flex Ai',userId:'system-flexai',dept:'System',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      announcement:false,likes:[],replyCount:0,mentions:[],replies:[]
+    }).then(function(){
+      localStorage.setItem('mfx_convo_starter_'+todayStr,'1');
+    }).catch(function(){});
+  },delay);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FEATURE 10: TEAM MOOD HEATMAP (lightweight)
+// ══════════════════════════════════════════════════════════════════
+function icTeamMoodSummary(){
+  if(typeof fbDb==='undefined')return'';
+  var counts={};
+  // Read from last presence snapshot if available
+  var dots=document.getElementById('icTeamDots');
+  // Use Firestore users collection snapshot
+  return new Promise(function(resolve){
+    fbDb.collection('users').get().then(function(snap){
+      snap.docs.forEach(function(d){
+        var u=d.data();
+        var mood=u.mood||'';
+        if(mood){
+          counts[mood]=(counts[mood]||0)+1;
+        }
+      });
+      var parts=[];
+      var sorted=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a]});
+      sorted.forEach(function(emoji){
+        parts.push(emoji+'\u00D7'+counts[emoji]);
+      });
+      var summary=parts.length>0?'Team vibe: '+parts.join(' '):'';
+      resolve(summary);
+      // Display in presence bar
+      _displayMoodSummary(summary);
+    }).catch(function(){resolve('')});
+  });
+}
+
+function _displayMoodSummary(summary){
+  var el=document.getElementById('icTeamMoodSummary');
+  if(!el){
+    // Try to inject into the presence bar next to team dots
+    var dotsEl=document.getElementById('icTeamDots');
+    if(dotsEl&&dotsEl.parentNode){
+      var span=document.createElement('span');
+      span.id='icTeamMoodSummary';
+      span.style.cssText='font-size:9px;color:rgba(255,255,255,.4);margin-left:6px;white-space:nowrap';
+      dotsEl.parentNode.insertBefore(span,dotsEl.nextSibling);
+      el=span;
+    }
+  }
+  if(el)el.textContent=summary;
+}
+
+// Update mood summary when team presence updates
+var _origTeamPresenceListener=startTeamPresenceListener;
+startTeamPresenceListener=function(){
+  _origTeamPresenceListener();
+  // Also refresh mood summary on presence changes
+  setTimeout(function(){icTeamMoodSummary()},2000);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// AUTO-START: morning prompt, conversation starter, standup check
+// ══════════════════════════════════════════════════════════════════
+var _engagementBootCheck=setInterval(function(){
+  if(typeof getUserId==='function'&&getUserId()&&typeof fbDb!=='undefined'){
+    clearInterval(_engagementBootCheck);
+    setTimeout(_postMorningPrompt,5000);
+    setTimeout(icConversationStarter,8000);
+    setTimeout(icCheckWorkflowAlerts,15000);
+  }
+},3000);
+
+// ══════════════════════════════════════════════════════════════════
+// WINDOW EXPORTS — Communication & Engagement Features
+// ══════════════════════════════════════════════════════════════════
+window.icSendKudos=icSendKudos;
+window.icCreatePoll=icCreatePoll;
+window.icRenderPoll=icRenderPoll;
+window.icVotePoll=icVotePoll;
+window.icClosePoll=icClosePoll;
+window.icScheduleStandup=icScheduleStandup;
+window.icSetNotifPriority=icSetNotifPriority;
+window.icSetQuietHours=icSetQuietHours;
+window.icCheckWorkflowAlerts=icCheckWorkflowAlerts;
+window.icPostDailyDigest=icPostDailyDigest;
+window.icAnonymousFeedback=icAnonymousFeedback;
+window.icConversationStarter=icConversationStarter;
+window.icTeamMoodSummary=icTeamMoodSummary;
+window.icCycleNotifPriority=icCycleNotifPriority;
+
 console.log('✅ MFX Flex Chat v2 initialized (Instant Chat enabled)');
+console.log('✅ MFX Communication & Engagement features loaded (10 modules)');
 })();
