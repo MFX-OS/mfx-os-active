@@ -606,6 +606,8 @@
     STATE.unreadCount++;
     window.NOTIF_STATE = STATE;
     if(typeof _updateNotifBadge==='function') _updateNotifBadge((window._currentAlerts||[]).length);
+    // Play notification sound
+    if(typeof playSound==='function') playSound('notify');
 
     // Save to Firestore — strip undefined/null fields and sanitize deeply
     if (window.fbDb && typeof window.fbDb.collection === 'function') {

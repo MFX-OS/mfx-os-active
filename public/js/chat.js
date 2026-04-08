@@ -1015,7 +1015,8 @@ function icShowList(){
     });
 
     var me=getUserName();
-    var dms=channels.filter(function(c){return c.type==='dm'&&(c.members||[]).indexOf(me)>=0});
+    var dms=channels.filter(function(c){return c.type==='dm'&&!c.isGroup&&(c.members||[]).indexOf(me)>=0});
+    var groupChats=channels.filter(function(c){return c.type==='dm'&&c.isGroup&&(c.members||[]).indexOf(me)>=0});
     var groups=channels.filter(function(c){return c.type==='channel'});
 
     // Avatar color palette based on name hash
@@ -1101,6 +1102,28 @@ function icShowList(){
       });
     }else{
       h+='<div style="padding:16px 14px;font-size:12px;color:rgba(255,255,255,.3);text-align:center">No conversations yet</div>';
+    }
+
+    // ── Group Chats ──
+    if(groupChats.length){
+      h+='<div style="padding:4px 14px 2px;font-size:10px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px;border-top:1px solid rgba(255,255,255,.04);margin-top:4px">Group Chats</div>';
+      groupChats.forEach(function(c){
+        var lastMsg=c.lastMessage||'';
+        var time=c.lastMessageAt?icTimeAgo(c.lastMessageAt):'';
+        var unread=unreadByChannel[c.id]||0;
+        var isUnread=unread>0;
+        var memberCount=(c.members||[]).length;
+        h+='<div data-ic-channel="'+c.id+'" onclick="icOpenChat(\''+c.id+'\',\''+esc(c.name)+'\')" style="padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s;border-radius:10px;margin:1px 4px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
+        h+='<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">👥</div>';
+        h+='<div style="flex:1;min-width:0">';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+        h+='<span style="font-size:12px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'#fff':'rgba(255,255,255,.7)')+'">'+esc(c.name)+'</span>';
+        h+='<span style="font-size:9px;color:rgba(255,255,255,.2)">'+time+'</span></div>';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1px">';
+        h+='<span style="font-size:10px;color:rgba(255,255,255,.2)">'+memberCount+' members · '+esc(lastMsg.substring(0,30))+'</span>';
+        if(isUnread)h+='<span style="background:#00e5ff;color:#000;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;min-width:16px;text-align:center;flex-shrink:0">'+unread+'</span>';
+        h+='</div></div></div>';
+      });
     }
 
     // ── Group Channels ──
@@ -3732,16 +3755,72 @@ var _engagementBootCheck=setInterval(function(){
 window.icSendKudos=icSendKudos;
 
 // ── CONTACT ACTION BUTTONS ──
+var _callRingtoneInterval=null;
+
+function _playRingtone(){
+  if(typeof playSound==='function')playSound('notify');
+}
+function _stopRingtone(){
+  if(_callRingtoneInterval){clearInterval(_callRingtoneInterval);_callRingtoneInterval=null}
+}
+
 function icVideoCall(userName){
-  // Open Google Meet with the user
-  window.open('https://meet.google.com/new','_blank','noopener');
-  if(typeof toast==='function')toast('Starting video call with '+userName,'ok');
+  _stopRingtone();
+  // Play ringtone sound
+  _playRingtone();
+  _callRingtoneInterval=setInterval(_playRingtone,3000);
+  // Show calling UI
+  var h='<div style="text-align:center;padding:20px">';
+  h+='<div style="width:72px;height:72px;border-radius:50%;background:'+_avatarGrad(userName)+';display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;margin:0 auto 16px">'+icInitials(userName)+'</div>';
+  h+='<div style="font-size:18px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc(userName)+'</div>';
+  h+='<div style="font-size:12px;color:var(--tx3);margin-bottom:20px">📹 Video Calling...</div>';
+  h+='<div style="display:flex;justify-content:center;gap:16px">';
+  h+='<button onclick="_stopRingtone();window.open(\'https://meet.google.com/new\',\'_blank\',\'noopener\');closeModal()" style="background:#2ee89e;border:none;padding:14px 28px;border-radius:50px;font-size:13px;font-weight:700;color:#000;cursor:pointer;box-shadow:0 4px 16px rgba(46,232,158,.3)">📹 Join Call</button>';
+  h+='<button onclick="_stopRingtone();closeModal()" style="background:#ef4444;border:none;padding:14px 28px;border-radius:50px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;box-shadow:0 4px 16px rgba(239,68,68,.3)">✕ Cancel</button>';
+  h+='</div></div>';
+  if(typeof openModal==='function')openModal(h);
+  // Send call notification to recipient
+  if(fbDb){
+    var allUsers=window._allTeamUsers||[];
+    var target=allUsers.find(function(u){return(u.displayName||u.name||'')===userName});
+    if(target&&target.uid){
+      fbDb.collection('notifications').add({
+        type:'call',title:'📹 Video Call from '+getUserName(),body:getUserName()+' is calling you',
+        icon:'📹',from:getUserName(),userId:target.uid,sourceView:'supportboard',
+        read:false,dismissed:false,priority:'critical',
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    }
+  }
 }
+
 function icAudioCall(userName){
-  // Google Meet audio-only (same link, user turns off camera)
-  window.open('https://meet.google.com/new','_blank','noopener');
-  if(typeof toast==='function')toast('Starting audio call with '+userName,'ok');
+  _stopRingtone();
+  _playRingtone();
+  _callRingtoneInterval=setInterval(_playRingtone,3000);
+  var h='<div style="text-align:center;padding:20px">';
+  h+='<div style="width:72px;height:72px;border-radius:50%;background:'+_avatarGrad(userName)+';display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;margin:0 auto 16px">'+icInitials(userName)+'</div>';
+  h+='<div style="font-size:18px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc(userName)+'</div>';
+  h+='<div style="font-size:12px;color:var(--tx3);margin-bottom:20px">📞 Audio Calling...</div>';
+  h+='<div style="display:flex;justify-content:center;gap:16px">';
+  h+='<button onclick="_stopRingtone();window.open(\'https://meet.google.com/new\',\'_blank\',\'noopener\');closeModal()" style="background:#2ee89e;border:none;padding:14px 28px;border-radius:50px;font-size:13px;font-weight:700;color:#000;cursor:pointer;box-shadow:0 4px 16px rgba(46,232,158,.3)">📞 Join Call</button>';
+  h+='<button onclick="_stopRingtone();closeModal()" style="background:#ef4444;border:none;padding:14px 28px;border-radius:50px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;box-shadow:0 4px 16px rgba(239,68,68,.3)">✕ Cancel</button>';
+  h+='</div></div>';
+  if(typeof openModal==='function')openModal(h);
+  if(fbDb){
+    var allUsers=window._allTeamUsers||[];
+    var target=allUsers.find(function(u){return(u.displayName||u.name||'')===userName});
+    if(target&&target.uid){
+      fbDb.collection('notifications').add({
+        type:'call',title:'📞 Audio Call from '+getUserName(),body:getUserName()+' is calling you',
+        icon:'📞',from:getUserName(),userId:target.uid,sourceView:'supportboard',
+        read:false,dismissed:false,priority:'critical',
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    }
+  }
 }
+
 function icSendEmail(email){
   window.open('mailto:'+email,'_blank');
 }

@@ -1053,3 +1053,21 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
 /* DM row action buttons — show on hover */
 .ic-dm-row:hover .ic-dm-actions{opacity:1!important}
 .ic-dm-row:hover{background:rgba(255,255,255,.06)!important}
+
+/* ══════════════════════════════════════
+   IC Mobile Responsive
+   ══════════════════════════════════════ */
+@media(max-width:768px){
+  #instantChatPopup{max-width:100%!important;left:0!important;right:0!important;bottom:56px!important;border-radius:16px 16px 0 0!important;height:85vh!important}
+  #icSpacesPanel{display:none!important}
+  #icSidebar{width:180px!important;min-width:180px!important}
+  .ic-dm-actions{display:none!important}
+}
+@media(max-width:500px){
+  #instantChatPopup{height:90vh!important;max-height:none!important;border-radius:12px 12px 0 0!important}
+  #icSidebar{width:64px!important;min-width:64px!important}
+  #icSidebar .ic-dm-row>div:nth-child(2){display:none}
+  #icSidebar [style*="MESSAGES"],#icSidebar [style*="CHANNELS"]{font-size:7px!important}
+  #icPresenceBar{display:none!important}
+  #icConvoHeader span:not(#icConvoTitle){font-size:11px!important}
+}
