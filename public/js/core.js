@@ -525,6 +525,8 @@ _ready=true}
 fbAuth.onAuthStateChanged(user=>{try{if(user){if(user.email&&!user.email.endsWith('@microflexfilm.com')&&!user.isAnonymous){ /* blocked non-company user */ fbAuth.signOut();alert('Access restricted to @microflexfilm.com accounts only.');return} /* Auth signed in */ CURRENT_USER={uid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL};
 syncUserAccessProfile().catch(function(e){console.warn('User doc write:',e)});
 if(typeof DB!=='undefined'&&DB.logActivity) DB.logActivity('user.login', (user.displayName||user.email)+' logged in');
+// FlexAi auto-status: user online
+if(typeof fbDb!=='undefined'){try{fbDb.collection('statusReel').add({text:(user.displayName||user.email)+' is online',emoji:'🟢',gif:null,user:'Flex Ai',userId:'system-flexai',dept:'System',createdAt:firebase.firestore.FieldValue.serverTimestamp(),announcement:false,likes:[],replyCount:0,mentions:[],replies:[]})}catch(e){}}
 if(!window.GTOKEN){var cached=sessionStorage.getItem('mfx_gtoken');var exp=parseInt(sessionStorage.getItem('mfx_gtoken_exp')||'0');if(cached&&Date.now()<exp)window.GTOKEN=cached;}
 var ls=$('loginScreen'),ap=$('app');if(ap)ap.style.display='block';if(typeof window.dismissIntroAfterLogin==='function')window.dismissIntroAfterLogin();else if(ls)ls.style.display='none';
 checkAndSeedData().then(()=>{startListeners();setTimeout(()=>{var _pKey='mfx_profile_'+(CURRENT_USER?CURRENT_USER.uid:'default');if(!localStorage.getItem(_pKey)){localStorage.setItem(_pKey,JSON.stringify({flexId:'',role:'',dept:'',pods:'',mood:'😊',yearJoined:'',lastUpdated:new Date().toISOString()}))}var _home='dashboard';goView(_home);/* userBadge avatar removed — dot indicator only */
@@ -537,13 +539,25 @@ if(typeof initNotifications==='function')initNotifications();
 if(typeof _initInactivity==='function')_initInactivity();
 if(typeof MFXAi!=='undefined'&&MFXAi.init)MFXAi.init().then(function(){if(MFXAi._initChatBridge)MFXAi._initChatBridge()}).catch(function(e){console.warn('FlexAi init:',e)});
 // duplicate syncUserAccessProfile call removed — already called on line 279
-},500)}).catch(function(e){console.error('Auth init error:',e);goView('launchpad')})}else{_clearInactivity();CURRENT_USER=null;var ls2=$('loginScreen'),ap2=$('app');if(ap2)ap2.style.display='none';
+},500)}).catch(function(e){console.error('Auth init error:',e);goView('launchpad')})}else{_clearInactivity();
+// FlexAi auto-status: user offline
+if(typeof fbDb!=='undefined'&&CURRENT_USER){try{var _offName=CURRENT_USER.displayName||CURRENT_USER.email||'User';fbDb.collection('statusReel').add({text:_offName+' went offline',emoji:'🔴',gif:null,user:'Flex Ai',userId:'system-flexai',dept:'System',createdAt:firebase.firestore.FieldValue.serverTimestamp(),announcement:false,likes:[],replyCount:0,mentions:[],replies:[]})}catch(e){}}
+CURRENT_USER=null;var ls2=$('loginScreen'),ap2=$('app');if(ap2)ap2.style.display='none';
 var intr=document.getElementById('introScreen');
 if(intr){intr.style.display='block';intr.style.opacity='1';intr.style.transform='';
   // Show the form immediately on re-login
   var fw=document.getElementById('loginFormBlock')||document.querySelector('#introScreen .form-wrap');
   if(fw){fw.style.opacity='1';fw.style.transform='translateY(0)';}
 }}}catch(e){console.error('onAuthStateChanged error:',e)}});
+
+// FlexAi auto-status on tab close
+window.addEventListener('beforeunload', function(){
+  if(typeof fbDb!=='undefined'&&CURRENT_USER){
+    try{var _name=CURRENT_USER.displayName||CURRENT_USER.email||'User';
+    navigator.sendBeacon&&navigator.sendBeacon('/__/noop',''); // keep connection alive briefly
+    fbDb.collection('statusReel').add({text:_name+' went offline',emoji:'🔴',gif:null,user:'Flex Ai',userId:'system-flexai',dept:'System',createdAt:firebase.firestore.FieldValue.serverTimestamp(),announcement:false,likes:[],replyCount:0,mentions:[],replies:[]})}catch(e){}
+  }
+});
 
 // Online/Offline indicators
 window.addEventListener('online', function() {

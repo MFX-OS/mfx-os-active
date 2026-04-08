@@ -2424,8 +2424,7 @@ function icRenderStatusReel(){
   try{var p=getMFXProfile();var r=(p.role||'').toLowerCase();isAdmin=['ceo','admin','administrator','owner','operations manager','manager'].indexOf(r)>=0}catch(e){}
 
   var h='';
-  // Duplicate items for seamless loop
-  var items=_statusReelData.concat(_statusReelData);
+  var items=_statusReelData;
   items.forEach(function(s){
     var isAnnouncement=s.announcement===true;
     var isOwn=s.userId===uid;

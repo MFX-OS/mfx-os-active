@@ -1,9 +1,9 @@
-var CACHE_NAME = 'mfx-mnpkz9x5';
+var CACHE_NAME = 'mfx-mnplbd14';
 var STATIC_ASSETS = [
   '/',
   '/index.html',
   '/css/theme.css',
-  '/js/mfx-bundle.1c450e13.js',
+  '/js/mfx-bundle.2ad2d806.js',
   '/manifest.json'
 ];
 
