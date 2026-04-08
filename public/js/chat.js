@@ -3837,7 +3837,7 @@ function icInitContextMenu(){
   // Attach to sidebar and spaces panel
   var sidebar=document.getElementById('icSidebarList');
   var spaces=document.getElementById('icSpacesList');
-  if(sidebar)sidebar.addEventListener('contextmenu',_icHandleRightClick);
+  if(sidebar){sidebar.addEventListener('contextmenu',_icHandleRightClick);sidebar.addEventListener('click',_icSelectModeClickHandler,true)}
   if(spaces)spaces.addEventListener('contextmenu',_icHandleRightClick);
 }
 
@@ -3879,6 +3879,9 @@ function _icHandleRightClick(e){
   items.push({icon:'💬',label:'Open',action:function(){
     var el=document.querySelector('[data-ic-channel="'+channelId+'"]');
     if(el)el.click();
+  }});
+  items.push({icon:'☑️',label:'Select (multi-delete)',action:function(){
+    icToggleSelect(channelId);
   }});
   items.push({icon:'📌',label:'Pin to top',action:function(){
     if(typeof toast==='function')toast('Pinned '+channelName,'ok');
@@ -3929,62 +3932,128 @@ function _icCloseContextMenu(){
 }
 
 function icDeleteChannel(channelId,channelName,isAdmin){
-  var me=getUserName();
+  var label=channelName||channelId;
+  if(!confirm('Delete "'+label+'"?'))return;
+  _icInstantRemove(channelId);
+  // Background Firestore cleanup
+  _icBackgroundDelete(channelId);
+  if(typeof toast==='function')toast('"'+label+'" deleted','ok');
+}
+
+function _icInstantRemove(channelId){
+  // Immediately remove from DOM
+  var el=document.querySelector('[data-ic-channel="'+channelId+'"]');
+  if(el){el.style.transition='opacity .2s,height .2s';el.style.opacity='0';el.style.height='0';el.style.overflow='hidden';el.style.padding='0';setTimeout(function(){el.remove()},250)}
+  // Clear conversation if viewing this chat
+  if(IC.activeChat===channelId){
+    IC.activeChat=null;
+    var body=document.getElementById('icBody');
+    if(body)body.innerHTML='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,.2);padding:40px"><div style="font-size:48px;opacity:.3">💬</div><div style="font-size:14px;font-weight:600">Select a conversation</div></div>';
+    var convoHeader=document.getElementById('icConvoHeader');if(convoHeader)convoHeader.style.display='none';
+    var inputBar=document.getElementById('icInputBar');if(inputBar)inputBar.style.display='none';
+  }
+}
+
+function _icBackgroundDelete(channelId){
   if(!fbDb)return;
-
-  // Check ownership
-  fbDb.collection('chat_channels').doc(channelId).get().then(function(doc){
-    if(!doc.exists){
-      if(typeof toast==='function')toast('Chat not found','err');
-      return;
-    }
-    var data=doc.data();
-    var isOwner=data.owner===me;
-    var isDefault=false;
-    for(var i=0;i<DEFAULT_CHANNELS.length;i++){
-      if(DEFAULT_CHANNELS[i].id===channelId){isDefault=true;break}
-    }
-
-    if(isDefault&&!isAdmin){
-      if(typeof toast==='function')toast('Cannot delete default channels','err');
-      return;
-    }
-    if(!isOwner&&!isAdmin){
-      if(typeof toast==='function')toast('Only the owner or admin can delete this','err');
-      return;
-    }
-
-    // Confirm
-    var label=channelName||channelId;
-    if(!confirm('Delete "'+label+'"? This will remove all messages in this chat.'))return;
-
-    // Delete all messages in the channel first
-    fbDb.collection('chat_messages').where('channelId','==',channelId).get().then(function(msgSnap){
-      var batch=fbDb.batch();
-      msgSnap.docs.forEach(function(d){batch.delete(d.ref)});
-      // Delete the channel doc
-      batch.delete(fbDb.collection('chat_channels').doc(channelId));
-      return batch.commit();
-    }).then(function(){
-      if(typeof toast==='function')toast('"'+label+'" deleted','ok');
-      // If we were viewing this chat, clear it
-      if(IC.activeChat===channelId){
-        IC.activeChat=null;
-        var body=document.getElementById('icBody');
-        if(body)body.innerHTML='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,.2);padding:40px"><div style="font-size:48px;opacity:.3">💬</div><div style="font-size:14px;font-weight:600">Select a conversation</div></div>';
-        var convoHeader=document.getElementById('icConvoHeader');if(convoHeader)convoHeader.style.display='none';
-        var inputBar=document.getElementById('icInputBar');if(inputBar)inputBar.style.display='none';
+  // Delete messages in batches of 500 (Firestore limit)
+  function deleteBatch(){
+    fbDb.collection('chat_messages').where('channelId','==',channelId).limit(500).get().then(function(snap){
+      if(!snap.docs.length){
+        // All messages deleted, now delete the channel
+        fbDb.collection('chat_channels').doc(channelId).delete().catch(function(){});
+        return;
       }
-      // Refresh sidebar
-      icShowList();
-    }).catch(function(err){
-      console.warn('deleteChannel:',err);
-      if(typeof toast==='function')toast('Failed to delete: '+err.message,'err');
-    });
+      var batch=fbDb.batch();
+      snap.docs.forEach(function(d){batch.delete(d.ref)});
+      batch.commit().then(deleteBatch).catch(function(e){console.warn('batchDelete:',e)});
+    }).catch(function(e){console.warn('deleteQuery:',e)});
+  }
+  deleteBatch();
+}
+
+// ── MULTI-SELECT MODE ──
+var _icSelectedChannels=[];
+var _icSelectMode=false;
+
+function icToggleSelect(channelId){
+  if(!_icSelectMode){
+    _icSelectMode=true;
+    _icSelectedChannels=[channelId];
+    _icShowSelectBar();
+  }else{
+    var idx=_icSelectedChannels.indexOf(channelId);
+    if(idx>=0){_icSelectedChannels.splice(idx,1)}
+    else{_icSelectedChannels.push(channelId)}
+    if(!_icSelectedChannels.length){icCancelSelect();return}
+  }
+  _icUpdateSelectUI();
+}
+
+function _icShowSelectBar(){
+  var existing=document.getElementById('icSelectBar');
+  if(existing)return;
+  var sidebar=document.getElementById('icSidebar');
+  if(!sidebar)return;
+  var bar=document.createElement('div');
+  bar.id='icSelectBar';
+  bar.style.cssText='padding:8px 10px;background:rgba(239,68,68,.1);border-bottom:1px solid rgba(239,68,68,.2);display:flex;align-items:center;gap:8px;flex-shrink:0';
+  bar.innerHTML='<span id="icSelectCount" style="font-size:11px;font-weight:700;color:#ef4444;flex:1">1 selected</span>'
+    +'<button onclick="icDeleteSelected()" style="background:#ef4444;border:none;padding:4px 12px;border-radius:8px;font-size:10px;font-weight:700;color:#fff;cursor:pointer">🗑 Delete</button>'
+    +'<button onclick="icCancelSelect()" style="background:rgba(255,255,255,.06);border:none;padding:4px 10px;border-radius:8px;font-size:10px;color:rgba(255,255,255,.5);cursor:pointer">Cancel</button>';
+  sidebar.insertBefore(bar,sidebar.children[1]||null);
+}
+
+function _icUpdateSelectUI(){
+  // Update count
+  var countEl=document.getElementById('icSelectCount');
+  if(countEl)countEl.textContent=_icSelectedChannels.length+' selected';
+  // Highlight selected items
+  var items=document.querySelectorAll('[data-ic-channel]');
+  for(var i=0;i<items.length;i++){
+    var chId=items[i].getAttribute('data-ic-channel');
+    var selected=_icSelectedChannels.indexOf(chId)>=0;
+    items[i].style.outline=selected?'2px solid #ef4444':'none';
+    items[i].style.outlineOffset=selected?'-2px':'0';
+  }
+}
+
+function icCancelSelect(){
+  _icSelectMode=false;
+  _icSelectedChannels=[];
+  var bar=document.getElementById('icSelectBar');if(bar)bar.remove();
+  // Clear highlights
+  var items=document.querySelectorAll('[data-ic-channel]');
+  for(var i=0;i<items.length;i++){items[i].style.outline='none'}
+}
+
+function icDeleteSelected(){
+  if(!_icSelectedChannels.length)return;
+  var count=_icSelectedChannels.length;
+  if(!confirm('Delete '+count+' chat'+(count>1?'s':'')+'? This cannot be undone.'))return;
+  // Instant remove all from DOM
+  _icSelectedChannels.forEach(function(chId){
+    _icInstantRemove(chId);
+    _icBackgroundDelete(chId);
   });
+  if(typeof toast==='function')toast(count+' chat'+(count>1?'s':'')+' deleted','ok');
+  icCancelSelect();
+}
+
+// Allow clicking items to toggle selection when in select mode
+function _icSelectModeClickHandler(e){
+  if(!_icSelectMode)return;
+  var target=e.target.closest('[data-ic-channel]');
+  if(!target)return;
+  e.preventDefault();
+  e.stopPropagation();
+  icToggleSelect(target.getAttribute('data-ic-channel'));
 }
 
 window.icDeleteChannel=icDeleteChannel;
+window.icToggleSelect=icToggleSelect;
+window.icCancelSelect=icCancelSelect;
+window.icDeleteSelected=icDeleteSelected;
 window.icCreatePoll=icCreatePoll;
 window.icRenderPoll=icRenderPoll;
 window.icVotePoll=icVotePoll;
