@@ -537,6 +537,7 @@ if(typeof MFX_SENTRY_SET_USER==='function')MFX_SENTRY_SET_USER();
 if(typeof initFeatures==='function')initFeatures();
 if(typeof initNotifications==='function')initNotifications();
 if(typeof _initInactivity==='function')_initInactivity();
+if(typeof initPresenceBar==='function')initPresenceBar();
 if(typeof MFXAi!=='undefined'&&MFXAi.init)MFXAi.init().then(function(){if(MFXAi._initChatBridge)MFXAi._initChatBridge()}).catch(function(e){console.warn('FlexAi init:',e)});
 // duplicate syncUserAccessProfile call removed — already called on line 279
 },500)}).catch(function(e){console.error('Auth init error:',e);goView('launchpad')})}else{_clearInactivity();

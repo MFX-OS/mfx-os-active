@@ -2705,6 +2705,213 @@ window.icSubmitExpandedReply=icSubmitExpandedReply;
 window.icStatusSearchGif=icStatusSearchGif;
 window.icStatusGifDoSearch=icStatusGifDoSearch;
 window.icStatusPickGif=icStatusPickGif;
+
+// ══════════════════════════════════════════════════════════════════
+// PRESENCE BAR — status, mood, custom message, team presence
+// ══════════════════════════════════════════════════════════════════
+
+var PRESENCE_STATES=[
+  {key:'online',label:'Online',color:'#2ee89e',emoji:'🟢'},
+  {key:'away',label:'Away',color:'#f59e0b',emoji:'🟡'},
+  {key:'break',label:'On Break',color:'#a855f7',emoji:'☕'},
+  {key:'lunch',label:'At Lunch',color:'#f97316',emoji:'🍕'},
+  {key:'wrapping',label:'Wrapping Up',color:'#3b82f6',emoji:'📦'},
+  {key:'offline',label:'Offline',color:'#555',emoji:'🔴'}
+];
+
+var _myPresenceIdx=0;
+var _presenceListener=null;
+
+function initPresenceBar(){
+  var bar=document.getElementById('presenceBar');
+  var reel=document.getElementById('statusReelBar');
+  if(bar)bar.style.display='flex';
+  if(reel)reel.style.display='block';
+  // Load my saved presence
+  var saved=localStorage.getItem('mfx_presence');
+  if(saved){
+    for(var i=0;i<PRESENCE_STATES.length;i++){
+      if(PRESENCE_STATES[i].key===saved){_myPresenceIdx=i;break}
+    }
+  }
+  updateMyPresenceUI();
+  // Load my mood + custom status
+  var mood=localStorage.getItem('mfx_mood')||'😊';
+  var status=localStorage.getItem('mfx_custom_status')||'';
+  var moodEl=document.getElementById('myMood');
+  var statusEl=document.getElementById('myCustomStatus');
+  if(moodEl)moodEl.textContent=mood;
+  if(statusEl)statusEl.textContent=status||'Set a status...';
+  // Write presence to Firestore
+  writePresenceToFirestore();
+  // Listen for team presence
+  startTeamPresenceListener();
+  // Start status reel
+  icStartStatusReel();
+}
+
+function cycleMyPresence(){
+  _myPresenceIdx=(_myPresenceIdx+1)%PRESENCE_STATES.length;
+  var state=PRESENCE_STATES[_myPresenceIdx];
+  localStorage.setItem('mfx_presence',state.key);
+  updateMyPresenceUI();
+  writePresenceToFirestore();
+  // Post to status reel
+  if(typeof fbDb!=='undefined'&&state.key!=='online'){
+    var name=typeof getUserName==='function'?getUserName():'User';
+    fbDb.collection('statusReel').add({
+      text:name+' is '+state.label.toLowerCase(),
+      emoji:state.emoji,gif:null,user:'Flex Ai',userId:'system-flexai',dept:'System',
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      announcement:false,likes:[],replyCount:0,mentions:[],replies:[]
+    }).catch(function(){});
+  }
+}
+
+function updateMyPresenceUI(){
+  var state=PRESENCE_STATES[_myPresenceIdx];
+  var dot=document.getElementById('myPresenceDot');
+  var label=document.getElementById('myPresenceLabel');
+  if(dot)dot.style.background=state.color;
+  if(label){label.textContent=state.label;label.style.color=state.color}
+}
+
+function writePresenceToFirestore(){
+  if(typeof fbDb==='undefined')return;
+  var uid=typeof getUserId==='function'?getUserId():'';
+  if(!uid)return;
+  var state=PRESENCE_STATES[_myPresenceIdx];
+  var mood=localStorage.getItem('mfx_mood')||'😊';
+  var status=localStorage.getItem('mfx_custom_status')||'';
+  fbDb.collection('users').doc(uid).update({
+    presence:state.key,
+    presenceColor:state.color,
+    presenceLabel:state.label,
+    mood:mood,
+    customStatus:status,
+    lastSeen:firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function(e){console.warn('presenceWrite:',e)});
+}
+
+function pickMood(){
+  var moods=['😊','😎','🔥','💪','🚀','🧠','😴','🤔','😤','☕','🎯','❤️','🎉','⭐','👀','💬'];
+  var h='<div class="modal-title">How are you feeling?</div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:12px 0">';
+  moods.forEach(function(m){
+    h+='<span onclick="setMood(\''+m+'\')" style="cursor:pointer;font-size:32px;padding:8px;border-radius:12px;transition:all .15s" onmouseover="this.style.background=\'rgba(255,255,255,.1)\';this.style.transform=\'scale(1.2)\'" onmouseout="this.style.background=\'none\';this.style.transform=\'scale(1)\'">'+m+'</span>';
+  });
+  h+='</div>';
+  h+='<div style="margin-top:8px"><input id="moodComment" placeholder="Comment of the day..." style="width:100%;padding:10px 14px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;color:#fff;outline:none;font-family:inherit" value="'+(localStorage.getItem('mfx_custom_status')||'')+'"></div>';
+  h+='<button onclick="saveMoodComment()" class="btn btn-pr" style="width:100%;margin-top:10px;padding:10px;border-radius:12px;font-size:13px">Save</button>';
+  if(typeof openModal==='function')openModal(h);
+}
+
+function setMood(emoji){
+  localStorage.setItem('mfx_mood',emoji);
+  var el=document.getElementById('myMood');if(el)el.textContent=emoji;
+  writePresenceToFirestore();
+  if(typeof closeModal==='function')closeModal();
+}
+
+function saveMoodComment(){
+  var inp=document.getElementById('moodComment');
+  var comment=inp?inp.value.trim():'';
+  localStorage.setItem('mfx_custom_status',comment);
+  var el=document.getElementById('myCustomStatus');
+  if(el)el.textContent=comment||'Set a status...';
+  writePresenceToFirestore();
+  if(typeof closeModal==='function')closeModal();
+}
+
+function editMyStatus(){
+  var current=localStorage.getItem('mfx_custom_status')||'';
+  var h='<div class="modal-title">Set Your Status</div>';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:8px">Let your team know what you\'re up to</div>';
+  // Quick status presets
+  var presets=[
+    {emoji:'💻',text:'Focused — do not disturb'},
+    {emoji:'📞',text:'In a meeting'},
+    {emoji:'🏠',text:'Working from home'},
+    {emoji:'🚗',text:'Commuting'},
+    {emoji:'🏥',text:'Out sick'},
+    {emoji:'🌴',text:'On vacation'},
+    {emoji:'📦',text:'Wrapping up for the day'},
+    {emoji:'🔙',text:'Be right back'}
+  ];
+  h+='<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">';
+  presets.forEach(function(p){
+    h+='<div onclick="setQuickStatus(\''+p.emoji+'\',\''+esc(p.text)+'\')" style="padding:8px 12px;cursor:pointer;font-size:12px;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:8px;border-radius:8px;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\'none\'">'+p.emoji+' '+esc(p.text)+'</div>';
+  });
+  h+='</div>';
+  h+='<div style="border-top:1px solid rgba(255,255,255,.06);padding-top:10px"><input id="customStatusInput" placeholder="Or type your own..." value="'+esc(current)+'" style="width:100%;padding:10px 14px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;color:#fff;outline:none;font-family:inherit"></div>';
+  h+='<button onclick="saveCustomStatus()" class="btn btn-pr" style="width:100%;margin-top:8px;padding:10px;border-radius:12px">Save Status</button>';
+  h+='<button onclick="clearCustomStatus()" class="btn btn-ghost" style="width:100%;margin-top:4px;padding:8px;border-radius:12px;font-size:11px">Clear Status</button>';
+  if(typeof openModal==='function')openModal(h);
+}
+
+function setQuickStatus(emoji,text){
+  localStorage.setItem('mfx_mood',emoji);
+  localStorage.setItem('mfx_custom_status',text);
+  var moodEl=document.getElementById('myMood');if(moodEl)moodEl.textContent=emoji;
+  var statusEl=document.getElementById('myCustomStatus');if(statusEl)statusEl.textContent=text;
+  writePresenceToFirestore();
+  if(typeof closeModal==='function')closeModal();
+}
+
+function saveCustomStatus(){
+  var inp=document.getElementById('customStatusInput');
+  var text=inp?inp.value.trim():'';
+  localStorage.setItem('mfx_custom_status',text);
+  var el=document.getElementById('myCustomStatus');if(el)el.textContent=text||'Set a status...';
+  writePresenceToFirestore();
+  if(typeof closeModal==='function')closeModal();
+}
+
+function clearCustomStatus(){
+  localStorage.removeItem('mfx_custom_status');
+  var el=document.getElementById('myCustomStatus');if(el)el.textContent='Set a status...';
+  writePresenceToFirestore();
+  if(typeof closeModal==='function')closeModal();
+}
+
+// Team presence — show other users' status
+function startTeamPresenceListener(){
+  if(_presenceListener)return;
+  if(typeof fbDb==='undefined')return;
+  _presenceListener=fbDb.collection('users').onSnapshot(function(snap){
+    var me=typeof getUserName==='function'?getUserName():'';
+    var el=document.getElementById('teamPresenceList');if(!el)return;
+    var users=[];
+    snap.docs.forEach(function(d){
+      var u=d.data();
+      var name=u.displayName||'';if(!name||name===me)return;
+      users.push({name:name,presence:u.presence||'offline',color:u.presenceColor||'#555',label:u.presenceLabel||'Offline',mood:u.mood||'',status:u.customStatus||'',dept:u.department||u.dept||''});
+    });
+    // Sort: online first, then by presence priority
+    var order={online:0,away:1,'break':2,lunch:3,wrapping:4,offline:5};
+    users.sort(function(a,b){return(order[a.presence]||5)-(order[b.presence]||5)});
+    var h='';
+    users.forEach(function(u){
+      h+='<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;padding:2px 8px;border-radius:12px;background:rgba(255,255,255,.03);cursor:default" title="'+esc(u.name)+' — '+esc(u.label)+(u.status?' · '+esc(u.status):'')+'">';
+      h+='<span style="width:6px;height:6px;border-radius:50%;background:'+u.color+';flex-shrink:0"></span>';
+      if(u.mood)h+='<span style="font-size:11px">'+u.mood+'</span>';
+      h+='<span style="font-size:10px;color:'+u.color+';font-weight:600;max-width:80px;overflow:hidden;text-overflow:ellipsis">'+esc(u.name.split(' ')[0])+'</span>';
+      if(u.status)h+='<span style="font-size:9px;color:rgba(255,255,255,.25);max-width:100px;overflow:hidden;text-overflow:ellipsis">'+esc(u.status)+'</span>';
+      h+='</div>';
+    });
+    el.innerHTML=h;
+  },function(err){console.warn('teamPresence:',err.message)});
+}
+
+window.cycleMyPresence=cycleMyPresence;
+window.pickMood=pickMood;
+window.setMood=setMood;
+window.saveMoodComment=saveMoodComment;
+window.editMyStatus=editMyStatus;
+window.setQuickStatus=setQuickStatus;
+window.saveCustomStatus=saveCustomStatus;
+window.clearCustomStatus=clearCustomStatus;
+window.initPresenceBar=initPresenceBar;
 window.icToggleAddPerson=icToggleAddPerson;
 window.icCreateGroupChat=icCreateGroupChat;
 

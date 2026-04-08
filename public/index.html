@@ -286,15 +286,6 @@
 <span onclick="icShowList()" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:4px 10px;background:rgba(255,255,255,.05);border-radius:8px;font-weight:600">Refresh</span>
 <span onclick="toggleInstantChat()" style="cursor:pointer;color:var(--tx3);font-size:18px;padding:0 2px;line-height:1">&times;</span>
 </div>
-<!-- STATUS REEL — scrolling news ticker -->
-<div id="icStatusReel" style="border-bottom:1px solid rgba(255,255,255,.04);background:rgba(0,0,0,.2);overflow:hidden;position:relative;min-height:36px">
-<div style="display:flex;align-items:center;padding:0 8px;height:36px;gap:6px">
-<span onclick="icPostStatus()" style="cursor:pointer;font-size:14px;padding:2px 6px;background:rgba(0,229,255,.1);border-radius:6px;flex-shrink:0" title="Post a status">✏️</span>
-<div id="icStatusTrack" style="flex:1;overflow:hidden;position:relative;height:28px">
-<div id="icStatusScroller" style="display:flex;gap:16px;align-items:center;height:100%;white-space:nowrap;animation:icScrollStatus 30s linear infinite;will-change:transform"></div>
-</div>
-</div>
-</div>
 <!-- Three-panel layout: sidebar + conversation + spaces -->
 <div style="flex:1;display:flex;overflow:hidden;min-height:0">
 <!-- Left: Channel/DM list -->
@@ -337,6 +328,29 @@
 </div>
 </div>
 
+<!-- ═══ PRESENCE BAR — user status + mood ═══ -->
+<div id="presenceBar" style="display:none;position:fixed;bottom:112px;left:0;right:0;z-index:98;background:linear-gradient(90deg,rgba(13,17,23,.95),rgba(22,27,34,.95));border-top:1px solid rgba(255,255,255,.04);backdrop-filter:blur(12px);height:32px;padding:0 16px;display:flex;align-items:center;gap:12px;overflow-x:auto;overflow-y:hidden;white-space:nowrap">
+<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+<span id="myPresenceDot" style="width:8px;height:8px;border-radius:50%;background:#2ee89e;flex-shrink:0"></span>
+<span id="myPresenceLabel" style="font-size:10px;font-weight:600;color:#2ee89e;cursor:pointer" onclick="cycleMyPresence()">Online</span>
+<span style="color:rgba(255,255,255,.1)">|</span>
+<span id="myMood" style="font-size:13px;cursor:pointer" onclick="pickMood()" title="Change mood">😊</span>
+<span id="myCustomStatus" onclick="editMyStatus()" style="font-size:10px;color:rgba(255,255,255,.4);cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="Click to edit status">Set a status...</span>
+<span style="color:rgba(255,255,255,.1)">|</span>
+</div>
+<div id="teamPresenceList" style="display:flex;gap:8px;align-items:center;flex:1;overflow-x:auto"></div>
+</div>
+
+<!-- ═══ STATUS REEL — full-width scrolling news ticker ═══ -->
+<div id="statusReelBar" style="display:none;position:fixed;bottom:56px;left:0;right:0;z-index:97;background:linear-gradient(90deg,rgba(13,17,23,.92),rgba(22,27,34,.92));border-top:1px solid rgba(255,255,255,.04);backdrop-filter:blur(12px);height:56px;overflow:hidden">
+<div style="display:flex;align-items:center;height:56px;padding:0 8px;gap:8px">
+<span onclick="icPostStatus()" style="cursor:pointer;font-size:16px;padding:4px 8px;background:rgba(0,229,255,.1);border-radius:8px;flex-shrink:0" title="Post a status">✏️</span>
+<div id="icStatusTrack" style="flex:1;overflow:hidden;position:relative;height:48px">
+<div id="icStatusScroller" style="display:flex;gap:16px;align-items:center;height:48px;white-space:nowrap;animation:icScrollStatus 30s linear infinite;will-change:transform"></div>
+</div>
+</div>
+</div>
+
 <div class="bottom-bar" id="bottomBar" role="navigation" aria-label="Quick actions" style="color:#00e5ff">
 <button class="bb-btn" onclick="goView('quotes')"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Quotes</button>
 <button class="bb-btn" onclick="goView('jobtracker')"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Kanban</button>
@@ -371,7 +385,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.1c450e13.js"></script>
+<script src="js/mfx-bundle.a57170fb.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>
