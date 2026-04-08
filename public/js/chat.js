@@ -965,6 +965,7 @@ function toggleInstantChat(){
     icShowList();
     icStartUnreadListener();
     icLoadOnlineUsers();
+    icRenderSpaces();
   }else{
     if(IC.listener){IC.listener();IC.listener=null;}
   }
@@ -2316,6 +2317,49 @@ function icCreateGroupChat(){
 }
 
 window.icAddPeople=icAddPeople;
+
+// ── COLLABORATIVE SPACES PANEL ──
+var DEPT_SPACES=[
+  {dept:'Sales',color:'#a855f7',icon:'💼',channels:['quotes-chat','client-services'],desc:'Pipeline, accounts, deals'},
+  {dept:'Pre-Press',color:'#d7ff2f',icon:'🎨',channels:['design-review','pre-press'],desc:'Artwork, proofs, plates'},
+  {dept:'Production',color:'#4169E1',icon:'⚙️',channels:['scheduling','production'],desc:'Scheduling, floor ops'},
+  {dept:'Quality',color:'#ef4444',icon:'🛡',channels:['sqf-alerts','quality','fsqms'],desc:'SQF, CAPA, audits, GMP'},
+  {dept:'Operations',color:'#C0C0C0',icon:'📊',channels:['operations','logistics','shipping'],desc:'Logistics, shipping, ops'},
+  {dept:'Finance',color:'#22c55e',icon:'💰',channels:['finance'],desc:'AR, AP, invoicing'},
+  {dept:'Leadership',color:'#f59e0b',icon:'👑',channels:['announcements','general'],desc:'Company-wide, announcements'}
+];
+
+function icRenderSpaces(){
+  var el=document.getElementById('icSpacesList');
+  if(!el)return;
+  var h='';
+  DEPT_SPACES.forEach(function(space){
+    h+='<div style="padding:6px 12px">';
+    // Space header
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+    h+='<div style="width:28px;height:28px;border-radius:8px;background:'+space.color+'20;display:flex;align-items:center;justify-content:center;font-size:14px">'+space.icon+'</div>';
+    h+='<div><div style="font-size:11px;font-weight:700;color:'+space.color+'">'+esc(space.dept)+'</div>';
+    h+='<div style="font-size:9px;color:rgba(255,255,255,.25)">'+esc(space.desc)+'</div></div>';
+    h+='</div>';
+    // Channel links
+    space.channels.forEach(function(chId){
+      h+='<div onclick="icOpenChat(\''+esc(chId)+'\',\'#'+esc(chId)+'\')" style="padding:4px 8px 4px 36px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.45);display:flex;align-items:center;gap:5px;border-radius:6px;transition:all .12s" onmouseover="this.style.background=\'rgba(255,255,255,.05)\';this.style.color=\''+space.color+'\'" onmouseout="this.style.background=\'none\';this.style.color=\'rgba(255,255,255,.45)\'">';
+      h+='<span style="font-size:9px;opacity:.6">#</span>'+esc(chId)+'</div>';
+    });
+    h+='</div>';
+  });
+
+  // Quick actions at bottom
+  h+='<div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,.04);margin-top:8px">';
+  h+='<div style="font-size:9px;font-weight:700;color:rgba(255,255,255,.2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Quick Actions</div>';
+  h+='<div onclick="icNewDM()" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>✉</span> New Message</div>';
+  h+='<div onclick="createChannelInGroup(\'department\')" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>➕</span> New Channel</div>';
+  h+='<div onclick="goView(\'supportboard\');toggleInstantChat()" style="padding:6px 10px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;border-radius:6px;transition:background .12s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'"><span>💬</span> Full Chat View</div>';
+  h+='</div>';
+
+  el.innerHTML=h;
+}
+window.icRenderSpaces=icRenderSpaces;
 window.icToggleAddPerson=icToggleAddPerson;
 window.icCreateGroupChat=icCreateGroupChat;
 
