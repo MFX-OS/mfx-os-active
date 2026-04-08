@@ -1,4 +1,4 @@
-var CACHE_NAME = 'mfx-mnpo87ku';
+var CACHE_NAME = 'mfx-mnpoywxn';
 var STATIC_ASSETS = [
   '/',
   '/index.html',

@@ -1059,76 +1059,46 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
    ══════════════════════════════════════ */
 
 /* ── Tablet / small desktop (max 768px) ── */
+/* ── Tablet (max 768px) ── */
 @media(max-width:768px){
-  /* Full-width popup anchored from bottom bar to top */
-  #instantChatPopup{
-    left:0!important;right:0!important;top:0!important;bottom:56px!important;
-    max-width:100%!important;width:100%!important;
-    height:auto!important;max-height:none!important;
-    border-radius:0!important;
-  }
-  /* Hide spaces panel entirely */
+  #instantChatPopup{left:0!important;right:0!important;top:0!important;bottom:56px!important;max-width:100%!important;height:auto!important;max-height:none!important;border-radius:0!important}
   #icSpacesPanel{display:none!important}
-  /* Sidebar: hidden by default, overlay when toggled */
-  #icSidebar{
-    position:absolute!important;top:0!important;bottom:0!important;left:0!important;
-    width:280px!important;min-width:280px!important;
-    background:rgba(13,17,23,.98)!important;
-    backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;
-    z-index:10!important;
-    transform:translateX(-100%)!important;
-    transition:transform .25s ease!important;
-    overflow-y:auto!important;
-  }
-  #icSidebar.ic-mobile-sidebar-open{
-    transform:translateX(0)!important;
-  }
-  /* Dark overlay behind sidebar */
-  #icMobileSidebarOverlay{
-    display:none;position:absolute;top:0;left:0;right:0;bottom:0;
-    background:rgba(0,0,0,.5);z-index:9;
-  }
+  #icSidebar{position:absolute!important;top:0;bottom:0;left:0;width:280px!important;min-width:280px!important;background:rgba(13,17,23,.98)!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;z-index:10!important;transform:translateX(-100%)!important;transition:transform .25s ease!important;overflow-y:auto!important}
+  #icSidebar.ic-mobile-sidebar-open{transform:translateX(0)!important}
+  #icMobileSidebarOverlay{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9}
   #icMobileSidebarOverlay.active{display:block}
-  /* Conversation area takes full width */
-  #instantChatPopup>div:first-child{position:relative!important}
-  /* Tab bar: horizontal scroll, compact */
-  #icTabBar{overflow-x:auto!important;-webkit-overflow-scrolling:touch;white-space:nowrap!important;font-size:11px!important}
-  #icTabBar::-webkit-scrollbar{display:none}
-  /* Hide presence bar and status reel inside IC */
   #icPresenceBar{display:none!important}
-  .ic-status-reel,.status-reel{display:none!important}
-  /* DM row actions hidden (long-press on mobile) */
   .ic-dm-actions{display:none!important}
-  /* Sticky input bar */
-  #icInputBar{position:sticky!important;bottom:0!important;z-index:5!important}
-  /* Hide hover message actions (long-press instead) */
   .ic-msg-wrap .ic-msg-actions{display:none!important}
-  /* Show mobile menu button */
+  #icInputBar{position:sticky!important;bottom:0!important;z-index:5!important}
   .ic-mobile-menu-btn{display:inline!important}
+  #icTabBar{overflow-x:auto!important;-webkit-overflow-scrolling:touch;font-size:10px!important}
+  #icTabBar::-webkit-scrollbar{display:none}
 }
 
 /* ── Phone (max 500px) ── */
 @media(max-width:500px){
-  /* True full-screen */
-  #instantChatPopup{
-    inset:0!important;border-radius:0!important;
-    bottom:0!important;
-  }
-  /* Compact header */
-  #icConvoHeader{padding:8px 10px!important}
-  #icConvoHeader span:not(#icConvoTitle):not(.ic-mobile-menu-btn){font-size:11px!important}
+  #instantChatPopup{inset:0!important;border-radius:0!important}
+  /* Clean compact header — only show title + hamburger + close */
+  #icHeader{padding:10px 12px!important;gap:6px!important}
+  #icHeader>*:not(#icTitle):not(.ic-mobile-menu-btn):not(:last-child):not(:first-child){display:none!important}
+  #icTitle{font-size:14px!important}
+  /* Conversation header — hide extra icons, keep title + hamburger */
+  #icConvoHeader{padding:8px 12px!important}
   #icConvoTitle{font-size:13px!important}
-  /* Larger touch targets for input bar */
-  #icInputBar{padding:6px 8px!important}
-  #icInputBar textarea{font-size:16px!important;min-height:44px!important}
-  #icInputBar button,
-  #icInputBar [onclick]{min-width:44px!important;min-height:44px!important;font-size:18px!important}
-  /* Send button */
-  #icSendBtn,.ic-send-btn{width:44px!important;height:44px!important;font-size:18px!important}
-  /* Emoji, GIF, attachment buttons */
-  .ic-input-action,.ic-toolbar-btn{min-width:44px!important;min-height:44px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
-  /* Wider message bubbles on phone */
-  .ic-msg-bubble{max-width:85%!important}
-  /* Show mobile menu button */
+  #icMemberCount{display:none!important}
+  /* Clean input bar — just emoji, input, send */
+  #icInputBar{padding:8px 10px!important}
+  #icInputBar textarea{font-size:16px!important;padding:10px 14px!important;border-radius:22px!important}
+  /* Hide extra input buttons on phone — keep emoji + send only */
+  #icInputBar button[onclick*="icAddFile"],
+  #icInputBar button[onclick*="chatSearchGif"],
+  #icInputBar button[onclick*="icTogglePriority"],
+  #icInputBar button[onclick*="icSendKudos"],
+  #icInputBar button[onclick*="icCreatePoll"]{display:none!important}
+  /* Bigger send button */
+  #icInputBar button:last-child{width:42px!important;height:42px!important}
+  /* Messages — more room */
+  .ic-compact-msg div[style*="max-width:78%"]{max-width:88%!important}
   .ic-mobile-menu-btn{display:inline!important}
 }
