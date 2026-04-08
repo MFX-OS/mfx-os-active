@@ -278,21 +278,35 @@
 
 <!-- BOTTOM BAR -->
 <!-- ═══ INSTANT CHAT POPUP — iMessage style ═══ -->
-<div id="instantChatPopup" style="display:none;position:fixed;bottom:62px;left:8px;right:8px;max-width:420px;margin:0 auto;height:75vh;max-height:600px;background:linear-gradient(180deg,#0d1117 0%,#161b22 100%);border:1px solid rgba(0,229,255,.15);border-radius:20px;z-index:200;box-shadow:0 -12px 60px rgba(0,0,0,.6),0 0 30px rgba(0,229,255,.08);flex-direction:column;overflow:hidden;backdrop-filter:blur(20px)">
+<div id="instantChatPopup" style="display:none;position:fixed;bottom:62px;left:8px;right:8px;max-width:800px;margin:0 auto;height:80vh;max-height:650px;background:linear-gradient(180deg,#0d1117 0%,#161b22 100%);border:1px solid rgba(0,229,255,.15);border-radius:20px;z-index:200;box-shadow:0 -12px 60px rgba(0,0,0,.6),0 0 30px rgba(0,229,255,.08);flex-direction:column;overflow:hidden;backdrop-filter:blur(20px)">
 <div id="icHeader" style="padding:12px 14px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px">
 <div style="width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#0099cc);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
 <span id="icTitle" style="font-size:15px;font-weight:800;color:#fff;flex:1;letter-spacing:-.2px">Messages</span>
 <span id="icOnlineCount" style="font-size:9px;color:#2ee89e;font-weight:600;background:rgba(46,232,158,.1);padding:3px 8px;border-radius:10px"></span>
-<span onclick="icToggleSearch()" style="cursor:pointer;font-size:14px;padding:4px;color:var(--tx3);border-radius:6px" title="Search messages">🔍</span>
-<span onclick="icShowPinnedMessages()" style="cursor:pointer;font-size:14px;padding:4px;color:var(--tx3);border-radius:6px" title="Pinned messages">📌</span>
-<span onclick="icMuteChannel()" style="cursor:pointer;font-size:14px;padding:4px;color:var(--tx3);border-radius:6px" id="icMuteBtn" title="Mute">🔔</span>
-<span onclick="icShowList()" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:4px 10px;background:rgba(255,255,255,.05);border-radius:8px;font-weight:600">All</span>
+<span onclick="icShowList()" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:4px 10px;background:rgba(255,255,255,.05);border-radius:8px;font-weight:600">Refresh</span>
 <span onclick="toggleInstantChat()" style="cursor:pointer;color:var(--tx3);font-size:18px;padding:0 2px;line-height:1">&times;</span>
 </div>
-<div id="icSearchBar" style="display:none;padding:8px 14px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.04)"><input id="icSearchInput" placeholder="Search messages..." oninput="icSearchMessages(this.value)" style="width:100%;padding:8px 12px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;color:#fff;outline:none;font-family:inherit"><span onclick="icClearSearch()" style="cursor:pointer;color:var(--tx3);font-size:12px;padding:4px;position:absolute;right:22px;top:50%;transform:translateY(-50%)">&times;</span></div>
+<!-- Two-panel layout: sidebar + conversation -->
+<div style="flex:1;display:flex;overflow:hidden;min-height:0">
+<!-- Left: Channel/DM list -->
+<div id="icSidebar" style="width:240px;min-width:240px;border-right:1px solid rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.15)">
+<div style="padding:8px 10px"><input id="icSidebarSearch" placeholder="Search..." oninput="icFilterList(this.value)" style="width:100%;padding:7px 12px;font-size:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:#fff;outline:none;font-family:inherit"></div>
+<div id="icSidebarList" style="flex:1;overflow-y:auto"></div>
+</div>
+<!-- Right: Conversation -->
+<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+<div id="icConvoHeader" style="display:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.2)">
+<span id="icConvoTitle" style="font-size:14px;font-weight:700;color:#fff;flex:1"></span>
+<span onclick="icToggleSearch()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Search">🔍</span>
+<span onclick="icShowPinnedMessages()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Pinned">📌</span>
+<span onclick="icMuteChannel()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" id="icMuteBtn" title="Mute">🔔</span>
+</div>
+<div id="icSearchBar" style="display:none;padding:6px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.04)"><input id="icSearchInput" placeholder="Search messages..." oninput="icSearchMessages(this.value)" style="width:100%;padding:6px 10px;font-size:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;outline:none;font-family:inherit"></div>
 <div id="icPinnedBar" style="display:none"></div>
 <div id="icBody" style="flex:1;overflow-y:auto;display:flex;flex-direction:column"></div>
-<div id="icTypingBar" style="display:none;padding:4px 16px;font-size:11px;color:rgba(255,255,255,.4);min-height:18px"></div>
+<div id="icTypingBar" style="display:none;padding:4px 14px;font-size:11px;color:rgba(255,255,255,.4);min-height:18px"></div>
+</div>
+</div>
 <div id="icInputBar" style="display:none;padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.3)">
 <div id="icEmojiBar" style="display:none;padding:6px 8px;flex-wrap:wrap;gap:2px;border-bottom:1px solid rgba(255,255,255,.04);margin-bottom:6px"></div>
 <div id="icMentionPicker" style="display:none;position:absolute;bottom:100%;left:14px;right:14px;background:rgba(0,0,0,.9);border:1px solid rgba(255,255,255,.1);border-radius:12px;max-height:140px;overflow-y:auto;z-index:10;margin-bottom:4px"></div>
@@ -341,7 +355,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.eb83334f.js"></script>
+<script src="js/mfx-bundle.604a223d.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>

@@ -972,16 +972,18 @@ function toggleInstantChat(){
 
 function icShowList(){
   IC.view='list';
-  IC.activeChat=null;
   if(IC.listener){IC.listener();IC.listener=null;}
   if(IC._channelListener){IC._channelListener();IC._channelListener=null;}
-  var title=document.getElementById('icTitle');
-  if(title)title.textContent='Instant Chat';
-  var inputBar=document.getElementById('icInputBar');
-  if(inputBar)inputBar.style.display='none';
-  var body=document.getElementById('icBody');
-  if(!body||!fbDb)return;
-  body.innerHTML='<div style="text-align:center;color:var(--tx3);padding:20px;font-size:11px">Loading chats...</div>';
+  var sidebar=document.getElementById('icSidebarList');
+  if(!sidebar||!fbDb){return}
+  sidebar.innerHTML='<div style="text-align:center;color:var(--tx3);padding:20px;font-size:11px">Loading...</div>';
+  // Show welcome in conversation panel if no chat is open
+  if(!IC.activeChat){
+    var body=document.getElementById('icBody');
+    if(body)body.innerHTML='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,.2);padding:40px"><div style="font-size:48px;opacity:.3">💬</div><div style="font-size:14px;font-weight:600">Select a conversation</div><div style="font-size:11px;opacity:.6">Choose from the left panel</div></div>';
+    var inputBar=document.getElementById('icInputBar');if(inputBar)inputBar.style.display='none';
+    var convoHeader=document.getElementById('icConvoHeader');if(convoHeader)convoHeader.style.display='none';
+  }
 
   // Load channels + recent messages for unread counts
   var uid=getUserId();
@@ -1061,9 +1063,9 @@ function icShowList(){
         var unread=unreadByChannel[c.id]||0;
         var isUnread=unread>0;
         var isOn=onlineSet[other];
-        h+='<div onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .15s;border-radius:12px;margin:1px 6px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
+        h+='<div data-ic-channel="'+c.id+'" onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s;border-radius:10px;margin:1px 4px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
         // Avatar with online dot
-        h+='<div style="position:relative;flex-shrink:0"><div style="width:44px;height:44px;border-radius:50%;background:'+_avatarGrad(other)+';display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff">'+icInitials(other)+'</div>';
+        h+='<div style="position:relative;flex-shrink:0"><div style="width:36px;height:36px;border-radius:50%;background:'+_avatarGrad(other)+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+icInitials(other)+'</div>';
         if(isOn)h+='<div style="position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:50%;background:#2ee89e;border:2px solid #0d1117"></div>';
         h+='</div>';
         // Content
@@ -1088,8 +1090,8 @@ function icShowList(){
       var time=c.lastMessageAt?icTimeAgo(c.lastMessageAt):'';
       var unread=unreadByChannel[c.id]||0;
       var isUnread=unread>0;
-      h+='<div onclick="icOpenChat(\''+c.id+'\',\'#'+esc(c.name)+'\')" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .15s;border-radius:12px;margin:1px 6px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
-      h+='<div style="width:44px;height:44px;border-radius:14px;background:'+(isUnread?'linear-gradient(135deg,#00e5ff,#0099cc)':'rgba(255,255,255,.06)')+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:'+(isUnread?'#000':'rgba(255,255,255,.3)')+';flex-shrink:0">#</div>';
+      h+='<div data-ic-channel="'+c.id+'" onclick="icOpenChat(\''+c.id+'\',\'#'+esc(c.name)+'\')" style="padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s;border-radius:10px;margin:1px 4px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
+      h+='<div style="width:36px;height:36px;border-radius:10px;background:'+(isUnread?'linear-gradient(135deg,#00e5ff,#0099cc)':'rgba(255,255,255,.06)')+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:'+(isUnread?'#000':'rgba(255,255,255,.3)')+';flex-shrink:0">#</div>';
       h+='<div style="flex:1;min-width:0">';
       h+='<div style="display:flex;justify-content:space-between;align-items:center">';
       h+='<span style="font-size:13px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'#fff':'rgba(255,255,255,.7)')+'">'+esc(c.name)+'</span>';
@@ -1101,9 +1103,9 @@ function icShowList(){
       h+='</div></div></div>';
     });
 
-    body.innerHTML=h;
+    sidebar.innerHTML=h;
   }).catch(function(e){
-    body.innerHTML='<div style="padding:20px;text-align:center;color:var(--tx3);font-size:11px">Could not load chats</div>';
+    sidebar.innerHTML='<div style="padding:20px;text-align:center;color:var(--tx3);font-size:11px">Could not load chats</div>';
     console.warn('IC load:',e.message);
   });
 }
@@ -1111,8 +1113,16 @@ function icShowList(){
 function icOpenChat(channelId,displayName){
   IC.view='conversation';
   IC.activeChat=channelId;
-  var title=document.getElementById('icTitle');
-  if(title)title.innerHTML='<span onclick="icShowList()" style="cursor:pointer;margin-right:6px;color:var(--tx3)">←</span>'+displayName;
+  // Update conversation header
+  var convoHeader=document.getElementById('icConvoHeader');
+  if(convoHeader){convoHeader.style.display='flex'}
+  var convoTitle=document.getElementById('icConvoTitle');
+  if(convoTitle)convoTitle.textContent=displayName;
+  // Highlight active in sidebar
+  var items=document.querySelectorAll('[data-ic-channel]');
+  for(var si=0;si<items.length;si++){
+    items[si].style.background=items[si].getAttribute('data-ic-channel')===channelId?'rgba(0,229,255,.1)':'';
+  }
   var inputBar=document.getElementById('icInputBar');
   if(inputBar)inputBar.style.display='block';
   var body=document.getElementById('icBody');
