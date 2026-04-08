@@ -966,6 +966,7 @@ function toggleInstantChat(){
     icStartUnreadListener();
     icLoadOnlineUsers();
     icRenderSpaces();
+    icStartStatusReel();
   }else{
     if(IC.listener){IC.listener();IC.listener=null;}
   }
@@ -2360,6 +2361,351 @@ function icRenderSpaces(){
   el.innerHTML=h;
 }
 window.icRenderSpaces=icRenderSpaces;
+
+// ══════════════════════════════════════════════════════════════════
+// STATUS REEL — scrolling news ticker with likes, replies, @mentions
+// Firestore collection: 'statusReel'
+// Auto-expires: 24hrs or after user has 2 newer statuses
+// ══════════════════════════════════════════════════════════════════
+
+var _statusReelListener=null;
+var _statusReelData=[];
+
+function icStartStatusReel(){
+  if(_statusReelListener)return;
+  if(!fbDb)return;
+  // Listen to recent statuses (last 24hrs)
+  var cutoff=new Date(Date.now()-24*60*60*1000);
+  _statusReelListener=fbDb.collection('statusReel')
+    .where('createdAt','>',cutoff)
+    .orderBy('createdAt','desc')
+    .limit(50)
+    .onSnapshot(function(snap){
+      _statusReelData=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
+      // Auto-cleanup: if a user has more than 2 statuses, hide older ones
+      var byUser={};
+      _statusReelData.forEach(function(s){
+        if(!byUser[s.userId])byUser[s.userId]=[];
+        byUser[s.userId].push(s);
+      });
+      var visible=[];
+      Object.keys(byUser).forEach(function(uid){
+        var userStatuses=byUser[uid].slice(0,2); // keep only latest 2
+        userStatuses.forEach(function(s){visible.push(s)});
+        // Delete old ones server-side (3+ per user)
+        if(byUser[uid].length>2){
+          for(var i=2;i<byUser[uid].length;i++){
+            fbDb.collection('statusReel').doc(byUser[uid][i].id).delete().catch(function(){});
+          }
+        }
+      });
+      // Sort by time
+      visible.sort(function(a,b){
+        var at=a.createdAt?a.createdAt.seconds:0;
+        var bt=b.createdAt?b.createdAt.seconds:0;
+        return bt-at;
+      });
+      _statusReelData=visible;
+      icRenderStatusReel();
+    },function(err){console.warn('statusReel:',err.message)});
+}
+
+function icRenderStatusReel(){
+  var scroller=document.getElementById('icStatusScroller');
+  if(!scroller)return;
+  if(!_statusReelData.length){
+    scroller.innerHTML='<span style="color:rgba(255,255,255,.2);font-size:11px;padding:0 12px">No status updates — click ✏️ to post one</span>';
+    scroller.style.animation='none';
+    return;
+  }
+  var uid=getUserId();
+  var me=getUserName();
+  var isAdmin=false;
+  try{var p=getMFXProfile();var r=(p.role||'').toLowerCase();isAdmin=['ceo','admin','administrator','owner','operations manager','manager'].indexOf(r)>=0}catch(e){}
+
+  var h='';
+  // Duplicate items for seamless loop
+  var items=_statusReelData.concat(_statusReelData);
+  items.forEach(function(s){
+    var isAnnouncement=s.announcement===true;
+    var isOwn=s.userId===uid;
+    var likes=(s.likes||[]).length;
+    var myLike=(s.likes||[]).indexOf(uid)>=0;
+    var replies=s.replyCount||0;
+    var timeAgo=s.createdAt?icTimeAgo(s.createdAt):'';
+
+    h+='<div class="ic-status-item'+(isAnnouncement?' ic-status-announcement':'')+'" onclick="icExpandStatus(\''+esc(s.id)+'\')">';
+    // Avatar
+    h+='<div class="ic-status-avatar" style="background:'+_avatarGrad(s.user||'?')+'">'+icInitials(s.user||'?')+'</div>';
+    // Emoji/GIF
+    if(s.emoji)h+='<span class="ic-status-emoji">'+s.emoji+'</span>';
+    if(s.gif)h+='<img class="ic-status-gif" src="'+esc(s.gif)+'">';
+    // Text with @mentions highlighted
+    var text=esc(s.text||'');
+    text=text.replace(/@(\w+)/g,'<span style="color:#00e5ff;font-weight:600">@$1</span>');
+    h+='<span class="ic-status-text">'+(isAnnouncement?'📢 ':'')+text+'</span>';
+    // Time
+    h+='<span class="ic-status-time">'+timeAgo+'</span>';
+    // Actions
+    h+='<span class="ic-status-actions" onclick="event.stopPropagation()">';
+    h+='<span onclick="icLikeStatus(\''+esc(s.id)+'\')" title="Like" style="'+(myLike?'color:#00e5ff':'')+'">♥</span>';
+    if(likes>0)h+='<span class="ic-status-likes">'+likes+'</span>';
+    h+='<span onclick="icReplyStatus(\''+esc(s.id)+'\')" title="Reply">💬</span>';
+    if(replies>0)h+='<span class="ic-status-likes">'+replies+'</span>';
+    if(isOwn||isAdmin)h+='<span onclick="icDeleteStatus(\''+esc(s.id)+'\')" title="Delete" style="color:rgba(239,68,68,.5)">✕</span>';
+    h+='</span>';
+    h+='</div>';
+  });
+  scroller.innerHTML=h;
+  // Set animation speed based on item count (more items = slower scroll)
+  var dur=Math.max(20,_statusReelData.length*8);
+  scroller.style.animation='icScrollStatus '+dur+'s linear infinite';
+}
+
+// Post a new status
+function icPostStatus(){
+  var h='<div class="modal-title">Post a Status</div>';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">Share a quick update with the team. Visible for 24 hours.</div>';
+  h+='<textarea id="statusText" placeholder="What\'s happening? @mention anyone..." style="width:100%;min-height:60px;padding:10px;font-size:13px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;color:#fff;outline:none;resize:none;font-family:inherit;margin-bottom:8px"></textarea>';
+  h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">';
+  h+='<div style="flex:1">';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:4px">Add an emoji</div>';
+  h+='<div id="statusEmojiPick" style="display:flex;gap:4px;flex-wrap:wrap">';
+  var statusEmojis=['🔥','🚀','✅','🎉','💪','⚡','🎯','💡','☕','🏆','📢','❤️','👀','🧠','💬','⭐'];
+  statusEmojis.forEach(function(e){
+    h+='<span onclick="document.getElementById(\'statusEmojiSelected\').value=\''+e+'\';document.querySelectorAll(\'#statusEmojiPick span\').forEach(function(s){s.style.background=\'none\'});this.style.background=\'rgba(0,229,255,.15)\';this.style.borderRadius=\'6px\'" style="cursor:pointer;font-size:18px;padding:3px;border-radius:6px;transition:background .1s">'+e+'</span>';
+  });
+  h+='</div>';
+  h+='<input type="hidden" id="statusEmojiSelected" value="">';
+  h+='</div>';
+  h+='</div>';
+  // GIF option
+  h+='<div style="display:flex;gap:8px;margin-bottom:12px">';
+  h+='<button onclick="icStatusSearchGif()" class="btn btn-ghost btn-sm" style="flex:1;border-radius:10px">🖼 Add GIF</button>';
+  h+='<div id="statusGifPreview" style="display:none;position:relative"><img id="statusGifImg" style="height:40px;border-radius:6px"><span onclick="document.getElementById(\'statusGifPreview\').style.display=\'none\';document.getElementById(\'statusGifUrl\').value=\'\'" style="position:absolute;top:-4px;right:-4px;cursor:pointer;background:rgba(0,0,0,.7);border-radius:50%;width:14px;height:14px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#fff">&times;</span></div>';
+  h+='<input type="hidden" id="statusGifUrl" value="">';
+  h+='</div>';
+  // Admin announcement toggle
+  var isAdmin=false;
+  try{var p=getMFXProfile();var r=(p.role||'').toLowerCase();isAdmin=['ceo','admin','administrator','owner','operations manager','manager'].indexOf(r)>=0}catch(e){}
+  if(isAdmin){
+    h+='<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--tx3);cursor:pointer;margin-bottom:12px;padding:8px 10px;background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.1);border-radius:10px"><input type="checkbox" id="statusAnnounce" style="accent-color:#f59e0b"> 📢 Make this an official announcement</label>';
+  }
+  h+='<button onclick="icSubmitStatus()" class="btn btn-pr" style="width:100%;padding:12px;border-radius:12px;font-size:13px;font-weight:700">Post Status</button>';
+  h+='<button onclick="closeModal()" class="btn btn-ghost" style="width:100%;margin-top:4px;padding:8px;border-radius:12px">Cancel</button>';
+  if(typeof openModal==='function')openModal(h);
+}
+
+function icStatusSearchGif(){
+  // Use GIPHY search inline
+  var h2='<div class="modal-title">Pick a GIF for Status</div>';
+  h2+='<div style="display:flex;gap:4px;margin-bottom:8px"><input id="statusGifSearch" placeholder="Search GIFs..." style="flex:1;padding:8px 10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;outline:none" onkeydown="if(event.key===\'Enter\')icStatusGifDoSearch()"><button onclick="icStatusGifDoSearch()" class="btn btn-pr btn-sm" style="border-radius:10px">Search</button></div>';
+  h2+='<div id="statusGifGrid" style="display:flex;flex-wrap:wrap;gap:4px;max-height:250px;overflow-y:auto;justify-content:center"></div>';
+  if(typeof openModal==='function')openModal(h2);
+  // Load trending
+  fetch('https://api.giphy.com/v1/gifs/trending?api_key='+GIPHY_KEY+'&limit=16&rating=pg').then(function(r){return r.json()}).then(function(json){
+    icStatusGifRender(json.data||[]);
+  }).catch(function(){});
+}
+
+function icStatusGifDoSearch(){
+  var inp=document.getElementById('statusGifSearch');
+  if(!inp||!inp.value.trim())return;
+  fetch('https://api.giphy.com/v1/gifs/search?api_key='+GIPHY_KEY+'&q='+encodeURIComponent(inp.value.trim())+'&limit=16&rating=pg').then(function(r){return r.json()}).then(function(json){
+    icStatusGifRender(json.data||[]);
+  }).catch(function(){});
+}
+
+function icStatusGifRender(gifs){
+  var el=document.getElementById('statusGifGrid');if(!el)return;
+  if(!gifs.length){el.innerHTML='<div style="padding:20px;color:var(--tx3);font-size:10px">No GIFs found</div>';return}
+  var h='';
+  gifs.forEach(function(g){
+    var preview=g.images.fixed_height_small.url;
+    var full=g.images.fixed_height.url;
+    h+='<img src="'+esc(preview)+'" onclick="icStatusPickGif(\''+esc(full)+'\')" style="height:80px;border-radius:6px;cursor:pointer;object-fit:cover;transition:transform .1s" onmouseover="this.style.transform=\'scale(1.05)\'" onmouseout="this.style.transform=\'scale(1)\'">';
+  });
+  el.innerHTML=h;
+}
+
+function icStatusPickGif(url){
+  // Go back to post modal with the GIF attached
+  if(typeof closeModal==='function')closeModal();
+  // Re-open post status
+  setTimeout(function(){
+    icPostStatus();
+    setTimeout(function(){
+      var gifUrl=document.getElementById('statusGifUrl');
+      var gifPreview=document.getElementById('statusGifPreview');
+      var gifImg=document.getElementById('statusGifImg');
+      if(gifUrl)gifUrl.value=url;
+      if(gifImg)gifImg.src=url;
+      if(gifPreview)gifPreview.style.display='block';
+    },100);
+  },200);
+}
+
+function icSubmitStatus(){
+  var textEl=document.getElementById('statusText');
+  var text=textEl?textEl.value.trim():'';
+  var emoji=(document.getElementById('statusEmojiSelected')||{}).value||'';
+  var gif=(document.getElementById('statusGifUrl')||{}).value||'';
+  var announce=document.getElementById('statusAnnounce');
+  var isAnnounce=announce?announce.checked:false;
+
+  if(!text&&!emoji&&!gif){if(typeof toast==='function')toast('Write something first','err');return}
+  if(!fbDb)return;
+
+  // Extract @mentions
+  var mentions=[];
+  var mentionMatch=text.match(/@(\w+)/g);
+  if(mentionMatch)mentions=mentionMatch.map(function(m){return m.substring(1)});
+
+  fbDb.collection('statusReel').add({
+    text:text,
+    emoji:emoji,
+    gif:gif||null,
+    user:getUserName(),
+    userId:getUserId(),
+    dept:(getMFXProfile().dept||''),
+    createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    announcement:isAnnounce,
+    likes:[],
+    replyCount:0,
+    mentions:mentions,
+    replies:[]
+  }).then(function(){
+    if(typeof closeModal==='function')closeModal();
+    if(typeof toast==='function')toast(isAnnounce?'Announcement posted!':'Status posted!','ok');
+  }).catch(function(e){
+    console.warn('statusPost:',e);
+    if(typeof toast==='function')toast('Failed to post','err');
+  });
+}
+
+function icLikeStatus(statusId){
+  if(!fbDb)return;
+  var uid=getUserId();
+  var status=_statusReelData.find(function(s){return s.id===statusId});
+  if(!status)return;
+  var likes=status.likes||[];
+  var update={};
+  if(likes.indexOf(uid)>=0){
+    update.likes=firebase.firestore.FieldValue.arrayRemove(uid);
+  }else{
+    update.likes=firebase.firestore.FieldValue.arrayUnion(uid);
+  }
+  fbDb.collection('statusReel').doc(statusId).update(update).catch(function(e){console.warn('statusLike:',e)});
+}
+
+function icDeleteStatus(statusId){
+  if(!fbDb)return;
+  if(!confirm('Delete this status?'))return;
+  fbDb.collection('statusReel').doc(statusId).delete().then(function(){
+    if(typeof toast==='function')toast('Status deleted','ok');
+  }).catch(function(e){console.warn('statusDelete:',e)});
+}
+
+function icReplyStatus(statusId){
+  var status=_statusReelData.find(function(s){return s.id===statusId});
+  if(!status)return;
+  var reply=prompt('Reply to '+status.user+':');
+  if(!reply||!reply.trim())return;
+  if(!fbDb)return;
+  // Add reply to subcollection and increment count
+  fbDb.collection('statusReel').doc(statusId).collection('replies').add({
+    text:reply.trim(),
+    user:getUserName(),
+    userId:getUserId(),
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  });
+  fbDb.collection('statusReel').doc(statusId).update({
+    replyCount:firebase.firestore.FieldValue.increment(1)
+  }).catch(function(e){console.warn('statusReply:',e)});
+  if(typeof toast==='function')toast('Reply sent','ok');
+}
+
+function icExpandStatus(statusId){
+  var status=_statusReelData.find(function(s){return s.id===statusId});
+  if(!status)return;
+  // Show expanded view in modal with full text, replies, etc.
+  var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
+  h+='<div style="width:36px;height:36px;border-radius:50%;background:'+_avatarGrad(status.user||'?')+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff">'+icInitials(status.user||'?')+'</div>';
+  h+='<div><div style="font-size:13px;font-weight:700;color:var(--tx)">'+esc(status.user)+'</div>';
+  h+='<div style="font-size:9px;color:var(--tx3)">'+esc(status.dept||'')+(status.createdAt?' · '+icTimeAgo(status.createdAt):'')+'</div></div>';
+  if(status.announcement)h+='<span style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;margin-left:auto">ANNOUNCEMENT</span>';
+  h+='</div>';
+  if(status.emoji)h+='<div style="font-size:32px;margin-bottom:8px">'+status.emoji+'</div>';
+  var text=esc(status.text||'');
+  text=text.replace(/@(\w+)/g,'<span style="color:#00e5ff;font-weight:600">@$1</span>');
+  h+='<div style="font-size:14px;color:var(--tx);line-height:1.6;margin-bottom:12px">'+text+'</div>';
+  if(status.gif)h+='<div style="margin-bottom:12px"><img src="'+esc(status.gif)+'" style="max-width:100%;max-height:200px;border-radius:12px"></div>';
+  // Likes
+  var likes=(status.likes||[]).length;
+  h+='<div style="display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr);margin-bottom:12px">';
+  h+='<span onclick="icLikeStatus(\''+esc(status.id)+'\')" style="cursor:pointer;font-size:12px;color:var(--tx3);display:flex;align-items:center;gap:4px">♥ '+likes+' likes</span>';
+  h+='<span style="font-size:12px;color:var(--tx3);display:flex;align-items:center;gap:4px">💬 '+(status.replyCount||0)+' replies</span>';
+  h+='</div>';
+  // Load replies
+  h+='<div id="statusRepliesContainer" style="max-height:200px;overflow-y:auto"><div style="text-align:center;color:var(--tx3);font-size:10px;padding:8px">Loading replies...</div></div>';
+  h+='<div style="display:flex;gap:6px;margin-top:8px"><input id="statusReplyInput" placeholder="Write a reply..." style="flex:1;padding:8px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;color:var(--tx);outline:none"><button onclick="icSubmitExpandedReply(\''+esc(status.id)+'\')" class="btn btn-pr btn-sm" style="border-radius:10px">Reply</button></div>';
+  if(typeof openModal==='function')openModal(h);
+  // Load replies from subcollection
+  if(fbDb){
+    fbDb.collection('statusReel').doc(statusId).collection('replies').orderBy('createdAt','asc').limit(50).get().then(function(snap){
+      var container=document.getElementById('statusRepliesContainer');if(!container)return;
+      if(!snap.docs.length){container.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:10px;padding:8px">No replies yet</div>';return}
+      var rh='';
+      snap.docs.forEach(function(d){
+        var r=d.data();
+        var rt=r.createdAt?icTimeAgo(r.createdAt):'';
+        rh+='<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03)">';
+        rh+='<div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:600;color:var(--tx)">'+esc(r.user)+'</span><span style="font-size:8px;color:var(--tx3)">'+rt+'</span></div>';
+        rh+='<div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(r.text)+'</div></div>';
+      });
+      container.innerHTML=rh;
+    }).catch(function(){});
+  }
+}
+
+function icSubmitExpandedReply(statusId){
+  var inp=document.getElementById('statusReplyInput');
+  if(!inp||!inp.value.trim()||!fbDb)return;
+  fbDb.collection('statusReel').doc(statusId).collection('replies').add({
+    text:inp.value.trim(),
+    user:getUserName(),
+    userId:getUserId(),
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  });
+  fbDb.collection('statusReel').doc(statusId).update({
+    replyCount:firebase.firestore.FieldValue.increment(1)
+  }).catch(function(){});
+  inp.value='';
+  if(typeof toast==='function')toast('Reply sent','ok');
+  // Refresh replies
+  setTimeout(function(){icExpandStatus(statusId)},500);
+}
+
+// Avatar gradient helper (reuse from icShowList)
+function _avatarGrad(name){
+  var gradients=['linear-gradient(135deg,#667eea,#764ba2)','linear-gradient(135deg,#f093fb,#f5576c)','linear-gradient(135deg,#4facfe,#00f2fe)','linear-gradient(135deg,#43e97b,#38f9d7)','linear-gradient(135deg,#fa709a,#fee140)','linear-gradient(135deg,#a18cd1,#fbc2eb)','linear-gradient(135deg,#fccb90,#d57eeb)','linear-gradient(135deg,#e0c3fc,#8ec5fc)','linear-gradient(135deg,#f5576c,#ff6a88)','linear-gradient(135deg,#00e5ff,#0099cc)'];
+  var hash=0;for(var i=0;i<name.length;i++)hash=name.charCodeAt(i)+((hash<<5)-hash);
+  return gradients[Math.abs(hash)%gradients.length];
+}
+
+// Start reel when IC opens
+var _origToggleIC=toggleInstantChat;
+
+window.icPostStatus=icPostStatus;
+window.icSubmitStatus=icSubmitStatus;
+window.icLikeStatus=icLikeStatus;
+window.icDeleteStatus=icDeleteStatus;
+window.icReplyStatus=icReplyStatus;
+window.icExpandStatus=icExpandStatus;
+window.icSubmitExpandedReply=icSubmitExpandedReply;
+window.icStatusSearchGif=icStatusSearchGif;
+window.icStatusGifDoSearch=icStatusGifDoSearch;
+window.icStatusPickGif=icStatusPickGif;
 window.icToggleAddPerson=icToggleAddPerson;
 window.icCreateGroupChat=icCreateGroupChat;
 

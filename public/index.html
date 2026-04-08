@@ -286,7 +286,16 @@
 <span onclick="icShowList()" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:4px 10px;background:rgba(255,255,255,.05);border-radius:8px;font-weight:600">Refresh</span>
 <span onclick="toggleInstantChat()" style="cursor:pointer;color:var(--tx3);font-size:18px;padding:0 2px;line-height:1">&times;</span>
 </div>
-<!-- Two-panel layout: sidebar + conversation -->
+<!-- STATUS REEL — scrolling news ticker -->
+<div id="icStatusReel" style="border-bottom:1px solid rgba(255,255,255,.04);background:rgba(0,0,0,.2);overflow:hidden;position:relative;min-height:36px">
+<div style="display:flex;align-items:center;padding:0 8px;height:36px;gap:6px">
+<span onclick="icPostStatus()" style="cursor:pointer;font-size:14px;padding:2px 6px;background:rgba(0,229,255,.1);border-radius:6px;flex-shrink:0" title="Post a status">✏️</span>
+<div id="icStatusTrack" style="flex:1;overflow:hidden;position:relative;height:28px">
+<div id="icStatusScroller" style="display:flex;gap:16px;align-items:center;height:100%;white-space:nowrap;animation:icScrollStatus 30s linear infinite;will-change:transform"></div>
+</div>
+</div>
+</div>
+<!-- Three-panel layout: sidebar + conversation + spaces -->
 <div style="flex:1;display:flex;overflow:hidden;min-height:0">
 <!-- Left: Channel/DM list -->
 <div id="icSidebar" style="width:240px;min-width:240px;border-right:1px solid rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.15)">
@@ -362,7 +371,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.afa3eae4.js"></script>
+<script src="js/mfx-bundle.1c450e13.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>

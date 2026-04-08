@@ -607,6 +607,20 @@ match /systemHealth/{docId} {
       allow write: if isManagement();
     }
 
+    // ═══ STATUS REEL ═══
+    match /statusReel/{statusId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser(); // likes, reply count
+      allow delete: if companyUser() && (
+        resource.data.userId == request.auth.uid || isManagement()
+      );
+      match /replies/{replyId} {
+        allow read: if companyUser();
+        allow create: if companyUser();
+      }
+    }
+
     // ═══ AI Agent System Collections ═══
 
     // Agent run history — server writes only, management reads
