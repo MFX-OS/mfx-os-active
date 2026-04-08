@@ -2459,6 +2459,12 @@ function icRenderStatusReel(){
   // Set animation speed based on item count (more items = slower scroll)
   var dur=Math.max(20,_statusReelData.length*8);
   scroller.style.animation='icScrollStatus '+dur+'s linear infinite';
+  // Mirror to IC reel
+  var scroller2=document.getElementById('icReelScroller2');
+  if(scroller2){
+    scroller2.innerHTML=h;
+    scroller2.style.animation='icScrollStatus '+dur+'s linear infinite';
+  }
 }
 
 // Post a new status
@@ -2770,10 +2776,21 @@ function cycleMyPresence(){
 
 function updateMyPresenceUI(){
   var state=PRESENCE_STATES[_myPresenceIdx];
+  // Main bar
   var dot=document.getElementById('myPresenceDot');
   var label=document.getElementById('myPresenceLabel');
   if(dot)dot.style.background=state.color;
   if(label){label.textContent=state.label;label.style.color=state.color}
+  // IC bar mirror
+  var dot2=document.getElementById('icMyDot');
+  var label2=document.getElementById('icMyPresence');
+  if(dot2)dot2.style.background=state.color;
+  if(label2){label2.textContent=state.label;label2.style.color=state.color}
+  // IC mood + status
+  var mood=localStorage.getItem('mfx_mood')||'😊';
+  var status=localStorage.getItem('mfx_custom_status')||'';
+  var m2=document.getElementById('icMyMood');if(m2)m2.textContent=mood;
+  var s2=document.getElementById('icMyStatus');if(s2)s2.textContent=status||'Set status...';
 }
 
 function writePresenceToFirestore(){
@@ -2900,6 +2917,19 @@ function startTeamPresenceListener(){
       h+='</div>';
     });
     el.innerHTML=h;
+    // Mirror to IC presence bar
+    var icDots=document.getElementById('icTeamDots');
+    if(icDots){
+      var ih='';
+      users.slice(0,12).forEach(function(u){
+        ih+='<div style="display:flex;align-items:center;gap:3px;flex-shrink:0" title="'+esc(u.name)+' — '+esc(u.label)+'">';
+        ih+='<span style="width:5px;height:5px;border-radius:50%;background:'+u.color+'"></span>';
+        if(u.mood)ih+='<span style="font-size:9px">'+u.mood+'</span>';
+        ih+='<span style="font-size:9px;color:'+u.color+';font-weight:600">'+esc(u.name.split(' ')[0])+'</span>';
+        ih+='</div>';
+      });
+      icDots.innerHTML=ih;
+    }
   },function(err){console.warn('teamPresence:',err.message)});
 }
 

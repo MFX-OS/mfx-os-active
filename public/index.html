@@ -286,6 +286,25 @@
 <span onclick="icShowList()" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:4px 10px;background:rgba(255,255,255,.05);border-radius:8px;font-weight:600">Refresh</span>
 <span onclick="toggleInstantChat()" style="cursor:pointer;color:var(--tx3);font-size:18px;padding:0 2px;line-height:1">&times;</span>
 </div>
+<!-- IC Presence Bar -->
+<div id="icPresenceBar" style="padding:4px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;height:28px;flex-shrink:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap">
+<span id="icMyDot" style="width:7px;height:7px;border-radius:50%;background:#2ee89e;flex-shrink:0"></span>
+<span id="icMyPresence" onclick="cycleMyPresence()" style="font-size:9px;font-weight:600;color:#2ee89e;cursor:pointer">Online</span>
+<span style="color:rgba(255,255,255,.08)">|</span>
+<span id="icMyMood" onclick="pickMood()" style="font-size:12px;cursor:pointer">😊</span>
+<span id="icMyStatus" onclick="editMyStatus()" style="font-size:9px;color:rgba(255,255,255,.3);cursor:pointer;max-width:100px;overflow:hidden;text-overflow:ellipsis">Set status...</span>
+<span style="color:rgba(255,255,255,.08)">|</span>
+<div id="icTeamDots" style="display:flex;gap:6px;align-items:center;flex:1;overflow-x:auto"></div>
+</div>
+<!-- IC Status Reel -->
+<div style="border-bottom:1px solid rgba(255,255,255,.04);background:rgba(0,0,0,.15);overflow:hidden;height:40px;flex-shrink:0">
+<div style="display:flex;align-items:center;padding:0 8px;height:40px;gap:6px">
+<span onclick="icPostStatus()" style="cursor:pointer;font-size:12px;padding:3px 6px;background:rgba(0,229,255,.08);border-radius:6px;flex-shrink:0">✏️</span>
+<div style="flex:1;overflow:hidden;height:32px">
+<div id="icReelScroller2" style="display:flex;gap:14px;align-items:center;height:32px;white-space:nowrap;animation:icScrollStatus 30s linear infinite"></div>
+</div>
+</div>
+</div>
 <!-- Three-panel layout: sidebar + conversation + spaces -->
 <div style="flex:1;display:flex;overflow:hidden;min-height:0">
 <!-- Left: Channel/DM list -->
@@ -385,7 +404,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.a57170fb.js"></script>
+<script src="js/mfx-bundle.c10d6a43.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>
