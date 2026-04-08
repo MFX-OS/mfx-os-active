@@ -3841,8 +3841,20 @@ function icInitContextMenu(){
   // Attach to sidebar and spaces panel
   var sidebar=document.getElementById('icSidebarList');
   var spaces=document.getElementById('icSpacesList');
-  if(sidebar){sidebar.addEventListener('contextmenu',_icHandleRightClick);sidebar.addEventListener('click',_icSelectModeClickHandler,true)}
+  if(sidebar){sidebar.addEventListener('contextmenu',_icHandleRightClick);sidebar.addEventListener('click',_icSelectModeClickHandler,true);sidebar.addEventListener('dblclick',_icHandleDblClick)}
   if(spaces)spaces.addEventListener('contextmenu',_icHandleRightClick);
+}
+
+function _icHandleDblClick(e){
+  var target=e.target.closest('[data-ic-channel]');
+  if(!target)return;
+  e.preventDefault();
+  e.stopPropagation();
+  var channelId=target.getAttribute('data-ic-channel');
+  // Get display name from the row text
+  var nameEl=target.querySelector('span[style*="font-weight"]');
+  var displayName=nameEl?nameEl.textContent.trim():channelId;
+  icPopOutChat(channelId,displayName);
 }
 
 function _icHandleRightClick(e){
