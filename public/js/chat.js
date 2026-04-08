@@ -1185,6 +1185,13 @@ function icOpenChat(channelId,displayName){
   }
   var inputBar=document.getElementById('icInputBar');
   if(inputBar)inputBar.style.display='block';
+  // Auto-close mobile sidebar when opening a conversation
+  if(window.innerWidth<768){
+    var _sb=document.getElementById('icSidebar');
+    if(_sb&&_sb.classList.contains('ic-mobile-sidebar-open')){
+      icToggleMobileSidebar();
+    }
+  }
   var body=document.getElementById('icBody');
   if(!body||!fbDb)return;
   body.innerHTML='<div style="text-align:center;color:var(--tx3);padding:20px;font-size:11px">Loading...</div>';
@@ -4084,6 +4091,28 @@ window.icAnonymousFeedback=icAnonymousFeedback;
 window.icConversationStarter=icConversationStarter;
 window.icTeamMoodSummary=icTeamMoodSummary;
 window.icCycleNotifPriority=icCycleNotifPriority;
+
+// ══════════════════════════════════════════════════════════════════
+// MOBILE SIDEBAR TOGGLE
+// ══════════════════════════════════════════════════════════════════
+function icToggleMobileSidebar(){
+  var sidebar=document.getElementById('icSidebar');
+  var overlay=document.getElementById('icMobileSidebarOverlay');
+  if(!sidebar)return;
+  var isOpen=sidebar.classList.contains('ic-mobile-sidebar-open');
+  if(isOpen){
+    sidebar.classList.remove('ic-mobile-sidebar-open');
+    sidebar.style.transform='translateX(-100%)';
+    if(overlay)overlay.classList.remove('active');
+    if(overlay)overlay.style.display='none';
+  }else{
+    sidebar.classList.add('ic-mobile-sidebar-open');
+    sidebar.style.transform='translateX(0)';
+    if(overlay)overlay.classList.add('active');
+    if(overlay)overlay.style.display='block';
+  }
+}
+window.icToggleMobileSidebar=icToggleMobileSidebar;
 
 // ══════════════════════════════════════════════════════════════════
 // POP-OUT CHAT WINDOWS

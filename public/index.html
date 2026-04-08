@@ -330,15 +330,18 @@
 </div>
 </div>
 <!-- Three-panel layout: sidebar + conversation + spaces -->
-<div style="flex:1;display:flex;overflow:hidden;min-height:0">
+<div style="flex:1;display:flex;overflow:hidden;min-height:0;position:relative">
 <!-- Left: Channel/DM list -->
 <div id="icSidebar" style="width:240px;min-width:240px;border-right:1px solid rgba(255,255,255,.04);display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.15)">
 <div style="padding:8px 10px"><input id="icSidebarSearch" placeholder="Search..." oninput="icFilterList(this.value)" style="width:100%;padding:7px 12px;font-size:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:10px;color:#fff;outline:none;font-family:inherit"></div>
 <div id="icSidebarList" style="flex:1;overflow-y:auto"></div>
 </div>
+<!-- Mobile sidebar overlay -->
+<div id="icMobileSidebarOverlay" onclick="icToggleMobileSidebar()" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9"></div>
 <!-- Right: Conversation -->
 <div style="flex:1;display:flex;flex-direction:column;min-width:0">
 <div id="icConvoHeader" style="display:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.2)">
+<span onclick="icToggleMobileSidebar()" class="ic-mobile-menu-btn" style="display:none;cursor:pointer;font-size:16px;padding:4px">&#9776;</span>
 <span id="icConvoTitle" style="font-size:14px;font-weight:700;color:#fff;flex:1"></span>
 <span id="icMemberCount" style="font-size:9px;color:rgba(255,255,255,.3)"></span>
 <span onclick="icAddPeople()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3);border-radius:6px" title="Add people to chat">👥+</span>
@@ -409,7 +412,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.86ba2d39.js"></script>
+<script src="js/mfx-bundle.af0ca8a4.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>
