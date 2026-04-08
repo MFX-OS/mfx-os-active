@@ -2728,11 +2728,64 @@ var PRESENCE_STATES=[
 var _myPresenceIdx=0;
 var _presenceListener=null;
 
+var _reelPinned=localStorage.getItem('mfx_reel_pinned')==='true';
+var _reelHoverTimer=null;
+
+function showReel(){
+  var reel=document.getElementById('statusReelBar');
+  var views=document.querySelector('.views');
+  if(!reel)return;
+  reel.style.height='44px';
+  reel.style.opacity='1';
+  if(views)views.classList.add('reel-open');
+}
+function hideReel(){
+  if(_reelPinned)return;
+  var reel=document.getElementById('statusReelBar');
+  var views=document.querySelector('.views');
+  if(!reel)return;
+  reel.style.height='0';
+  reel.style.opacity='0';
+  if(views)views.classList.remove('reel-open');
+}
+function togglePinReel(){
+  _reelPinned=!_reelPinned;
+  localStorage.setItem('mfx_reel_pinned',_reelPinned?'true':'false');
+  var btn=document.getElementById('pinReelBtn');
+  if(btn){
+    btn.style.background=_reelPinned?'rgba(0,229,255,.15)':'rgba(255,255,255,.04)';
+    btn.style.color=_reelPinned?'#00e5ff':'var(--tx3)';
+  }
+  if(_reelPinned){showReel()}else{hideReel()}
+}
+window.togglePinReel=togglePinReel;
+
 function initPresenceBar(){
   var bar=document.getElementById('presenceBar');
   var reel=document.getElementById('statusReelBar');
   if(bar)bar.style.display='flex';
-  if(reel)reel.style.display='block';
+  // Reel: hover to show, pin to keep open
+  if(bar&&reel){
+    bar.addEventListener('mouseenter',function(){
+      clearTimeout(_reelHoverTimer);
+      showReel();
+    });
+    bar.addEventListener('mouseleave',function(){
+      _reelHoverTimer=setTimeout(hideReel,400);
+    });
+    reel.addEventListener('mouseenter',function(){
+      clearTimeout(_reelHoverTimer);
+    });
+    reel.addEventListener('mouseleave',function(){
+      _reelHoverTimer=setTimeout(hideReel,400);
+    });
+    // If pinned, show immediately
+    if(_reelPinned){
+      showReel();
+      var btn=document.getElementById('pinReelBtn');
+      if(btn){btn.style.background='rgba(0,229,255,.15)';btn.style.color='#00e5ff'}
+    }
+  }
   // Load my saved presence
   var saved=localStorage.getItem('mfx_presence');
   if(saved){

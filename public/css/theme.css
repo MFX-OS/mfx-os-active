@@ -215,7 +215,8 @@ button:focus-visible,.btn:focus-visible,.card:focus-visible,a:focus-visible,[tab
 .bb-btn.active .bb-ico{filter:drop-shadow(0 0 6px rgba(0,229,255,.4))}
 
 /* Views */
-.views{position:fixed;top:124px;bottom:56px;left:0;right:0;overflow:hidden}
+.views{position:fixed;top:80px;bottom:56px;left:0;right:0;overflow:hidden;transition:top .25s ease}
+.views.reel-open{top:124px}
 .view{position:absolute;inset:0;overflow-y:auto;padding:12px;display:none}
 .view.active{display:block}
 

@@ -131,13 +131,14 @@
 <div id="teamPresenceList" style="display:flex;gap:8px;align-items:center;flex:1;overflow-x:auto"></div>
 </div>
 
-<!-- ═══ STATUS REEL — below presence bar ═══ -->
-<div id="statusReelBar" style="display:none;position:fixed;top:80px;left:0;right:0;z-index:90;background:linear-gradient(90deg,rgba(13,17,23,.92),rgba(22,27,34,.92));border-bottom:1px solid rgba(255,255,255,.04);backdrop-filter:blur(12px);height:44px;overflow:hidden">
+<!-- ═══ STATUS REEL — hidden, hover presence bar or pin to show ═══ -->
+<div id="statusReelBar" style="position:fixed;top:80px;left:0;right:0;z-index:90;background:linear-gradient(90deg,rgba(13,17,23,.95),rgba(22,27,34,.95));border-bottom:1px solid rgba(255,255,255,.06);backdrop-filter:blur(12px);height:0;overflow:hidden;opacity:0;transition:height .25s ease,opacity .25s ease">
 <div style="display:flex;align-items:center;height:44px;padding:0 8px;gap:8px">
 <span onclick="icPostStatus()" style="cursor:pointer;font-size:14px;padding:4px 8px;background:rgba(0,229,255,.08);border-radius:8px;flex-shrink:0" title="Post a status">✏️</span>
 <div id="icStatusTrack" style="flex:1;overflow:hidden;position:relative;height:36px">
 <div id="icStatusScroller" style="display:flex;gap:16px;align-items:center;height:36px;white-space:nowrap;animation:icScrollStatus 30s linear infinite;will-change:transform"></div>
 </div>
+<span id="pinReelBtn" onclick="togglePinReel()" style="cursor:pointer;font-size:12px;padding:3px 8px;border-radius:6px;color:var(--tx3);flex-shrink:0;background:rgba(255,255,255,.04)" title="Pin reel open">📌</span>
 </div>
 </div>
 
@@ -404,7 +405,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.c10d6a43.js"></script>
+<script src="js/mfx-bundle.de6ac845.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>
