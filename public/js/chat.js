@@ -970,6 +970,7 @@ function toggleInstantChat(){
     icLoadOnlineUsers();
     icRenderSpaces();
     icStartStatusReel();
+    setTimeout(icInitContextMenu,600);
   }else{
     if(IC.listener){IC.listener();IC.listener=null;}
   }
@@ -3827,6 +3828,163 @@ function icSendEmail(email){
 window.icVideoCall=icVideoCall;
 window.icAudioCall=icAudioCall;
 window.icSendEmail=icSendEmail;
+
+// ══════════════════════════════════════════════════════════════════
+// RIGHT-CLICK CONTEXT MENU — delete chats, channels, spaces
+// ══════════════════════════════════════════════════════════════════
+
+function icInitContextMenu(){
+  // Attach to sidebar and spaces panel
+  var sidebar=document.getElementById('icSidebarList');
+  var spaces=document.getElementById('icSpacesList');
+  if(sidebar)sidebar.addEventListener('contextmenu',_icHandleRightClick);
+  if(spaces)spaces.addEventListener('contextmenu',_icHandleRightClick);
+}
+
+function _icHandleRightClick(e){
+  e.preventDefault();
+  _icCloseContextMenu();
+  // Find the closest item with data-ic-channel
+  var target=e.target.closest('[data-ic-channel]');
+  var spaceTarget=e.target.closest('[onclick*="icOpenChat"]');
+  var channelId=null;
+  var channelName='';
+
+  if(target){
+    channelId=target.getAttribute('data-ic-channel');
+    // Get name from the text content
+    var nameEl=target.querySelector('span[style*="font-weight"]');
+    channelName=nameEl?nameEl.textContent:'';
+  }else if(spaceTarget){
+    var onclick=spaceTarget.getAttribute('onclick')||'';
+    var match=onclick.match(/icOpenChat\('([^']+)'/);
+    if(match)channelId=match[1];
+    channelName=spaceTarget.textContent.trim();
+  }
+  if(!channelId)return;
+
+  // Check if user is admin
+  var isAdmin=false;
+  try{var p=getMFXProfile();var r=(p.role||'').toLowerCase();isAdmin=['ceo','admin','administrator','owner','operations manager','manager'].indexOf(r)>=0}catch(ex){}
+  var isOwner=false;
+
+  // Build context menu
+  var menu=document.createElement('div');
+  menu.id='icCtxMenu';
+  menu.style.cssText='position:fixed;z-index:300;background:rgba(13,17,23,.95);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:4px 0;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.5);backdrop-filter:blur(12px)';
+  menu.style.left=Math.min(e.clientX,window.innerWidth-180)+'px';
+  menu.style.top=Math.min(e.clientY,window.innerHeight-200)+'px';
+
+  var items=[];
+  items.push({icon:'💬',label:'Open',action:function(){
+    var el=document.querySelector('[data-ic-channel="'+channelId+'"]');
+    if(el)el.click();
+  }});
+  items.push({icon:'📌',label:'Pin to top',action:function(){
+    if(typeof toast==='function')toast('Pinned '+channelName,'ok');
+  }});
+  items.push({icon:'🔕',label:'Mute',action:function(){
+    IC.activeChat=channelId;
+    if(typeof icMuteChannel==='function')icMuteChannel();
+  }});
+  items.push({sep:true});
+  items.push({icon:'🗑',label:'Delete chat',danger:true,action:function(){
+    icDeleteChannel(channelId,channelName,isAdmin);
+  }});
+
+  var h='';
+  items.forEach(function(item){
+    if(item.sep){
+      h+='<div style="height:1px;background:rgba(255,255,255,.06);margin:4px 0"></div>';
+      return;
+    }
+    h+='<div onclick="event.stopPropagation()" data-ctx-action="'+esc(item.label)+'" style="padding:8px 14px;font-size:12px;color:'+(item.danger?'#ef4444':'rgba(255,255,255,.8)')+';cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s" onmouseover="this.style.background=\'rgba('+(item.danger?'239,68,68':'255,255,255')+',.08)\'" onmouseout="this.style.background=\'none\'">'+item.icon+' '+item.label+'</div>';
+  });
+  menu.innerHTML=h;
+
+  // Attach click handlers
+  document.body.appendChild(menu);
+  var menuItems=menu.querySelectorAll('[data-ctx-action]');
+  for(var i=0;i<menuItems.length;i++){
+    (function(idx){
+      menuItems[idx].addEventListener('click',function(){
+        _icCloseContextMenu();
+        items.filter(function(it){return!it.sep})[idx].action();
+      });
+    })(i);
+  }
+
+  // Close on outside click
+  setTimeout(function(){
+    document.addEventListener('click',_icCloseContextMenu);
+    document.addEventListener('contextmenu',_icCloseContextMenu);
+  },50);
+}
+
+function _icCloseContextMenu(){
+  var menu=document.getElementById('icCtxMenu');
+  if(menu)menu.remove();
+  document.removeEventListener('click',_icCloseContextMenu);
+  document.removeEventListener('contextmenu',_icCloseContextMenu);
+}
+
+function icDeleteChannel(channelId,channelName,isAdmin){
+  var me=getUserName();
+  if(!fbDb)return;
+
+  // Check ownership
+  fbDb.collection('chat_channels').doc(channelId).get().then(function(doc){
+    if(!doc.exists){
+      if(typeof toast==='function')toast('Chat not found','err');
+      return;
+    }
+    var data=doc.data();
+    var isOwner=data.owner===me;
+    var isDefault=false;
+    for(var i=0;i<DEFAULT_CHANNELS.length;i++){
+      if(DEFAULT_CHANNELS[i].id===channelId){isDefault=true;break}
+    }
+
+    if(isDefault&&!isAdmin){
+      if(typeof toast==='function')toast('Cannot delete default channels','err');
+      return;
+    }
+    if(!isOwner&&!isAdmin){
+      if(typeof toast==='function')toast('Only the owner or admin can delete this','err');
+      return;
+    }
+
+    // Confirm
+    var label=channelName||channelId;
+    if(!confirm('Delete "'+label+'"? This will remove all messages in this chat.'))return;
+
+    // Delete all messages in the channel first
+    fbDb.collection('chat_messages').where('channelId','==',channelId).get().then(function(msgSnap){
+      var batch=fbDb.batch();
+      msgSnap.docs.forEach(function(d){batch.delete(d.ref)});
+      // Delete the channel doc
+      batch.delete(fbDb.collection('chat_channels').doc(channelId));
+      return batch.commit();
+    }).then(function(){
+      if(typeof toast==='function')toast('"'+label+'" deleted','ok');
+      // If we were viewing this chat, clear it
+      if(IC.activeChat===channelId){
+        IC.activeChat=null;
+        var body=document.getElementById('icBody');
+        if(body)body.innerHTML='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,.2);padding:40px"><div style="font-size:48px;opacity:.3">💬</div><div style="font-size:14px;font-weight:600">Select a conversation</div></div>';
+        var convoHeader=document.getElementById('icConvoHeader');if(convoHeader)convoHeader.style.display='none';
+        var inputBar=document.getElementById('icInputBar');if(inputBar)inputBar.style.display='none';
+      }
+      // Refresh sidebar
+      icShowList();
+    }).catch(function(err){
+      console.warn('deleteChannel:',err);
+      if(typeof toast==='function')toast('Failed to delete: '+err.message,'err');
+    });
+  });
+}
+
+window.icDeleteChannel=icDeleteChannel;
 window.icCreatePoll=icCreatePoll;
 window.icRenderPoll=icRenderPoll;
 window.icVotePoll=icVotePoll;
