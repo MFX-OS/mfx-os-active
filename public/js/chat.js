@@ -451,6 +451,44 @@ function chatInsertEmoji(e){
   el.value+=e;el.focus();
 }
 
+// ── IC EMOJI PICKER ──
+var IC_EMOJIS=['😊','😂','🤣','😍','🥰','😎','🤔','😴','🔥','❤️','💯','👍','👎','🎉','🙏','💪','🚀','⭐','✅','❌','👀','💬','🧠','⚡','☕','🍕','🎯','💡','📦','🏷'];
+function icToggleEmoji(){
+  var bar=document.getElementById('icEmojiBar');if(!bar)return;
+  if(bar.style.display==='flex'){bar.style.display='none';return}
+  bar.style.display='flex';
+  bar.innerHTML=IC_EMOJIS.map(function(e){
+    return'<span onclick="icInsertEmoji(\''+e+'\')" style="cursor:pointer;font-size:22px;padding:4px;border-radius:6px;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.1)\'" onmouseout="this.style.background=\'none\'">'+e+'</span>';
+  }).join('');
+}
+function icInsertEmoji(e){
+  var el=document.getElementById('icInput');if(!el)return;
+  el.value+=e;el.focus();
+}
+window.icToggleEmoji=icToggleEmoji;
+window.icInsertEmoji=icInsertEmoji;
+
+// ── TEXT FORMATTING — apply to message text for display ──
+function formatChatText(raw){
+  var t=esc(raw);
+  // Code blocks: ```text```
+  t=t.replace(/```([\s\S]*?)```/g,'<pre style="background:rgba(255,255,255,.06);padding:6px 10px;border-radius:8px;font-family:monospace;font-size:11px;margin:4px 0;overflow-x:auto;white-space:pre-wrap">$1</pre>');
+  // Inline code: `text`
+  t=t.replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:11px;color:#f59e0b">$1</code>');
+  // Bold: **text**
+  t=t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  // Italic: *text*
+  t=t.replace(/\*(.+?)\*/g,'<em style="color:rgba(255,255,255,.7)">$1</em>');
+  // Strikethrough: ~~text~~
+  t=t.replace(/~~(.+?)~~/g,'<del style="opacity:.5">$1</del>');
+  // @mentions
+  t=t.replace(/@(\w+)/g,'<span style="color:#00e5ff;font-weight:600">@$1</span>');
+  // URLs → clickable
+  t=t.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" style="color:#00e5ff;text-decoration:underline">$1</a>');
+  return t;
+}
+window.formatChatText=formatChatText;
+
 // ── THREADS ──
 function openThread(msgId){
   CHAT.threadOpen=msgId;
@@ -654,31 +692,65 @@ function gifRenderResults(gifs,target){
   grid.innerHTML=h;
 }
 
+// IC pending GIF and reply state
+var _icPendingGif=null;
+var _icReplyTo=null; // {id, user, text}
+
 function gifSelect(url,target){
   closeModal();
   if(target==='ic'){
-    // Insert GIF into instant chat
-    if(!fbDb||!IC.activeChat)return;
-    fbDb.collection('chat_messages').add({
-      channelId:IC.activeChat,
-      text:'',
-      gif:url,
-      user:getUserName(),
-      userId:getUserId(),
-      dept:window.CURRENT_USER&&window.CURRENT_USER._dept||'',
-      timestamp:firebase.firestore.FieldValue.serverTimestamp(),
-      readBy:[getUserId()]
-    });
-    fbDb.collection('chat_channels').doc(IC.activeChat).update({
-      lastMessage:'sent a GIF',
-      lastMessageAt:firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(function(){});
+    // Store as pending — show preview, don't send yet
+    _icPendingGif=url;
+    icShowPreview();
   }else{
     // Main chat — add as attachment
     window._chatPendingAttachments.push({type:'gif',url:url,name:'GIF'});
     chatShowAttachPreview();
   }
 }
+
+function icShowPreview(){
+  var bar=document.getElementById('icPreviewBar');
+  if(!bar){
+    // Create preview bar above input
+    var inputBar=document.getElementById('icInputBar');
+    if(!inputBar)return;
+    bar=document.createElement('div');
+    bar.id='icPreviewBar';
+    bar.style.cssText='padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px';
+    inputBar.insertBefore(bar,inputBar.firstChild);
+  }
+  var h='';
+  // Reply context
+  if(_icReplyTo){
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(0,229,255,.06);border-left:3px solid #00e5ff;border-radius:0 8px 8px 0">';
+    h+='<div style="flex:1;min-width:0"><div style="font-size:9px;color:#00e5ff;font-weight:600">Replying to '+esc(_icReplyTo.user)+'</div>';
+    h+='<div style="font-size:11px;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc((_icReplyTo.text||'GIF').substring(0,50))+'</div></div>';
+    h+='<span onclick="icClearReply()" style="cursor:pointer;color:rgba(255,255,255,.3);font-size:14px">&times;</span></div>';
+  }
+  // GIF preview
+  if(_icPendingGif){
+    h+='<div style="display:flex;align-items:center;gap:8px">';
+    h+='<img src="'+esc(_icPendingGif)+'" style="height:60px;border-radius:8px;border:1px solid rgba(255,255,255,.1)">';
+    h+='<div style="flex:1"><div style="font-size:10px;color:rgba(255,255,255,.4)">GIF ready to send</div></div>';
+    h+='<span onclick="icClearGif()" style="cursor:pointer;color:rgba(255,255,255,.3);font-size:14px">&times;</span></div>';
+  }
+  if(!h){bar.remove();return}
+  bar.innerHTML=h;
+  bar.style.display='flex';
+}
+function icClearGif(){_icPendingGif=null;icShowPreview()}
+function icClearReply(){_icReplyTo=null;icShowPreview()}
+function icSetReply(msgId){
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg)return;
+  _icReplyTo={id:msgId,user:msg.user,text:msg.text||'GIF'};
+  icShowPreview();
+  var inp=document.getElementById('icInput');if(inp)inp.focus();
+}
+window.icClearGif=icClearGif;
+window.icClearReply=icClearReply;
+window.icSetReply=icSetReply;
 
 window.chatSearchGif=chatSearchGif;
 window.gifSaveKey=gifSaveKey;
@@ -918,15 +990,48 @@ function icShowList(){
     var dms=channels.filter(function(c){return c.type==='dm'&&(c.members||[]).indexOf(me)>=0});
     var groups=channels.filter(function(c){return c.type==='channel'});
 
-    var h='';
-    // Online users section
-    h+='<div style="padding:8px 12px 4px;font-size:9px;font-weight:700;color:var(--gn);text-transform:uppercase;letter-spacing:.5px">Online Now</div>';
-    h+='<div id="icOnlineSection" style="padding:0 8px 8px;display:flex;gap:6px;flex-wrap:wrap;min-height:28px">';
-    h+=icRenderOnlineUsers();
-    h+='</div>';
+    // Avatar color palette based on name hash
+    var _avatarGradients=[
+      'linear-gradient(135deg,#667eea,#764ba2)',
+      'linear-gradient(135deg,#f093fb,#f5576c)',
+      'linear-gradient(135deg,#4facfe,#00f2fe)',
+      'linear-gradient(135deg,#43e97b,#38f9d7)',
+      'linear-gradient(135deg,#fa709a,#fee140)',
+      'linear-gradient(135deg,#a18cd1,#fbc2eb)',
+      'linear-gradient(135deg,#fccb90,#d57eeb)',
+      'linear-gradient(135deg,#e0c3fc,#8ec5fc)',
+      'linear-gradient(135deg,#f5576c,#ff6a88)',
+      'linear-gradient(135deg,#00e5ff,#0099cc)'
+    ];
+    function _avatarGrad(name){var hash=0;for(var i=0;i<name.length;i++)hash=name.charCodeAt(i)+((hash<<5)-hash);return _avatarGradients[Math.abs(hash)%_avatarGradients.length]}
 
-    // DMs
-    h+='<div style="padding:8px 12px 2px;font-size:9px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center">Direct Messages<span onclick="icNewDM()" style="cursor:pointer;color:#00e5ff;font-size:14px;padding:0 4px">+</span></div>';
+    // Check which users are online
+    var onlineSet={};
+    IC.allUsers.forEach(function(u){if(u.online)onlineSet[u.name]=true});
+
+    var h='';
+
+    // ── Online avatars row (iMessage-style circles) ──
+    var onlineOthers=IC.allUsers.filter(function(u){return u.name!==me});
+    if(onlineOthers.length){
+      h+='<div id="icOnlineSection" style="padding:12px 14px 8px;display:flex;gap:10px;overflow-x:auto;border-bottom:1px solid rgba(255,255,255,.04)">';
+      onlineOthers.forEach(function(u){
+        var isOn=onlineSet[u.name];
+        h+='<div onclick="icStartDM(\''+esc(u.name)+'\')" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:48px">';
+        h+='<div style="position:relative"><div style="width:42px;height:42px;border-radius:50%;background:'+_avatarGrad(u.name)+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;'+(isOn?'box-shadow:0 0 0 2px #0d1117,0 0 0 4px #2ee89e':'opacity:.4')+'">'+icInitials(u.name)+'</div>';
+        if(isOn)h+='<div style="position:absolute;bottom:0;right:0;width:12px;height:12px;border-radius:50%;background:#2ee89e;border:2px solid #0d1117"></div>';
+        h+='</div>';
+        h+='<span style="font-size:9px;color:'+(isOn?'#fff':'var(--tx3)')+';max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center">'+esc(u.name.split(' ')[0])+'</span>';
+        h+='</div>';
+      });
+      h+='</div>';
+    }
+
+    // ── Search bar ──
+    h+='<div style="padding:8px 14px"><input placeholder="Search conversations..." style="width:100%;padding:8px 14px;font-size:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:12px;color:#fff;outline:none;font-family:inherit" oninput="icFilterList(this.value)"></div>';
+
+    // ── DMs ──
+    h+='<div style="padding:4px 14px 2px;font-size:10px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center">Messages<span onclick="icNewDM()" style="cursor:pointer;color:#00e5ff;font-size:16px;padding:0 2px;line-height:1">+</span></div>';
     if(dms.length){
       dms.forEach(function(c){
         var other=c.name.replace(me,'').replace('·','').trim()||c.name;
@@ -934,32 +1039,45 @@ function icShowList(){
         var time=c.lastMessageAt?icTimeAgo(c.lastMessageAt):'';
         var unread=unreadByChannel[c.id]||0;
         var isUnread=unread>0;
-        h+='<div onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;'+(isUnread?'background:rgba(0,229,255,.04)':'')+'" onmouseover="this.style.background=\'rgba(0,229,255,.08)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.04)':'none')+'\'">';
-        h+='<div style="width:32px;height:32px;border-radius:50%;border:2px solid '+(isUnread?'#00e5ff':'var(--bdr)')+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+(isUnread?'#00e5ff':'var(--tx3)')+';flex-shrink:0">'+icInitials(other)+'</div>';
-        h+='<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'var(--tx)':'var(--tx2)')+'">'+esc(other)+'</span>';
-        h+='<div style="display:flex;align-items:center;gap:6px">';
-        if(isUnread) h+='<span style="background:#00e5ff;color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;min-width:16px;text-align:center">'+unread+'</span>';
-        h+='<span style="font-size:8px;color:var(--tx3)">'+time+'</span></div></div>';
-        h+='<div style="font-size:10px;color:'+(isUnread?'var(--tx2)':'var(--tx3)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;'+(isUnread?'font-weight:600':'')+'">'+esc(lastMsg.substring(0,50))+'</div></div></div>';
+        var isOn=onlineSet[other];
+        h+='<div onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .15s;border-radius:12px;margin:1px 6px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
+        // Avatar with online dot
+        h+='<div style="position:relative;flex-shrink:0"><div style="width:44px;height:44px;border-radius:50%;background:'+_avatarGrad(other)+';display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff">'+icInitials(other)+'</div>';
+        if(isOn)h+='<div style="position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:50%;background:#2ee89e;border:2px solid #0d1117"></div>';
+        h+='</div>';
+        // Content
+        h+='<div style="flex:1;min-width:0">';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+        h+='<span style="font-size:13px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'#fff':'rgba(255,255,255,.7)')+'">'+esc(other)+'</span>';
+        h+='<span style="font-size:10px;color:'+(isUnread?'#00e5ff':'rgba(255,255,255,.25)')+';font-weight:'+(isUnread?'600':'400')+'">'+time+'</span>';
+        h+='</div>';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">';
+        h+='<span style="font-size:11px;color:'+(isUnread?'rgba(255,255,255,.6)':'rgba(255,255,255,.25)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;'+(isUnread?'font-weight:500':'')+'">'+esc(lastMsg.substring(0,45))+'</span>';
+        if(isUnread)h+='<span style="background:#00e5ff;color:#000;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;min-width:18px;text-align:center;margin-left:8px;flex-shrink:0">'+unread+'</span>';
+        h+='</div></div></div>';
       });
     }else{
-      h+='<div style="padding:8px 12px;font-size:10px;color:var(--tx3)">No conversations yet</div>';
+      h+='<div style="padding:16px 14px;font-size:12px;color:rgba(255,255,255,.3);text-align:center">No conversations yet</div>';
     }
 
-    // Group channels
-    h+='<div style="padding:8px 12px 2px;font-size:9px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--bdr);margin-top:4px">Group Channels</div>';
-    groups.slice(0,15).forEach(function(c){
+    // ── Group Channels ──
+    h+='<div style="padding:10px 14px 2px;font-size:10px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px;border-top:1px solid rgba(255,255,255,.04);margin-top:4px">Channels</div>';
+    groups.slice(0,12).forEach(function(c){
       var lastMsg=c.lastMessage||'';
       var time=c.lastMessageAt?icTimeAgo(c.lastMessageAt):'';
       var unread=unreadByChannel[c.id]||0;
       var isUnread=unread>0;
-      h+='<div onclick="icOpenChat(\''+c.id+'\',\'#'+esc(c.name)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;'+(isUnread?'background:rgba(0,229,255,.04)':'')+'" onmouseover="this.style.background=\'rgba(0,229,255,.08)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.04)':'none')+'\'">';
-      h+='<div style="width:32px;height:32px;border-radius:50%;background:'+(isUnread?'rgba(0,229,255,.1)':'var(--bg3)')+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:'+(isUnread?'#00e5ff':'var(--tx3)')+';flex-shrink:0">#</div>';
-      h+='<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'var(--tx)':'var(--tx2)')+'">'+esc(c.name)+'</span>';
-      h+='<div style="display:flex;align-items:center;gap:6px">';
-      if(isUnread) h+='<span style="background:#00e5ff;color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;min-width:16px;text-align:center">'+unread+'</span>';
-      h+='<span style="font-size:8px;color:var(--tx3)">'+time+'</span></div></div>';
-      h+='<div style="font-size:10px;color:'+(isUnread?'var(--tx2)':'var(--tx3)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;'+(isUnread?'font-weight:600':'')+'">'+esc(lastMsg.substring(0,50))+'</div></div></div>';
+      h+='<div onclick="icOpenChat(\''+c.id+'\',\'#'+esc(c.name)+'\')" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .15s;border-radius:12px;margin:1px 6px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
+      h+='<div style="width:44px;height:44px;border-radius:14px;background:'+(isUnread?'linear-gradient(135deg,#00e5ff,#0099cc)':'rgba(255,255,255,.06)')+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:'+(isUnread?'#000':'rgba(255,255,255,.3)')+';flex-shrink:0">#</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+      h+='<span style="font-size:13px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'#fff':'rgba(255,255,255,.7)')+'">'+esc(c.name)+'</span>';
+      h+='<span style="font-size:10px;color:'+(isUnread?'#00e5ff':'rgba(255,255,255,.25)')+'">'+time+'</span>';
+      h+='</div>';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">';
+      h+='<span style="font-size:11px;color:'+(isUnread?'rgba(255,255,255,.6)':'rgba(255,255,255,.25)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">'+esc(lastMsg.substring(0,45))+'</span>';
+      if(isUnread)h+='<span style="background:#00e5ff;color:#000;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;min-width:18px;text-align:center;margin-left:8px;flex-shrink:0">'+unread+'</span>';
+      h+='</div></div></div>';
     });
 
     body.innerHTML=h;
@@ -1006,52 +1124,157 @@ function icOpenChat(channelId,displayName){
 
 function icRenderMessages(){
   var body=document.getElementById('icBody');if(!body)return;
-  if(!IC.messages.length){body.innerHTML='<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:11px">No messages yet — say hi!</div>';return}
-  var me=getUserName();var h='';var lastDate='';
+  if(!IC.messages.length){body.innerHTML='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,.3);font-size:13px;padding:40px"><div style="font-size:40px;opacity:.3">💬</div>No messages yet<div style="font-size:11px;opacity:.6">Send a message to start the conversation</div></div>';return}
+  var me=getUserName();var uid=getUserId();var h='';var lastDate='';var lastUser='';
   IC.messages.forEach(function(m){
     var ts=m.timestamp?new Date(m.timestamp.seconds*1000):new Date();
     var dateStr=ts.toLocaleDateString();
     if(dateStr!==lastDate){
-      h+='<div style="text-align:center;padding:6px 0;font-size:8px;color:var(--tx3)">'+ts.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+'</div>';
-      lastDate=dateStr;
+      h+='<div style="text-align:center;padding:10px 0 6px"><span style="font-size:10px;color:rgba(255,255,255,.25);background:rgba(255,255,255,.04);padding:3px 12px;border-radius:10px">'+ts.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+'</span></div>';
+      lastDate=dateStr;lastUser='';
     }
     var isMe=m.user===me;
+    var sameUser=m.user===lastUser;
     var timeStr=ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    h+='<div style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';padding:2px 12px">';
-    if(!isMe)h+='<span style="font-size:8px;font-weight:600;color:var(--cy);margin-bottom:1px">'+esc(m.user)+'</span>';
+    var bubbleRadius=isMe?'18px 18px 4px 18px':'18px 18px 18px 4px';
+
+    h+='<div class="ic-msg-wrap" style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';padding:'+(sameUser?'1px':'6px')+' 14px 1px;position:relative" data-icmsg="'+esc(m.id)+'">';
+
+    // Sender name
+    if(!isMe&&!sameUser)h+='<span style="font-size:10px;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:2px;margin-left:4px">'+esc(m.user)+'</span>';
+
+    // Reply context
+    if(m.replyTo){
+      h+='<div style="max-width:78%;padding:4px 10px;margin-bottom:2px;border-left:2px solid #00e5ff;border-radius:0 8px 8px 0;background:rgba(0,229,255,.04);font-size:10px">';
+      h+='<div style="color:#00e5ff;font-weight:600;font-size:9px">'+esc(m.replyTo.user)+'</div>';
+      h+='<div style="color:rgba(255,255,255,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc((m.replyTo.text||'').substring(0,60))+'</div></div>';
+    }
+
+    // GIF
     if(m.gif){
-      h+='<div style="max-width:80%;border-radius:'+(isMe?'12px 12px 2px 12px':'12px 12px 12px 2px')+';overflow:hidden"><img src="'+esc(m.gif)+'" style="max-width:200px;max-height:150px;border-radius:inherit;display:block"></div>';
+      h+='<div style="max-width:75%;border-radius:'+bubbleRadius+';overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.2)"><img src="'+esc(m.gif)+'" style="max-width:220px;max-height:160px;display:block"></div>';
     }
+    // Text bubble
     if(m.text){
-      h+='<div style="max-width:80%;padding:8px 12px;border-radius:'+(isMe?'12px 12px 2px 12px':'12px 12px 12px 2px')+';background:'+(isMe?'rgba(0,229,255,.15)':'var(--bg3)')+';font-size:12px;color:var(--tx);line-height:1.4;word-wrap:break-word">'+esc(m.text)+'</div>';
+      h+='<div style="max-width:78%;padding:10px 14px;border-radius:'+bubbleRadius+';background:'+(isMe?'linear-gradient(135deg,#00b4d8,#0099cc)':'rgba(255,255,255,.08)')+';font-size:13px;color:'+(isMe?'#fff':'rgba(255,255,255,.85)')+';line-height:1.45;word-wrap:break-word;'+(isMe?'box-shadow:0 2px 8px rgba(0,180,216,.15)':'')+'">'+formatChatText(m.text)+'</div>';
     }
-    h+='<span style="font-size:7px;color:var(--tx3);margin-top:1px">'+timeStr+'</span>';
+
+    // Reactions row
+    var reactions=m.reactions||{};
+    var rKeys=Object.keys(reactions);
+    var hasReactions=rKeys.some(function(k){return(reactions[k]||[]).length>0});
+    if(hasReactions){
+      h+='<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px">';
+      rKeys.forEach(function(emoji){
+        var users=reactions[emoji]||[];
+        if(!users.length)return;
+        var isMine=users.indexOf(uid)>=0;
+        h+='<span onclick="icToggleReaction(\''+esc(m.id)+'\',\''+esc(emoji)+'\')" style="cursor:pointer;padding:2px 6px;border-radius:10px;font-size:11px;background:'+(isMine?'rgba(0,229,255,.15)':'rgba(255,255,255,.06)')+';border:1px solid '+(isMine?'rgba(0,229,255,.3)':'rgba(255,255,255,.06)')+';display:inline-flex;align-items:center;gap:2px;transition:all .15s">'+emoji+'<span style="font-size:9px;color:rgba(255,255,255,.4)">'+users.length+'</span></span>';
+      });
+      h+='</div>';
+    }
+
+    // Action buttons (reply + react) — show on hover
+    h+='<div class="ic-msg-actions" style="display:none;position:absolute;'+(isMe?'left:14px':'right:14px')+';top:50%;transform:translateY(-50%);gap:2px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:2px">';
+    h+='<span onclick="event.stopPropagation();icSetReply(\''+esc(m.id)+'\')" style="cursor:pointer;padding:3px 6px;font-size:12px;border-radius:4px" title="Reply">↩</span>';
+    h+='<span onclick="event.stopPropagation();icShowReactPicker(\''+esc(m.id)+'\')" style="cursor:pointer;padding:3px 6px;font-size:12px;border-radius:4px" title="React">😊</span>';
     h+='</div>';
+
+    // Time
+    if(!sameUser||dateStr!==lastDate)h+='<span style="font-size:8px;color:rgba(255,255,255,.2);margin-top:2px;padding:0 4px">'+timeStr+(isMe?' ✓':'')+'</span>';
+    h+='</div>';
+    lastUser=m.user;
   });
   body.innerHTML=h;
   body.scrollTop=body.scrollHeight;
+
+  // Attach hover listeners for action buttons
+  var wraps=body.querySelectorAll('.ic-msg-wrap');
+  for(var w=0;w<wraps.length;w++){
+    (function(wrap){
+      var actions=wrap.querySelector('.ic-msg-actions');
+      if(!actions)return;
+      wrap.addEventListener('mouseenter',function(){actions.style.display='flex'});
+      wrap.addEventListener('mouseleave',function(){actions.style.display='none'});
+    })(wraps[w]);
+  }
 }
+
+// ── IC REACTIONS ──
+function icToggleReaction(msgId,emoji){
+  if(!fbDb)return;
+  var uid=getUserId();
+  var msg=IC.messages.find(function(m){return m.id===msgId});
+  if(!msg)return;
+  var reactions=msg.reactions||{};
+  var users=reactions[emoji]||[];
+  var update={};
+  if(users.indexOf(uid)>=0){
+    update['reactions.'+emoji]=firebase.firestore.FieldValue.arrayRemove(uid);
+  }else{
+    update['reactions.'+emoji]=firebase.firestore.FieldValue.arrayUnion(uid);
+  }
+  fbDb.collection('chat_messages').doc(msgId).update(update).catch(function(e){console.warn('icReaction:',e)});
+}
+
+function icShowReactPicker(msgId){
+  // Remove any existing picker
+  var old=document.getElementById('icReactPicker');if(old)old.remove();
+  var msgEl=document.querySelector('[data-icmsg="'+msgId+'"]');
+  if(!msgEl)return;
+  var picker=document.createElement('div');
+  picker.id='icReactPicker';
+  picker.style.cssText='display:flex;gap:2px;padding:6px 8px;background:rgba(0,0,0,.85);border:1px solid rgba(255,255,255,.1);border-radius:12px;position:absolute;z-index:10;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+  var quickEmojis=['👍','❤️','😂','🔥','😮','😢','🎉','💯'];
+  picker.innerHTML=quickEmojis.map(function(e){
+    return'<span onclick="event.stopPropagation();icToggleReaction(\''+esc(msgId)+'\',\''+e+'\');document.getElementById(\'icReactPicker\').remove()" style="cursor:pointer;font-size:20px;padding:3px;border-radius:6px;transition:transform .1s" onmouseover="this.style.transform=\'scale(1.3)\'" onmouseout="this.style.transform=\'scale(1)\'">'+e+'</span>';
+  }).join('');
+  msgEl.style.position='relative';
+  msgEl.appendChild(picker);
+  // Auto-close on outside click
+  setTimeout(function(){
+    document.addEventListener('click',function rm(){if(document.getElementById('icReactPicker'))document.getElementById('icReactPicker').remove();document.removeEventListener('click',rm)});
+  },100);
+}
+
+window.icToggleReaction=icToggleReaction;
+window.icShowReactPicker=icShowReactPicker;
 
 function icSendMsg(){
   var input=document.getElementById('icInput');
-  if(!input||!input.value.trim()||!fbDb||!IC.activeChat)return;
-  var text=input.value.trim();
-  fbDb.collection('chat_messages').add({
+  var text=input?input.value.trim():'';
+  if(!text&&!_icPendingGif)return;
+  if(!fbDb||!IC.activeChat)return;
+  var msgData={
     channelId:IC.activeChat,
     text:text,
     user:getUserName(),
     userId:getUserId(),
     dept:window.CURRENT_USER&&window.CURRENT_USER._dept||'',
     timestamp:firebase.firestore.FieldValue.serverTimestamp(),
+    reactions:{},
     readBy:[getUserId()]
-  });
+  };
+  // Attach GIF if pending
+  if(_icPendingGif){
+    msgData.gif=_icPendingGif;
+    _icPendingGif=null;
+  }
+  // Attach reply context if replying
+  if(_icReplyTo){
+    msgData.replyTo={id:_icReplyTo.id,user:_icReplyTo.user,text:(_icReplyTo.text||'').substring(0,80)};
+    _icReplyTo=null;
+  }
+  fbDb.collection('chat_messages').add(msgData);
   // Update channel lastMessage
+  var preview=text?text.substring(0,100):(msgData.gif?'sent a GIF':'');
   fbDb.collection('chat_channels').doc(IC.activeChat).update({
-    lastMessage:text.substring(0,100),
+    lastMessage:preview,
     lastMessageAt:firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(function(){});
-  input.value='';input.style.height='auto';
-  input.focus();
+  }).catch(function(e){console.warn('icLastMsg:',e)});
+  if(input){input.value='';input.style.height='auto';input.focus()}
+  // Clear preview bar
+  var bar=document.getElementById('icPreviewBar');if(bar)bar.remove();
 }
 
 function icKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();icSendMsg()}}
@@ -1151,6 +1374,19 @@ function icRenderOnlineUsers(){
   if(!h)h='<span style="font-size:10px;color:var(--tx3)">No users found</span>';
   return h;
 }
+
+// IC list search filter — hides non-matching rows
+function icFilterList(query){
+  var body=document.getElementById('icBody');if(!body)return;
+  var q=(query||'').toLowerCase();
+  var rows=body.querySelectorAll('[onclick*="icOpenChat"]');
+  for(var i=0;i<rows.length;i++){
+    if(!q){rows[i].style.display='';continue}
+    var text=rows[i].textContent.toLowerCase();
+    rows[i].style.display=text.indexOf(q)>=0?'':'none';
+  }
+}
+window.icFilterList=icFilterList;
 
 function icStartDM(otherUser){
   if(!fbDb)return;
