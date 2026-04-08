@@ -1162,7 +1162,111 @@ exports.portalSubmitPO = onRequest(
         clientEmail: callerEmail
       });
 
-      sendJson(res, 200, { success: true, status: "won" });
+      // ═══ AUTO-CREATE SALES ORDER ═══
+      // Check if SO already exists for this quote
+      const existingSOSnap = await db.collection("salesOrders")
+        .where("quoteId", "==", quoteId).limit(1).get();
+
+      let autoSONum = null;
+      if (existingSOSnap.empty) {
+        // Generate SO number
+        const seqDoc = db.collection("systemCounters").doc("salesOrder");
+        const seqSnap = await seqDoc.get();
+        const now = new Date();
+        const bucket = String(now.getFullYear()).slice(-2) + String(now.getMonth() + 1).padStart(2, "0");
+        let seq = 1;
+        if (seqSnap.exists && seqSnap.data().bucket === bucket) {
+          seq = (seqSnap.data().seq || 0) + 1;
+        }
+        await seqDoc.set({ bucket, seq }, { merge: true });
+        autoSONum = "SO" + bucket + "-" + String(seq).padStart(3, "0");
+
+        const f = quote.fields || {};
+        const selIdx = quote.poQtyIndex || 0;
+        const selRow = (quote.qtys && quote.qtys[selIdx]) ? quote.qtys[selIdx] : { qty: 0, ppu: 0, total: 0 };
+        const soId = "so_" + Date.now();
+        const soDoc = {
+          id: soId,
+          soNum: autoSONum,
+          quoteId: quoteId,
+          quoteNum: quote.quoteNum || "",
+          quoteRev: quote.rev || "",
+          status: "pending",
+          company: f.custCo || "",
+          contact: f.custAttn || "",
+          email: f.custEmail || quote.poClientEmail || callerEmail,
+          phone: f.phone || "",
+          industry: f.industry || "",
+          cityState: f.cityState || "",
+          shipTo: quote.poShipTo || f.cityState || "",
+          poNumber: quote.poNumber || "",
+          poSignature: quote.poSignature || "",
+          poSignedAt: quote.poSignedAt || "",
+          poInstructions: quote.poInstructions || "",
+          poFiles: quote.poFiles || [],
+          jobDesc: (f.sA || "?") + "x" + (f.sar || "?") + '" ' + (f.shapeType || "") + " - " + (f.colors || "?") + "C " + (f.jobType || "Flexo"),
+          sizeA: f.sA || "",
+          sizeB: f.sar || "",
+          shapeType: f.shapeType || "",
+          colors: f.colors || "",
+          jobType: f.jobType || "",
+          face: f.face || f.faceStock || "",
+          laminate: f.laminate || f.lamination || "",
+          coating: f.coating || "",
+          windDir: f.windDir || f.copyPos || "",
+          selectedQtyIndex: selIdx,
+          selectedQty: selRow.qty || 0,
+          ppu: selRow.ppu || 0,
+          total: selRow.total || 0,
+          allQtys: quote.qtys || [],
+          terms: quote.terms || [],
+          estimator: f.estimator || "",
+          payTerms: f.payTerms || "Net 30",
+          createdAt: nowIso(),
+          createdBy: "System (Auto — Portal PO)",
+          updatedAt: nowIso(),
+          updatedBy: "System (Auto — Portal PO)",
+          approvedBy: null,
+          approvedAt: null,
+          sentAt: null,
+          sentTo: null,
+          driveLink: null,
+          notes: [{ text: "📋 Auto-created from " + (quote.quoteNum || quoteId) + " (PO# " + (quote.poNumber || "N/A") + " submitted via Client Portal)", by: "System", at: nowIso() }]
+        };
+
+        await db.collection("salesOrders").doc(soId).set(soDoc);
+        await logServerEvent("so.auto_created", {
+          soId, soNum: autoSONum, quoteId,
+          quoteNum: quote.quoteNum || "",
+          company: f.custCo || "",
+          total: selRow.total || 0
+        });
+
+        // Post notification for CEO approval
+        const mgmtSnap = await db.collection("users")
+          .where("role", "in", ["CEO", "ceo", "Admin", "admin", "Operations Manager"]).limit(5).get();
+        const notifBatch = db.batch();
+        mgmtSnap.docs.forEach(u => {
+          const notifRef = db.collection("notifications").doc();
+          notifBatch.set(notifRef, {
+            type: "alert",
+            title: "New Sales Order — " + autoSONum,
+            body: (f.custCo || "Client") + " · $" + Number(selRow.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 }) + " · Auto-created from " + (quote.quoteNum || "quote"),
+            icon: "📋",
+            from: "System",
+            userId: u.id,
+            sourceView: "orders",
+            sourceId: soId,
+            read: false,
+            dismissed: false,
+            priority: "high",
+            timestamp: FieldValue.serverTimestamp()
+          });
+        });
+        await notifBatch.commit();
+      }
+
+      sendJson(res, 200, { success: true, status: "won", autoSO: autoSONum });
     } catch (err) {
       console.error("portalSubmitPO error", err);
       sendJson(res, 500, { error: err.message });
