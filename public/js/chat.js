@@ -1033,9 +1033,13 @@ function icShowList(){
     ];
     function _avatarGrad(name){var hash=0;for(var i=0;i<name.length;i++)hash=name.charCodeAt(i)+((hash<<5)-hash);return _avatarGradients[Math.abs(hash)%_avatarGradients.length]}
 
-    // Check which users are online
+    // Build presence lookup from all users
     var onlineSet={};
-    IC.allUsers.forEach(function(u){if(u.online)onlineSet[u.name]=true});
+    var presenceMap={};
+    IC.allUsers.forEach(function(u){
+      if(u.online)onlineSet[u.name]=true;
+      presenceMap[u.name]={online:u.online,presence:u.presence||'offline',color:u.presenceColor||'#555',email:u.email||'',dept:u.dept||''};
+    });
 
     var h='';
 
@@ -1068,21 +1072,32 @@ function icShowList(){
         var unread=unreadByChannel[c.id]||0;
         var isUnread=unread>0;
         var isOn=onlineSet[other];
-        h+='<div data-ic-channel="'+c.id+'" onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s;border-radius:10px;margin:1px 4px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'" onmouseover="this.style.background=\'rgba(255,255,255,.06)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.06)':'transparent')+'\'">';
-        // Avatar with online dot
-        h+='<div style="position:relative;flex-shrink:0"><div style="width:36px;height:36px;border-radius:50%;background:'+_avatarGrad(other)+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+icInitials(other)+'</div>';
-        if(isOn)h+='<div style="position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:50%;background:#2ee89e;border:2px solid #0d1117"></div>';
+        var pres=presenceMap[other]||{};
+        var dotColor=pres.color||'#555';
+        var userEmail=pres.email||'';
+        h+='<div data-ic-channel="'+c.id+'" class="ic-dm-row" style="padding:8px 10px;display:flex;align-items:center;gap:10px;transition:all .15s;border-radius:10px;margin:1px 4px;'+(isUnread?'background:rgba(0,229,255,.06)':'')+'">';
+        // Avatar with presence dot
+        h+='<div onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="position:relative;flex-shrink:0;cursor:pointer"><div style="width:36px;height:36px;border-radius:50%;background:'+_avatarGrad(other)+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+icInitials(other)+'</div>';
+        h+='<div style="position:absolute;bottom:0;right:0;width:12px;height:12px;border-radius:50%;background:'+dotColor+';border:2px solid #0d1117" title="'+(pres.presence||'offline')+'"></div>';
         h+='</div>';
-        // Content
-        h+='<div style="flex:1;min-width:0">';
+        // Name + message preview
+        h+='<div onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="flex:1;min-width:0;cursor:pointer">';
         h+='<div style="display:flex;justify-content:space-between;align-items:center">';
-        h+='<span style="font-size:13px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'#fff':'rgba(255,255,255,.7)')+'">'+esc(other)+'</span>';
-        h+='<span style="font-size:10px;color:'+(isUnread?'#00e5ff':'rgba(255,255,255,.25)')+';font-weight:'+(isUnread?'600':'400')+'">'+time+'</span>';
+        h+='<span style="font-size:12px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'#fff':'rgba(255,255,255,.7)')+'">'+esc(other)+'</span>';
+        h+='<span style="font-size:9px;color:'+(isUnread?'#00e5ff':'rgba(255,255,255,.2)')+'">'+time+'</span>';
         h+='</div>';
-        h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">';
-        h+='<span style="font-size:11px;color:'+(isUnread?'rgba(255,255,255,.6)':'rgba(255,255,255,.25)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;'+(isUnread?'font-weight:500':'')+'">'+esc(lastMsg.substring(0,45))+'</span>';
-        if(isUnread)h+='<span style="background:#00e5ff;color:#000;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;min-width:18px;text-align:center;margin-left:8px;flex-shrink:0">'+unread+'</span>';
-        h+='</div></div></div>';
+        h+='<div style="font-size:10px;color:'+(isUnread?'rgba(255,255,255,.5)':'rgba(255,255,255,.2)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">'+esc(lastMsg.substring(0,35))+'</div>';
+        h+='</div>';
+        // Action buttons — video, audio, message, email
+        h+='<div class="ic-dm-actions" style="display:flex;gap:2px;flex-shrink:0;opacity:0;transition:opacity .15s">';
+        h+='<span onclick="event.stopPropagation();icVideoCall(\''+esc(other)+'\')" style="cursor:pointer;padding:4px;border-radius:6px;font-size:13px;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.1)\'" onmouseout="this.style.background=\'none\'" title="Video call">📹</span>';
+        h+='<span onclick="event.stopPropagation();icAudioCall(\''+esc(other)+'\')" style="cursor:pointer;padding:4px;border-radius:6px;font-size:13px;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.1)\'" onmouseout="this.style.background=\'none\'" title="Audio call">📞</span>';
+        h+='<span onclick="event.stopPropagation();icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="cursor:pointer;padding:4px;border-radius:6px;font-size:13px;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.1)\'" onmouseout="this.style.background=\'none\'" title="Message">💬</span>';
+        if(userEmail)h+='<span onclick="event.stopPropagation();icSendEmail(\''+esc(userEmail)+'\')" style="cursor:pointer;padding:4px;border-radius:6px;font-size:13px;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.1)\'" onmouseout="this.style.background=\'none\'" title="Email">✉️</span>';
+        h+='</div>';
+        // Unread badge
+        if(isUnread)h+='<span style="background:#00e5ff;color:#000;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;min-width:16px;text-align:center;flex-shrink:0">'+unread+'</span>';
+        h+='</div>';
       });
     }else{
       h+='<div style="padding:16px 14px;font-size:12px;color:rgba(255,255,255,.3);text-align:center">No conversations yet</div>';
@@ -1580,7 +1595,7 @@ function icLoadOnlineUsers(){
       var u=d.data();var name=u.displayName||u.email||'';if(!name)return;
       var ls=u.lastSeen?new Date(u.lastSeen.seconds*1000):null;
       var online=ls&&ls>cutoff;
-      IC.allUsers.push({name:name,online:online,dept:u.department||u.dept||''});
+      IC.allUsers.push({name:name,online:online,dept:u.department||u.dept||'',email:u.email||'',presence:u.presence||(online?'online':'offline'),presenceColor:u.presenceColor||(online?'#2ee89e':'#555'),mood:u.mood||''});
       if(online)IC.onlineUsers.push(name);
     });
     // Update count in header
@@ -3715,6 +3730,24 @@ var _engagementBootCheck=setInterval(function(){
 // WINDOW EXPORTS — Communication & Engagement Features
 // ══════════════════════════════════════════════════════════════════
 window.icSendKudos=icSendKudos;
+
+// ── CONTACT ACTION BUTTONS ──
+function icVideoCall(userName){
+  // Open Google Meet with the user
+  window.open('https://meet.google.com/new','_blank','noopener');
+  if(typeof toast==='function')toast('Starting video call with '+userName,'ok');
+}
+function icAudioCall(userName){
+  // Google Meet audio-only (same link, user turns off camera)
+  window.open('https://meet.google.com/new','_blank','noopener');
+  if(typeof toast==='function')toast('Starting audio call with '+userName,'ok');
+}
+function icSendEmail(email){
+  window.open('mailto:'+email,'_blank');
+}
+window.icVideoCall=icVideoCall;
+window.icAudioCall=icAudioCall;
+window.icSendEmail=icSendEmail;
 window.icCreatePoll=icCreatePoll;
 window.icRenderPoll=icRenderPoll;
 window.icVotePoll=icVotePoll;

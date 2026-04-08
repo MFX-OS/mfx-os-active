@@ -1049,3 +1049,7 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
 .ic-status-announcement .ic-status-text{color:#f59e0b;font-weight:700}
 .ic-status-likes{font-size:9px;color:rgba(255,255,255,.3);display:flex;align-items:center;gap:2px}
 .ic-status-gif{height:32px;border-radius:6px;flex-shrink:0}
+
+/* DM row action buttons — show on hover */
+.ic-dm-row:hover .ic-dm-actions{opacity:1!important}
+.ic-dm-row:hover{background:rgba(255,255,255,.06)!important}
