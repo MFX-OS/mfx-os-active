@@ -643,7 +643,7 @@
       findings:findings,
       capa:capa
     };
-    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('gmp-insp');SQF_EV.uploadEvidence('gmp-insp','gmpInspection',{recordNum:'GMP_'+date+'_'+zone.replace(/\s/g,'')}).catch(function(){});SQF_EV.clearStash('gmp-insp');}
+    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('gmp-insp');SQF_EV.uploadEvidence('gmp-insp','gmpInspection',{recordNum:'GMP_'+date+'_'+zone.replace(/\s/g,'')}).catch(function(e){console.warn('gmpEvidenceUpload:',e);});SQF_EV.clearStash('gmp-insp');}
 
     _gmpCache.gmpInspections.unshift(rec);
 

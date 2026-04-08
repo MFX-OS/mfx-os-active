@@ -357,8 +357,8 @@ function sendSOToClient(soId){
         }).then(function(r){return r.json()}).then(function(fileData){
           var link=fileData.id?'https://drive.google.com/file/d/'+fileData.id+'/view':null;
           finalizeSO(so,link);
-        }).catch(function(){finalizeSO(so,null)});
-      }).catch(function(){finalizeSO(so,null)});
+        }).catch(function(e){console.warn('soPassportCreate',e);finalizeSO(so,null)});
+      }).catch(function(e){console.warn('soPassportCreate',e);finalizeSO(so,null)});
     }).catch(function(e){toast('Email error: '+e.message,'err')});
   });
 }

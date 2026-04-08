@@ -901,6 +901,17 @@ const STATE_MACHINES = {
     roleGates: {
       "approved": ["ceo", "admin", "administrator", "owner", "operations manager", "manager", "buyer", "purchasing"]
     }
+  },
+  // Project lifecycle
+  projects: {
+    field: "status",
+    transitions: {
+      "open": ["closed"],
+      "closed": ["open"]
+    },
+    roleGates: {
+      "closed": ["ceo", "admin", "administrator", "owner", "operations manager", "manager"]
+    }
   }
 };
 
@@ -917,7 +928,7 @@ exports.transitionStatus = onRequest(
         return sendJson(res, 400, { error: "collection, docId, and newStatus required" });
       }
       // Restrict to known collections only
-      const ALLOWED_COLLECTIONS = ['quotes','salesOrders','vendorPOs','jobTickets','ncrs','requests','prepressInbox','tasks'];
+      const ALLOWED_COLLECTIONS = ['quotes','salesOrders','vendorPOs','jobTickets','ncrs','requests','prepressInbox','tasks','projects'];
       if (!ALLOWED_COLLECTIONS.includes(collection)) {
         return sendJson(res, 400, { error: "Invalid collection: " + collection });
       }

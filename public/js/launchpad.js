@@ -407,7 +407,7 @@ function fetchQueueData(queryKey) {
             var total = (t.checklist || []).length;
             return { id: t.id, type: 'Receiving', title: t.material + ' — ' + t.vendor, detail: t.vpoNum + ' · ' + done + '/' + total + ' checks', progress: total > 0 ? Math.round(done / total * 100) : 0, action: 'sqfdatalogs' };
           });
-        }).catch(function() {});
+        }).catch(function(e) { console.warn('launchpadLoad', e); });
       }
       return rq;
 

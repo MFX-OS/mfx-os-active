@@ -40,19 +40,19 @@
       var added=0;
       snap.forEach(function(d){var rec=d.data();if(!existingIds[rec.id]){SAN.push(rec);existingIds[rec.id]=1;added++;}});
       if(added){localStorage.setItem('mfx-fsqms-san',JSON.stringify(SAN));if(ST.tab==='dashboard'||ST.tab==='sanitation')renderFSQMS();}
-    }).catch(function(){});
+    }).catch(function(e){console.warn('fsqmsSanLoad:',e);});
 
     _fsqmsDb.collection('fsqmsQuality').orderBy('date','desc').limit(200).get().then(function(snap){
       var added=0;
       snap.forEach(function(d){var rec=d.data();if(!existingIds[rec.id]){QUAL.push(rec);existingIds[rec.id]=1;added++;}});
       if(added){localStorage.setItem('mfx-fsqms-qual',JSON.stringify(QUAL));if(ST.tab==='dashboard'||ST.tab==='quality')renderFSQMS();}
-    }).catch(function(){});
+    }).catch(function(e){console.warn('fsqmsQcLoad:',e);});
 
     _fsqmsDb.collection('fsqmsMaterials').orderBy('date','desc').limit(200).get().then(function(snap){
       var added=0;
       snap.forEach(function(d){var rec=d.data();if(!existingIds[rec.id]){MAT.push(rec);existingIds[rec.id]=1;added++;}});
       if(added){localStorage.setItem('mfx-fsqms-mat',JSON.stringify(MAT));if(ST.tab==='dashboard'||ST.tab==='materials')renderFSQMS();}
-    }).catch(function(){});
+    }).catch(function(e){console.warn('fsqmsMatLoad:',e);});
   }
   setTimeout(fsqmsLoadFromFirestore, 2000);
 
@@ -475,7 +475,7 @@
       atp:gv('san-atp'),pest:gv('san-pest'),release:gv('san-release'),notes:gv('san-notes')
     };
     if(!rec.date||!rec.line){if(typeof toast==='function')toast('Date and Line are required','err');return;}
-    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-san');SQF_EV.uploadEvidence('fsqms-san','sanitation',{recordNum:'SAN_'+rec.date+'_'+rec.line.replace(/\s/g,'')}).catch(function(){});SQF_EV.clearStash('fsqms-san');}
+    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-san');SQF_EV.uploadEvidence('fsqms-san','sanitation',{recordNum:'SAN_'+rec.date+'_'+rec.line.replace(/\s/g,'')}).catch(function(e){console.warn('fsqmsEvidenceSan:',e);});SQF_EV.clearStash('fsqms-san');}
     SAN.push(rec);persistSan();renderFSQMS();
   }
   function saveQC(){
@@ -486,7 +486,7 @@
       defects:gv('qc-defects'),disposition:gv('qc-disp'),tech:gv('qc-tech')
     };
     if(!rec.date||!rec.line){if(typeof toast==='function')toast('Date and Line are required','err');return;}
-    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-qc');SQF_EV.uploadEvidence('fsqms-qc','qc',{recordNum:'QC_'+rec.date+'_'+rec.lot}).catch(function(){});SQF_EV.clearStash('fsqms-qc');}
+    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-qc');SQF_EV.uploadEvidence('fsqms-qc','qc',{recordNum:'QC_'+rec.date+'_'+rec.lot}).catch(function(e){console.warn('fsqmsEvidenceQc:',e);});SQF_EV.clearStash('fsqms-qc');}
     QUAL.push(rec);persistQual();renderFSQMS();
   }
   function saveHold(){
@@ -497,7 +497,7 @@
       disposition:'Hold',resolved:false
     };
     if(!rec.date||!rec.tagNum){if(typeof toast==='function')toast('Date and Tag # are required','err');return;}
-    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-hold');SQF_EV.uploadEvidence('fsqms-hold','hold',{recordNum:'HOLD_'+rec.tagNum}).catch(function(){});SQF_EV.clearStash('fsqms-hold');}
+    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-hold');SQF_EV.uploadEvidence('fsqms-hold','hold',{recordNum:'HOLD_'+rec.tagNum}).catch(function(e){console.warn('fsqmsEvidenceHold:',e);});SQF_EV.clearStash('fsqms-hold');}
     QUAL.push(rec);persistQual();renderFSQMS();
   }
   function saveRelease(){
@@ -507,7 +507,7 @@
       finalDisp:gv('rel-disp'),releasedBy:gv('rel-by')
     };
     if(!rec.date){if(typeof toast==='function')toast('Date is required','err');return;}
-    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-release');SQF_EV.uploadEvidence('fsqms-release','release',{recordNum:'REL_'+rec.date+'_'+rec.prodLot}).catch(function(){});SQF_EV.clearStash('fsqms-release');}
+    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-release');SQF_EV.uploadEvidence('fsqms-release','release',{recordNum:'REL_'+rec.date+'_'+rec.prodLot}).catch(function(e){console.warn('fsqmsEvidenceRelease:',e);});SQF_EV.clearStash('fsqms-release');}
     QUAL.push(rec);persistQual();renderFSQMS();
   }
   function saveMatRec(){
@@ -519,7 +519,7 @@
       coa:gv('mat-coa'),disposition:gv('mat-disp'),location:gv('mat-loc')
     };
     if(!rec.date||!rec.material){if(typeof toast==='function')toast('Date and Material are required','err');return;}
-    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-mat');SQF_EV.uploadEvidence('fsqms-mat','receiving',{recordNum:'REC_'+rec.date+'_'+rec.lot}).catch(function(){});SQF_EV.clearStash('fsqms-mat');}
+    if(window.SQF_EV){rec.evidence=SQF_EV.collectEvidence('fsqms-mat');SQF_EV.uploadEvidence('fsqms-mat','receiving',{recordNum:'REC_'+rec.date+'_'+rec.lot}).catch(function(e){console.warn('fsqmsEvidenceReceiving:',e);});SQF_EV.clearStash('fsqms-mat');}
     MAT.push(rec);persistMat();renderFSQMS();
   }
   function saveUsage(){

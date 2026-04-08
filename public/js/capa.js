@@ -534,7 +534,7 @@
       createdBy: currentUser || 'System',
       createdAt: new Date().toISOString()
     };
-    if(window.SQF_EV){ncrData.evidence=SQF_EV.collectEvidence('capa-ncr');SQF_EV.uploadEvidence('capa-ncr','ncr',{recordNum:'NCR_'+ncrData.ncrNumber}).catch(function(){});SQF_EV.clearStash('capa-ncr');}
+    if(window.SQF_EV){ncrData.evidence=SQF_EV.collectEvidence('capa-ncr');SQF_EV.uploadEvidence('capa-ncr','ncr',{recordNum:'NCR_'+ncrData.ncrNumber}).catch(function(e){console.warn('capaEvidenceUpload:',e);});SQF_EV.clearStash('capa-ncr');}
 
     db.collection('ncrs').add(ncrData).then(function(){
       toast('NCR submitted successfully', 'ok');

@@ -69,8 +69,8 @@
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // ═══════════════════════════════════════════════════════════════
-// MENU UNLOCK — password-gated full access
-// Full menu is always visible — no lock required
+// MENU UNLOCK — retained as no-ops (referenced by index.html footer tap)
+// Full menu is always visible via role-based auth — no lock needed
 // ═══════════════════════════════════════════════════════════════
 function mfxUnlockPrompt(){}
 function mfxLockMenu(){}
@@ -415,7 +415,7 @@ window.syncUserAccessProfile=function(){
 window.getMFXAuthHeaders=function(){
   return Promise.resolve().then(function(){
     if(typeof fbAuth!=='undefined' && fbAuth.currentUser && typeof fbAuth.currentUser.getIdToken==='function'){
-      return fbAuth.currentUser.getIdToken().catch(function(){ return ''; });
+      return fbAuth.currentUser.getIdToken().catch(function(e){ console.warn('getIdToken:',e); return ''; });
     }
     return '';
   }).then(function(token){
@@ -976,7 +976,7 @@ if (window.fbDb && typeof getUserId === 'function') {
     editing: qid,
     view: 'editor',
     lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true }).catch(function() {});
+  }, { merge: true }).catch(function(e){ console.warn('presenceUpdate:',e) });
 
   // Watch for other editors on same quote
   if (window._editPresenceUnsub) window._editPresenceUnsub();
@@ -1012,7 +1012,7 @@ function exitEditor(){if(typeof markClean==='function')markClean();saveQ();
 if (window.fbDb && typeof getUserId === 'function') {
   window.fbDb.collection('presence').doc(getUserId()).update({
     editing: null
-  }).catch(function() {});
+  }).catch(function(e){ console.warn('presenceDisconnect:',e) });
 }
 if (window._editPresenceUnsub) { window._editPresenceUnsub(); window._editPresenceUnsub = null; }
 if(S.profileId){openProfile(S.profileId)}else{goView('quotes')}}

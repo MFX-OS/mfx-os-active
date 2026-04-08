@@ -114,7 +114,7 @@ MFXAi.injectModulePanel = function(viewName) {
     MFXAi.getRecommendations({ module: cfg.module }).then(function(fresh) {
       var filtered = fresh.filter(function(r) { return r.status === 'pending_approval' || r.status === 'approved'; });
       if (filtered.length) _injectPanel(mainEl, viewName, cfg, filtered);
-    }).catch(function() {});
+    }).catch(function(e) { console.warn('aiPanelLoad', e); });
     // Still try with cached data
     if (recs.length) _injectPanel(mainEl, viewName, cfg, recs);
     return;

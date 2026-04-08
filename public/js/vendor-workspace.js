@@ -85,7 +85,7 @@ function getMFXDrive(token){
     if(d.drives)d.drives.forEach(function(dr){if(dr.name===DRIVE_ROOT)found=dr.id});
     if(found)_driveCache.mfxDriveId=found;
     return found;
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsDriveFind',e);return null});
 }
 
 function driveSearchFolder(token,name,parentId){
@@ -95,7 +95,7 @@ function driveSearchFolder(token,name,parentId){
     headers:{'Authorization':'Bearer '+token}
   }).then(function(r){return r.json()}).then(function(d){
     return(d.files&&d.files.length)?d.files[0].id:null;
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsFolderSearch',e);return null});
 }
 
 function driveCreateFolder(token,name,parentId,driveId){
@@ -104,7 +104,7 @@ function driveCreateFolder(token,name,parentId,driveId){
   return fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',{
     method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
     body:JSON.stringify(meta)
-  }).then(function(r){return r.json()}).then(function(d){return d.id||null}).catch(function(){return null});
+  }).then(function(r){return r.json()}).then(function(d){return d.id||null}).catch(function(e){console.warn('vwsFolderCreate',e);return null});
 }
 
 function driveGetOrCreateFolder(token,name,parentId){
@@ -175,7 +175,7 @@ function driveUploadFile(token,folderId,fileName,fileBlob,mimeType){
   }).then(function(r){return r.json()}).then(function(d){
     if(d.id)return{id:d.id,link:'https://drive.google.com/file/d/'+d.id+'/view'};
     return null;
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsDriveUpload',e);return null});
 }
 
 // Update existing Drive file
@@ -189,7 +189,7 @@ function driveUpdateFile(token,fileId,fileBlob,fileName,mimeType){
   }).then(function(r){return r.json()}).then(function(d){
     if(d.id)return{id:d.id,link:'https://drive.google.com/file/d/'+d.id+'/view'};
     return null;
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsDriveUpdate',e);return null});
 }
 
 // Search for existing file in folder
@@ -200,7 +200,7 @@ function driveFindFile(token,folderId,searchName){
     headers:{'Authorization':'Bearer '+token}
   }).then(function(r){return r.json()}).then(function(d){
     return(d.files&&d.files.length)?d.files[0]:null;
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsDriveFileFind',e);return null});
 }
 
 // ─── VPO PDF GENERATION ───────────────────────────────────────────
@@ -342,7 +342,7 @@ function saveVendorInvoiceToDrive(vendorName,invoiceNum,pdfBlob){
       if(!folderId)return null;
       return driveUploadFile(token,folderId,fileName,pdfBlob,'application/pdf');
     });
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsInvoiceSave',e);return null});
 }
 
 // ─── SAVE CERT TO DRIVE ───────────────────────────────────────────
@@ -353,7 +353,7 @@ function saveCertToDrive(vendorName,certName,fileBlob,mimeType){
       if(!folderId)return null;
       return driveUploadFile(token,folderId,certName,fileBlob,mimeType||'application/pdf');
     });
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsCertSave',e);return null});
 }
 
 // ─── VPO REGISTRY (Google Sheets) ────────────────────────────────
@@ -389,7 +389,7 @@ function getOrCreateVPORegistry(token){
         return null;
       });
     });
-  }).catch(function(){return null});
+  }).catch(function(e){console.warn('vwsRegistryCreate',e);return null});
 }
 
 function upsertVPORegistryRow(vpo,action){

@@ -78,7 +78,17 @@ function getContextReads(agentName, opts) {
       { key: 'openNCRs', collection: C.NCRS, where: [['status', '!=', 'closed']], limit: 20 },
       { key: 'vendorPOs', collection: C.VENDOR_POS, orderBy: ['createdAt'], limit: 20 }
     ],
-    // trainingAgent: removed — no specialist file exists
+    trainingAgent: [
+      { key: 'trainingRecords', collection: C.TRAINING_RECORDS, limit: 100 },
+      { key: 'employees', collection: C.EMPLOYEES, limit: 200 },
+      { key: 'trainingPrograms', collection: C.TRAINING_PROGRAMS, limit: 50 },
+      { key: 'onboarding', collection: C.ONBOARDING, limit: 50 }
+    ],
+    financeAgent: [
+      { key: 'invoices', collection: C.INVOICES, orderBy: ['createdAt'], limit: 100 },
+      { key: 'vendorInvoices', collection: C.VENDOR_INVOICES, orderBy: ['createdAt'], limit: 50 },
+      { key: 'salesOrders', collection: C.SALES_ORDERS, orderBy: ['createdAt'], limit: 50 }
+    ]
   };
 
   return READS[agentName] || [];

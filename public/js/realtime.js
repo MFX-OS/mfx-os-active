@@ -155,7 +155,7 @@ function getOnlineUsers(callback) {
     .then(function(snap) {
       var users = snap.docs.map(function(d) { return Object.assign({id: d.id}, d.data()) });
       callback(users);
-    }).catch(function() { callback([]) });
+    }).catch(function(e) { console.warn('realtimeLoad:',e); callback([]) });
 }
 
 // ═══ HOOK INTO AUTH ═══

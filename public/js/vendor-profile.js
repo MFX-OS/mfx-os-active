@@ -939,8 +939,8 @@ function vprLoadCalendarEvents(){
       _vprCalLoading=false;
       var grid=document.getElementById('vprCalGrid');
       if(grid)renderVendorProfile(); // re-render with events
-    }).catch(function(){_vprCalLoading=false});
-  }).catch(function(){_vprCalLoading=false});
+    }).catch(function(e){console.warn('vprCalendarLoad',e);_vprCalLoading=false});
+  }).catch(function(e){console.warn('vprCalendarFetch',e);_vprCalLoading=false});
 }
 
 // ─── SQF VIEW ─────────────────────────────────────────────────────

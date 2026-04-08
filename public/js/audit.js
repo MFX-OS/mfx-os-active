@@ -204,8 +204,8 @@
       return;
     }
     // Load audits and management reviews in parallel
-    var auditsP = db.collection('audits').orderBy('createdAt','desc').limit(20).get().catch(function(){ return null; });
-    var reviewsP = db.collection('managementReviews').orderBy('createdAt','desc').limit(10).get().catch(function(){ return null; });
+    var auditsP = db.collection('audits').orderBy('createdAt','desc').limit(20).get().catch(function(e){ console.warn('auditListLoad:',e); return null; });
+    var reviewsP = db.collection('managementReviews').orderBy('createdAt','desc').limit(10).get().catch(function(e){ console.warn('reviewListLoad:',e); return null; });
 
     Promise.all([auditsP, reviewsP]).then(function(results) {
       var auditSnap = results[0];
@@ -499,7 +499,7 @@
           retentionYears: 7,
           sqfClause: '2.1.4'
         };
-        if(window.SQF_EV){reviewData.evidence=SQF_EV.collectEvidence('audit-review');SQF_EV.uploadEvidence('audit-review','managementReview',{recordNum:'MR_'+date}).catch(function(){});SQF_EV.clearStash('audit-review');}
+        if(window.SQF_EV){reviewData.evidence=SQF_EV.collectEvidence('audit-review');SQF_EV.uploadEvidence('audit-review','managementReview',{recordNum:'MR_'+date}).catch(function(e){console.warn('auditEvidenceUpload:',e);});SQF_EV.clearStash('audit-review');}
 
         db.collection('managementReviews').add(reviewData).then(function(docRef) {
           toast('Management review saved: ' + docRef.id, 'success');

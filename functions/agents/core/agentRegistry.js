@@ -40,7 +40,7 @@ const REGISTRY = {
     module: 'production',
     triggerTypes: ['order_approved', 'ticket_created', 'stage_stalled', 'packet_incomplete'],
     readCollections: ['jobTickets', 'jobPassports', 'prepressInbox', 'approvalRecords'],
-    enabled: false, // Phase 3
+    enabled: true,
     version: '1.0.0'
   },
   [AGENT_NAMES.LEADERSHIP]: {
@@ -60,7 +60,7 @@ const REGISTRY = {
     module: 'quality',
     triggerTypes: ['training_expiring', 'new_employee', 'role_change'],
     readCollections: ['trainingRecords', 'trainingPrograms', 'employees'],
-    enabled: false, // Phase 3
+    enabled: true,
     version: '1.0.0'
   },
   [AGENT_NAMES.FINANCE]: {
@@ -69,8 +69,8 @@ const REGISTRY = {
     description: 'AR aging, collections, credit risk',
     module: 'finance',
     triggerTypes: ['invoice_aging', 'credit_hold', 'collections_due'],
-    readCollections: [],
-    enabled: false, // Phase 4
+    readCollections: ['invoices', 'vendorInvoices', 'salesOrders'],
+    enabled: true,
     version: '1.0.0'
   }
 };

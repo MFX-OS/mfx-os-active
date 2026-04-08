@@ -106,7 +106,7 @@ var me=getUserName();
 // Mark as read
 fbDb.collection('dms').doc(threadId).update({
 readBy:firebase.firestore.FieldValue.arrayUnion(me)
-}).catch(function(){});
+}).catch(function(e){ console.warn('featuresInit:',e) });
 
 fbDb.collection('dms').doc(threadId).collection('messages').orderBy('timestamp','desc').limit(50).get().then(function(snap){
 var msgs=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())}).reverse();

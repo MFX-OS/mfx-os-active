@@ -27,8 +27,12 @@ function openProjectDetail(pid){fbDb.collection('projects').doc(pid).get().then(
 function toggleProjectCheck(pid,idx){fbDb.collection('projects').doc(pid).get().then(function(doc){var p=doc.data();var cl=p.checklist||[];if(cl[idx]){cl[idx].done=!cl[idx].done;cl[idx].completedAt=cl[idx].done?new Date().toISOString():null}fbDb.collection('projects').doc(pid).update({checklist:cl}).then(function(){closeModal();openProjectDetail(pid)})}).catch(function(e){ console.warn('MODULES get:', e.message); })}
 function addProjectCheck(pid){var el=$('pj-sub');if(!el||!el.value.trim())return;fbDb.collection('projects').doc(pid).get().then(function(doc){var p=doc.data();var cl=p.checklist||[];cl.push({text:el.value.trim(),done:false});fbDb.collection('projects').doc(pid).update({checklist:cl}).then(function(){closeModal();openProjectDetail(pid)})}).catch(function(e){ console.warn('MODULES get:', e.message); })}
 function addProjectComment(pid){var el=$('pj-comment');if(!el||!el.value.trim())return;fbDb.collection('projects').doc(pid).get().then(function(doc){var p=doc.data();var c=p.comments||[];c.push({by:getUserName(),text:el.value.trim(),at:fD(new Date().toISOString())});fbDb.collection('projects').doc(pid).update({comments:c}).then(function(){closeModal();openProjectDetail(pid)})}).catch(function(e){ console.warn('MODULES get:', e.message); })}
-// TODO: move admin code validation server-side in a future sprint
-function closeProject(pid){var _pm=getMFXProfile();var _rm=(_pm.role||'').toLowerCase();if(!['ceo','admin','administrator','owner','operations manager','manager'].includes(_rm))return toast('Unauthorized — admin role required','err');fbDb.collection('projects').doc(pid).update({status:'closed',closedAt:new Date().toISOString()}).then(function(){closeModal();toast('Closed!','ok');renderBoardTab(window._boardTab||0)})}
+function closeProject(pid){
+if(!window.MFX_API||navigator.onLine===false){return toast('Closing a project requires server connection','err')}
+window.MFX_API.postJSON('/api/transitionStatus',{collection:'projects',docId:pid,newStatus:'closed'}).then(function(res){
+  if(res.success){closeModal();toast('Closed!','ok');renderBoardTab(window._boardTab||0)}
+  else{toast(res.error||'Close failed','err')}
+}).catch(function(e){console.warn('closeProject:',e);toast('Close failed — server error','err')})}
 
 function postThread(){var el=$('threadMsg');if(!el||!el.value.trim())return;fbDb.collection('threads').add({message:el.value.trim(),user:getUserName(),timestamp:firebase.firestore.FieldValue.serverTimestamp(),likes:0,comments:[]}).then(function(){el.value='';renderBoardTab(3)})}
 function postFlex(){var el=$('flexMsg');if(!el||!el.value.trim())return;fbDb.collection('support').add({message:el.value.trim(),user:getUserName(),timestamp:firebase.firestore.FieldValue.serverTimestamp(),likes:0,comments:[]}).then(function(){el.value='';renderBoardTab(5)})}
@@ -71,7 +75,7 @@ fetch('https://www.googleapis.com/tasks/v1/lists/@default/tasks?maxResults=50&sh
 headers:{'Authorization':'Bearer '+token}
 }).then(function(r){return r.json()}).then(function(data){
 callback((data.items||[]).map(function(t){return{id:'gtask_'+t.id,title:'☑ '+t.title,date:(t.due||'').substring(0,10),time:'',notes:t.notes||'',isGTask:true,completed:t.status==='completed'}}))
-}).catch(function(){callback([])})}).catch(function(){callback([])})}
+}).catch(function(e){console.warn('calTasksLoad:',e);callback([])})}).catch(function(e){console.warn('calTasksLoad:',e);callback([])})}
 
 function completeGoogleTask(taskId){
 getGoogleToken().then(function(token){if(!token)return;
@@ -89,7 +93,7 @@ headers:{'Authorization':'Bearer '+token}
 }).then(function(r){return r.json()}).then(function(data){
 callback((data.items||[]).map(function(e){var dt=e.start.dateTime||e.start.date||'';
 return{id:'gcal_'+e.id,title:e.summary||'',date:dt.substring(0,10),time:dt.length>10?dt.substring(11,16):'',type:'meeting',isGcal:true,notes:[],completed:false}}))
-}).catch(function(){callback([])})}).catch(function(){callback([])})}
+}).catch(function(e){console.warn('calEventsLoad:',e);callback([])})}).catch(function(e){console.warn('calEventsLoad:',e);callback([])})}
 
 function getFlexData(){
 var qs=DB.quotes();var me=getUserName();
@@ -438,41 +442,19 @@ ${approved.slice(0,10).map(q=>`<div style="padding:6px 0;border-bottom:1px solid
 <div style="font-size:11px;color:var(--tx2);line-height:2">Total: <strong>${all.length}</strong> · Draft: <strong>${all.filter(q=>q.status==='draft').length}</strong> · Pending: <strong>${pending.length}</strong> · Sent: <strong>${all.filter(q=>q.status==='sent').length}</strong> · Won: <strong>${all.filter(q=>q.status==='won').length}</strong> · Lost: <strong>${all.filter(q=>q.status==='lost').length}</strong></div>
 </div></div>`}
 
-// TODO: move admin code validation server-side in a future sprint
 function ceoAction(qid,action){
-// Try server-side approval first (role verified on server)
-if(window.MFX_API && navigator.onLine !== false){
-  var ceoNote = action==='approve' ? prompt('Approval notes (optional):') : prompt('Rejection reason:');
-  if(ceoNote === null && action==='reject') return; // cancelled
-  window.MFX_API.postJSON('/api/ceoApprove',{docId:qid,collection:'quotes',action:action,note:ceoNote||''}).then(function(res){
-    if(res.success){
-      toast(action==='approve'?'Approved → Ready!':'Rejected','ok');
-      DB.logActivity('ceo.'+action,(DB.quotes().find(function(q){return q.id===qid})||{}).quoteNum+' '+action+' by server');
-      if(action==='approve'){S.editId=qid;setTimeout(function(){if(typeof autoSaveApproved==='function')autoSaveApproved(qid)},500)}
-      renderCEOPortal();
-    } else { toast(res.error||'Approval failed','err'); }
-  }).catch(function(e){
-    console.warn('Server approval failed, falling back to client:',e.message);
-    ceoActionClient(qid,action);
-  });
-  return;
+if(!window.MFX_API||navigator.onLine===false){return toast('Approval requires server connection — go online and retry','err')}
+var ceoNote = action==='approve' ? prompt('Approval notes (optional):') : prompt('Rejection reason:');
+if(ceoNote === null && action==='reject') return;
+window.MFX_API.postJSON('/api/ceoApprove',{docId:qid,collection:'quotes',action:action,note:ceoNote||''}).then(function(res){
+  if(res.success){
+    toast(action==='approve'?'Approved → Ready!':'Rejected','ok');
+    DB.logActivity('ceo.'+action,(DB.quotes().find(function(q){return q.id===qid})||{}).quoteNum+' '+action+' by server');
+    if(action==='approve'){S.editId=qid;setTimeout(function(){if(typeof autoSaveApproved==='function')autoSaveApproved(qid)},500)}
+    renderCEOPortal();
+  } else { toast(res.error||'Approval failed','err'); }
+}).catch(function(e){console.warn('ceoApprove:',e);toast('Approval failed — server error','err')});
 }
-ceoActionClient(qid,action);
-}
-function ceoActionClient(qid,action){
-var p = getMFXProfile();
-var allowedRoles = ['ceo','admin','administrator','owner','operations manager'];
-var userRole = (p.role || '').toLowerCase();
-if (!allowedRoles.includes(userRole)) {
-  return toast('Unauthorized — CEO or admin role required', 'err');
-}
-if (navigator.onLine === false) {
-  return toast('Approval requires server connection — go online and retry', 'err');
-}
-const all=DB.quotes();const q=all.find(x=>x.id===qid);if(!q)return;if(!q.internalNotes)q.internalNotes=[];const ts=new Date().toISOString();
-if(action==='approve'){const ceoNote=prompt('Approval notes (optional):');q.status='ready';if(typeof bakePricing==='function') bakePricing(q);q.approvedBy=getUserName();q.approvedAt=ts;q.updatedAt=ts;q.internalNotes.push({id:'n'+Date.now(),text:'✅ APPROVED on '+new Date(ts).toLocaleString()+(ceoNote?' — '+ceoNote:''),by:getUserName(),at:ts,mentions:[],replies:[]});DB.saveQ(all);DB.logActivity('ceo.approve',q.quoteNum+' approved by '+getUserName());toast('Approved → Ready!','ok');logClientActivity(q.fields.custCo,'✅ '+q.quoteNum+' approved by '+getUserName());S.editId=qid;setTimeout(function(){autoSaveApproved(qid)},500);if(typeof MFXAudit!=='undefined')MFXAudit.approve('quotes',qid,q.quoteNum+' approved')}
-else{const reason=prompt('Rejection reason:');q.status='rejected';q.rejectedBy=getUserName();q.rejectedAt=ts;q.rejectionReason=reason||'';q.updatedAt=ts;q.internalNotes.push({id:'n'+Date.now(),text:'❌ REJECTED on '+new Date(ts).toLocaleString()+(reason?' — '+reason:''),by:getUserName(),at:ts,mentions:[],replies:[]});DB.saveQ(all);DB.logActivity('ceo.reject',q.quoteNum+' rejected by '+getUserName()+' at '+new Date(ts).toLocaleString()+(reason?' — '+reason:''));toast('Rejected','ok');if(typeof MFXAudit!=='undefined')MFXAudit.approve('quotes',qid,q.quoteNum+' rejected: '+(reason||'no reason'))}
-renderCEOPortal()}
 
 function openSupportInbox(){
 S.view='supportinbox';document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));$('v-supportinbox').classList.add('active');$('mainTabs').style.display='none';$('hdrBack').style.display='block';$('hdrBack').onclick=()=>goView('dashboard');$('hdrTitle').textContent='My Inbox';$('hdrActions').innerHTML='';renderPersonalInbox()}
@@ -961,7 +943,7 @@ _moduleInterval1 = setInterval(updateHamNotifs,5000);
 function updateActiveUsers(){var el=$('hamActiveUsers');if(!el||!fbDb)return;
 var me=getUserName();if(me&&fbAuth.currentUser){fbDb.collection('users').doc(fbAuth.currentUser.uid).set({displayName:me,email:fbAuth.currentUser.email||'',lastSeen:firebase.firestore.FieldValue.serverTimestamp(),online:true},{merge:true})}
 var cutoff=new Date(Date.now()-5*60*1000);
-fbDb.collection('users').get().then(function(snap){var h='';var count=0;snap.docs.forEach(function(d){var u=d.data();var name=u.displayName||u.email||'';if(!name)return;var ls=u.lastSeen?new Date(u.lastSeen.seconds*1000):null;var isOnline=ls&&ls>cutoff;if(isOnline)count++;h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="width:8px;height:8px;border-radius:50%;background:'+(isOnline?'var(--gn)':'var(--tx3)')+';display:inline-block;flex-shrink:0"></span><span style="color:'+(isOnline?'var(--tx)':'var(--tx3)')+'">'+esc(name)+'</span></div>'});if(!h)h='<div style="color:var(--tx3)">No users found</div>';el.innerHTML=h}).catch(function(){el.innerHTML='<div style="color:var(--tx3)">Unavailable</div>'})}
+fbDb.collection('users').get().then(function(snap){var h='';var count=0;snap.docs.forEach(function(d){var u=d.data();var name=u.displayName||u.email||'';if(!name)return;var ls=u.lastSeen?new Date(u.lastSeen.seconds*1000):null;var isOnline=ls&&ls>cutoff;if(isOnline)count++;h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><span style="width:8px;height:8px;border-radius:50%;background:'+(isOnline?'var(--gn)':'var(--tx3)')+';display:inline-block;flex-shrink:0"></span><span style="color:'+(isOnline?'var(--tx)':'var(--tx3)')+'">'+esc(name)+'</span></div>'});if(!h)h='<div style="color:var(--tx3)">No users found</div>';el.innerHTML=h}).catch(function(e){console.warn('activeUsersLoad:',e);el.innerHTML='<div style="color:var(--tx3)">Unavailable</div>'})}
 _moduleInterval2 = setInterval(updateActiveUsers,30000);
 setTimeout(updateActiveUsers,2000);
 setTimeout(updateHamNotifs,2000);
@@ -1389,7 +1371,8 @@ var rl=$('hamUserRole');if(rl){var pts=p.score;var pv=typeof pts==='object'?pts.
 rl.innerHTML='<span style="color:'+(isLeadership?'#00e5ff':'var(--tx3)')+'">'+role+'</span> · <span style="color:'+avatarColor+'">'+userDept+'</span> · '+(pv||0).toFixed(1)+' pts'}}
 
 function openUserProfile(){var p=getMFXProfile();var me=getUserName();var fn=p.displayName||me.split(' ')[0];var h='<div class="modal-title">My Profile</div><div style="text-align:center;margin-bottom:12px"><div style="width:56px;height:56px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#000;margin:0 auto">'+me.split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase()+'</div><div style="font-size:14px;font-weight:700;color:var(--tx);margin-top:6px">'+me+'</div><div style="font-size:10px;color:var(--tx3)">'+(CURRENT_USER?CURRENT_USER.email:'')+'</div></div><div class="fg"><label>Full Name (locked)</label><input value="'+me+'" disabled style="opacity:.5"></div><div class="fg"><label>Email (locked)</label><input value="'+(CURRENT_USER?CURRENT_USER.email:'')+'" disabled style="opacity:.5"></div><div class="fg"><label>Display Name (@ tag) <span style="color:var(--or)">Admin</span></label><input id="up-name" value="'+fn+'" disabled style="opacity:.5"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-name\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Flex ID <span style="color:var(--or)">Admin</span></label><input id="up-flexid" value="'+(p.flexId||'')+'" disabled style="opacity:.5"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-flexid\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Position / Title <span style="color:var(--or)">Admin</span></label><input id="up-position" value="'+(p.position||'')+'" disabled style="opacity:.5" placeholder="e.g. Director of Digital & Operations"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-position\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Role <span style="color:var(--or)">Admin</span></label><input id="up-role" value="'+(p.role||'')+'" disabled style="opacity:.5"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-role\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Department <span style="color:var(--or)">Admin</span></label><select id="up-dept" disabled style="opacity:.5"><option value="">—</option>';['Operations','Estimation','Pre-Press','Production','Quality','Accounting','Sales','Administration'].forEach(function(d){h+='<option'+(p.dept===d?' selected':'')+'>'+d+'</option>'});h+='</select><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-dept\')" style="margin-top:4px">🔓</button></div><button class="btn btn-pr" onclick="saveUserProfile()" style="width:100%;margin-top:10px">Save</button><button class="btn btn-ghost" onclick="closeModal()" style="width:100%;margin-top:6px">Cancel</button>';openModal(h)}
-// TODO: move admin code validation server-side in a future sprint
+// unlockField: UI-only gate. Firestore rules enforce that non-management users
+// cannot write role/dept fields (see users/{userId} rule — self-update blocked).
 function unlockField(id){var _pu=getMFXProfile();var _ru=(_pu.role||'').toLowerCase();if(['ceo','admin','administrator','owner','operations manager','manager'].includes(_ru)){var el=$(id);if(el){el.disabled=false;el.style.opacity='1'}}else{toast('Unauthorized — admin role required','err')}}
 function saveUserProfile(){var f={displayName:($('up-name')||{}).value||'',flexId:($('up-flexid')||{}).value||'',position:($('up-position')||{}).value||'',role:($('up-role')||{}).value||'',dept:($('up-dept')||{}).value||''};Object.keys(f).forEach(function(k){saveMFXProfile(k,f[k])});if(typeof syncUserAccessProfile==='function')syncUserAccessProfile();closeModal();toast('Saved!','ok');populateHamUser()}
 

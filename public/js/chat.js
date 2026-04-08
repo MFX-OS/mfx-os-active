@@ -582,7 +582,7 @@ function chatAddImage(){
 // ── GIF PICKER (GIPHY API) ──
 // Set your GIPHY API key: get one free at https://developers.giphy.com/dashboard/
 // Store in localStorage or hardcode below
-var GIPHY_KEY=localStorage.getItem('mfx_giphy_key')||'';
+var GIPHY_KEY=localStorage.getItem('mfx_giphy_key')||'GDbNFd3wNVLQwb3bnFRPYinHvy8bskQT';
 
 function chatSearchGif(target){
   // target: 'chat' (main chat) or 'ic' (instant chat)
@@ -890,17 +890,31 @@ function icShowList(){
   if(!body||!fbDb)return;
   body.innerHTML='<div style="text-align:center;color:var(--tx3);padding:20px;font-size:11px">Loading chats...</div>';
 
-  // Load channels + DMs (no orderBy — lastMessageAt can be null on seeded channels)
-  fbDb.collection('chat_channels').get().then(function(snap){
-    var channels=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
-    // Sort client-side: most recent activity first, nulls last
+  // Load channels + recent messages for unread counts
+  var uid=getUserId();
+  Promise.all([
+    fbDb.collection('chat_channels').get(),
+    fbDb.collection('chat_messages').orderBy('timestamp','desc').limit(200).get()
+  ]).then(function(results){
+    var channelSnap=results[0];var msgSnap=results[1];
+    var channels=channelSnap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
     channels.sort(function(a,b){
       var at=a.lastMessageAt?a.lastMessageAt.seconds:0;
       var bt=b.lastMessageAt?b.lastMessageAt.seconds:0;
       return bt-at;
     });
-    var me=getUserName();var uid=getUserId();
-    // Split into DMs and group channels
+
+    // Count unreads per channel
+    var unreadByChannel={};
+    msgSnap.docs.forEach(function(d){
+      var data=d.data();
+      if(data.userId!==uid&&(!data.readBy||data.readBy.indexOf(uid)<0)){
+        var chId=data.channelId||'';
+        unreadByChannel[chId]=(unreadByChannel[chId]||0)+1;
+      }
+    });
+
+    var me=getUserName();
     var dms=channels.filter(function(c){return c.type==='dm'&&(c.members||[]).indexOf(me)>=0});
     var groups=channels.filter(function(c){return c.type==='channel'});
 
@@ -918,10 +932,15 @@ function icShowList(){
         var other=c.name.replace(me,'').replace('·','').trim()||c.name;
         var lastMsg=c.lastMessage||'';
         var time=c.lastMessageAt?icTimeAgo(c.lastMessageAt):'';
-        h+='<div onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'">';
-        h+='<div style="width:32px;height:32px;border-radius:50%;border:2px solid #00e5ff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#00e5ff;flex-shrink:0">'+icInitials(other)+'</div>';
-        h+='<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(other)+'</span><span style="font-size:8px;color:var(--tx3)">'+time+'</span></div>';
-        h+='<div style="font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">'+esc(lastMsg.substring(0,50))+'</div></div></div>';
+        var unread=unreadByChannel[c.id]||0;
+        var isUnread=unread>0;
+        h+='<div onclick="icOpenChat(\''+c.id+'\',\''+esc(other)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;'+(isUnread?'background:rgba(0,229,255,.04)':'')+'" onmouseover="this.style.background=\'rgba(0,229,255,.08)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.04)':'none')+'\'">';
+        h+='<div style="width:32px;height:32px;border-radius:50%;border:2px solid '+(isUnread?'#00e5ff':'var(--bdr)')+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+(isUnread?'#00e5ff':'var(--tx3)')+';flex-shrink:0">'+icInitials(other)+'</div>';
+        h+='<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'var(--tx)':'var(--tx2)')+'">'+esc(other)+'</span>';
+        h+='<div style="display:flex;align-items:center;gap:6px">';
+        if(isUnread) h+='<span style="background:#00e5ff;color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;min-width:16px;text-align:center">'+unread+'</span>';
+        h+='<span style="font-size:8px;color:var(--tx3)">'+time+'</span></div></div>';
+        h+='<div style="font-size:10px;color:'+(isUnread?'var(--tx2)':'var(--tx3)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;'+(isUnread?'font-weight:600':'')+'">'+esc(lastMsg.substring(0,50))+'</div></div></div>';
       });
     }else{
       h+='<div style="padding:8px 12px;font-size:10px;color:var(--tx3)">No conversations yet</div>';
@@ -932,10 +951,15 @@ function icShowList(){
     groups.slice(0,15).forEach(function(c){
       var lastMsg=c.lastMessage||'';
       var time=c.lastMessageAt?icTimeAgo(c.lastMessageAt):'';
-      h+='<div onclick="icOpenChat(\''+c.id+'\',\'#'+esc(c.name)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s" onmouseover="this.style.background=\'rgba(0,229,255,.06)\'" onmouseout="this.style.background=\'none\'">';
-      h+='<div style="width:32px;height:32px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--cy);flex-shrink:0">#</div>';
-      h+='<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;font-weight:600;color:var(--tx)">#'+esc(c.name)+'</span><span style="font-size:8px;color:var(--tx3)">'+time+'</span></div>';
-      h+='<div style="font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">'+esc(lastMsg.substring(0,50))+'</div></div></div>';
+      var unread=unreadByChannel[c.id]||0;
+      var isUnread=unread>0;
+      h+='<div onclick="icOpenChat(\''+c.id+'\',\'#'+esc(c.name)+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;'+(isUnread?'background:rgba(0,229,255,.04)':'')+'" onmouseover="this.style.background=\'rgba(0,229,255,.08)\'" onmouseout="this.style.background=\''+(isUnread?'rgba(0,229,255,.04)':'none')+'\'">';
+      h+='<div style="width:32px;height:32px;border-radius:50%;background:'+(isUnread?'rgba(0,229,255,.1)':'var(--bg3)')+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:'+(isUnread?'#00e5ff':'var(--tx3)')+';flex-shrink:0">#</div>';
+      h+='<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:'+(isUnread?'700':'500')+';color:'+(isUnread?'var(--tx)':'var(--tx2)')+'">'+esc(c.name)+'</span>';
+      h+='<div style="display:flex;align-items:center;gap:6px">';
+      if(isUnread) h+='<span style="background:#00e5ff;color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;min-width:16px;text-align:center">'+unread+'</span>';
+      h+='<span style="font-size:8px;color:var(--tx3)">'+time+'</span></div></div>';
+      h+='<div style="font-size:10px;color:'+(isUnread?'var(--tx2)':'var(--tx3)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;'+(isUnread?'font-weight:600':'')+'">'+esc(lastMsg.substring(0,50))+'</div></div></div>';
     });
 
     body.innerHTML=h;
@@ -966,12 +990,14 @@ function icOpenChat(channelId,displayName){
       icRenderMessages();
       // Mark as read
       var uid=getUserId();
+      var markOps=[];
       snap.docs.forEach(function(d){
         var data=d.data();
         if(data.userId!==uid&&(!data.readBy||data.readBy.indexOf(uid)<0)){
-          fbDb.collection('chat_messages').doc(d.id).update({readBy:firebase.firestore.FieldValue.arrayUnion(uid)}).catch(function(){});
+          markOps.push(fbDb.collection('chat_messages').doc(d.id).update({readBy:firebase.firestore.FieldValue.arrayUnion(uid)}).catch(function(e){console.warn('icMarkRead:',e)}));
         }
       });
+      // After marking all read, the global unread listener will re-fire and update the badge
     },function(err){console.warn('IC messages:',err.message)});
 
   // Focus input

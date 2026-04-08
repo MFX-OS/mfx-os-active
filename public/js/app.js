@@ -314,7 +314,7 @@ fbDb.collection('users').get().then(function(snap){
 var sEl=document.getElementById('jtStaff');if(!sEl)return;
 var online=[];snap.docs.forEach(function(d){var u=d.data();var nm=u.displayName||u.email||'';if(!nm)return;var ls=u.lastSeen?new Date(u.lastSeen.seconds*1000):null;if(ls&&ls>cutoff)online.push(nm)});
 if(online.length){sEl.innerHTML='<div style="margin-bottom:4px;font-weight:600;color:'+c+'">'+online.length+' checked in</div>'+online.map(function(n){return'<div style="padding:2px 0;display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gn);display:inline-block"></span>'+esc(n)+'</div>'}).join('')}
-else{sEl.innerHTML='<div style="color:var(--tx3)">No staff checked in yet</div>'}}).catch(function(){})}
+else{sEl.innerHTML='<div style="color:var(--tx3)">No staff checked in yet</div>'}}).catch(function(e){console.warn('staffCheckin:',e)})}
 
 // ── Async: Active Tickets + Pods + Schedule ──
 if(typeof loadAllTasks==='function'){loadAllTasks(function(items){
@@ -353,7 +353,7 @@ if(fbDb){fbDb.collection('activity').orderBy('timestamp','desc').limit(8).get().
 var fEl=document.getElementById('jtFeed');if(!fEl)return;
 var acts=snap.docs.map(function(d){return d.data()});
 if(acts.length){fEl.innerHTML=acts.map(function(a){var ts=a.timestamp?new Date(a.timestamp):new Date();return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between"><span>'+esc(a.detail||a.action)+'</span><span style="color:var(--tx3);font-size:9px">'+getTimeAgo(ts)+'</span></div>'}).join('')}
-else{fEl.innerHTML='<div style="color:var(--tx3)">No recent activity</div>'}}).catch(function(){})}
+else{fEl.innerHTML='<div style="color:var(--tx3)">No recent activity</div>'}}).catch(function(e){console.warn('dashActivity:',e)})}
 }
 
 // ═══ DEPARTMENT HOME PAGES ═══
@@ -489,14 +489,14 @@ if(fbDb){fbDb.collection('activity').orderBy('timestamp','desc').limit(10).get()
 var fEl=document.getElementById('deptHomeFeed');if(!fEl)return;
 var acts=snap.docs.map(function(d){return d.data()});
 if(acts.length){fEl.innerHTML=acts.slice(0,6).map(function(a){var ts=a.timestamp?new Date(a.timestamp):new Date();return'<div style="padding:3px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between"><span>'+esc(a.detail||a.action)+'</span><span style="color:var(--tx3);font-size:9px">'+getTimeAgo(ts)+'</span></div>'}).join('')}
-else{fEl.innerHTML='<div style="color:var(--tx3)">No recent activity</div>'}}).catch(function(){})}
+else{fEl.innerHTML='<div style="color:var(--tx3)">No recent activity</div>'}}).catch(function(e){console.warn('deptActivity:',e)})}
 
 // Team Org Chart
 if(fbDb){fbDb.collection('users').get().then(function(snap){
 var oEl=document.getElementById('deptHomeOrg');if(!oEl)return;
 var members=[];snap.docs.forEach(function(d){var u=d.data();if(u.displayName)members.push({name:u.displayName,email:u.email||''})});
 if(members.length){oEl.innerHTML=members.map(function(m){var ini=m.name.split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase();return'<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><div style="width:22px;height:22px;border-radius:50%;background:'+c+';color:#000;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700">'+esc(ini)+'</div><div><div style="font-size:10px;font-weight:600;color:var(--tx)">'+esc(m.name)+'</div></div></div>'}).join('')}
-else{oEl.innerHTML='<div style="color:var(--tx3)">No team data</div>'}}).catch(function(){})}
+else{oEl.innerHTML='<div style="color:var(--tx3)">No team data</div>'}}).catch(function(e){console.warn('deptTeam:',e)})}
 
 // Points & Leaderboard
 if(typeof calcPoints==='function'){
@@ -507,7 +507,7 @@ var lEl=document.getElementById('deptHomeLeaderboard');if(!lEl)return;
 snap.docs.forEach(function(d){var u=d.data();if(u.displayName){var r=calcPoints(u.displayName,allQs);allUsers.push({name:u.displayName,pts:r.pts})}});
 allUsers.sort(function(a,b){return b.pts-a.pts});
 if(allUsers.length){lEl.innerHTML=allUsers.slice(0,6).map(function(u,i){var medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';return'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--bdr)"><span>'+medal+' '+esc(u.name)+'</span><span style="color:'+c+';font-weight:700">'+u.pts.toFixed(1)+' pts</span></div>'}).join('')}
-else{lEl.innerHTML='<div style="color:var(--tx3)">No scores yet</div>'}}).catch(function(){})}}
+else{lEl.innerHTML='<div style="color:var(--tx3)">No scores yet</div>'}}).catch(function(e){console.warn('deptScores:',e)})}}
 }
 
 function deptBulletinPost(key){toast('Bulletin board coming soon','ok')}
@@ -715,7 +715,7 @@ if (typeof fbDb !== 'undefined' && fbDb) {
           '<span style="font-size:11px;color:var(--tx2)">' + esc(a.action || a.detail || '') + '</span></div>' +
           '<div style="font-size:11px;color:var(--tx3);white-space:nowrap;margin-left:8px">' + (typeof fD === 'function' ? fD(a.timestamp) : '') + '</div></div>';
       }).join('');
-    }).catch(function() {});
+    }).catch(function(e) {console.warn('dashFeedLoad:',e)});
 }
 
 // Load today's tasks
@@ -1049,7 +1049,7 @@ h+='<div class="card blink-danger" style="padding:6px 10px;cursor:pointer" oncli
 if(todayTasks.length){todayTasks.forEach(function(t){
 h+='<div class="card" style="padding:6px 10px;border-left:3px solid var(--ac);cursor:pointer" onclick="openTaskDetail(\''+t.id+'\')"><span style="font-size:11px">'+(t.type==='task'?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>')+' '+esc(t.title)+'</span></div>'})}
 if(!overdue.length&&!todayTasks.length)h='<div style="color:var(--tx3);font-size:10px;padding:6px">All clear - nothing due today 🎉</div>';
-el.innerHTML=h}).catch(function(){el.innerHTML=''})}
+el.innerHTML=h}).catch(function(e){console.warn('dashTodoLoad:',e);el.innerHTML=''})}
 
 function loadDashAlerts(me,qs){
 var el=$('dashAlerts');if(!el)return;
@@ -1492,7 +1492,6 @@ q.terms=[...DEFAULT_TERMS];DB.saveQ(all,S.editId);renderTermsEditor();edCalcAll(
 
 function switchET(n){S.etab=n;saveQ();renderEditor();if(n===6)setTimeout(renderSendPane,100);if(n===7){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}$('vc').scrollTop=0}
 function switchTLSub(sub){window._tlSub=sub;var tabs=['activity','notes','workflow','connections'];tabs.forEach(function(t){var el=$('tl'+t.charAt(0).toUpperCase()+t.slice(1));if(el)el.style.display=t===sub?'block':'none'});if(sub==='workflow')renderWorkflow();if(sub==='connections')renderConnections();S.etab=7;renderEditor()}
-function _isBypassUser(){return false;/* bypass removed — use role-based auth only */}
 function _validateQuoteForSubmit(q){
 if(!q.fields.custCo || !q.fields.custCo.trim()) { toast('Customer company is required','err'); return false; }
 if(!q.fields.estimator || !q.fields.estimator.trim()) { toast('Estimator is required','err'); return false; }
@@ -1510,7 +1509,7 @@ function quickApprove(qid){const all=DB.quotes();const q=all.find(x=>x.id===qid)
 q.status='ready';q.approvedBy=getUserName();q.approvedAt=new Date().toISOString();q.updatedAt=new Date().toISOString();
 if(typeof bakePricing==='function')bakePricing(q);
 logQuoteEvent(q,'status','Approved by '+getUserName());DB.saveQ(all,qid);DB.logActivity('quote.approved',q.quoteNum+' approved by '+getUserName());toast('Approved! → Ready','ok');notifyTeam('✅ '+q.quoteNum+' approved by '+getUserName());renderQuotes()}
-function ceoApprove(qid){var _bypass=_isBypassUser();if(!_bypass){var _p=getMFXProfile();var _r=(_p.role||'').toLowerCase();var _allowed=['ceo','admin','administrator','owner','operations manager','manager'];if(!_allowed.includes(_r)){toast('Unauthorized — CEO or admin role required','err');return}var _confirm=confirm('Approve this quote as '+(_p.role||'Admin')+'?');if(!_confirm)return;}{const all=DB.quotes();const q=all.find(x=>x.id===qid);if(!q)return;
+function ceoApprove(qid){var _p=getMFXProfile();var _r=(_p.role||'').toLowerCase();var _allowed=['ceo','admin','administrator','owner','operations manager','manager'];if(!_allowed.includes(_r)){toast('Unauthorized — CEO or admin role required','err');return}var _confirm=confirm('Approve this quote as '+(_p.role||'Admin')+'?');if(!_confirm)return;{const all=DB.quotes();const q=all.find(x=>x.id===qid);if(!q)return;
 var ceoNote=prompt('CEO notes (optional — shown to team):','');
 q.status='ready';q.approvedBy='CEO';q.approvedAt=new Date().toISOString();q.updatedAt=new Date().toISOString();
 if(typeof bakePricing==='function')bakePricing(q);
@@ -1645,14 +1644,14 @@ h+='</div></div>';
 el.innerHTML=h}
 
 function setClientHealth(cid,dir){
-  if(!_isBypassUser()){var _p2=getMFXProfile();var _r2=(_p2.role||'').toLowerCase();if(!['ceo','admin','administrator','owner','operations manager','manager'].includes(_r2)){toast('Unauthorized — admin role required','err');return}}
+  var _p2=getMFXProfile();var _r2=(_p2.role||'').toLowerCase();if(!['ceo','admin','administrator','owner','operations manager','manager'].includes(_r2)){toast('Unauthorized — admin role required','err');return}
   var all=DB.customers();var c=all.find(function(x){return x.id===cid});if(!c)return;
   c.healthScore=Math.max(0,Math.min(100,(c.healthScore||50)+(dir==='up'?5:-5)));
   DB.saveC(all);toast('Health → '+c.healthScore,'ok');
   renderClientMiniDash(c)}
 
 function addCEONote(cid){
-  if(!_isBypassUser()){var _p3=getMFXProfile();var _r3=(_p3.role||'').toLowerCase();if(!['ceo','admin','administrator','owner','operations manager','manager'].includes(_r3))return toast('Unauthorized — CEO or admin role required','err');}
+  var _p3=getMFXProfile();var _r3=(_p3.role||'').toLowerCase();if(!['ceo','admin','administrator','owner','operations manager','manager'].includes(_r3))return toast('Unauthorized — CEO or admin role required','err');
   var text=prompt('CEO note for this client:');if(!text)return;
   var all=DB.customers();var c=all.find(function(x){return x.id===cid});if(!c)return;
   if(!c.ceoNotes)c.ceoNotes=[];
@@ -1926,7 +1925,7 @@ return fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q
 headers:{'Authorization':'Bearer '+token}
 }).then(function(r){return r.json()}).then(function(data){
 return(data.files&&data.files.length)?data.files[0].id:null})
-}).catch(function(){return null})}
+}).catch(function(e){console.warn('findQuotesFolder:',e);return null})}
 
 function saveQuoteToDrive(){
 var q=getQ(S.editId);if(!q)return;
@@ -2538,7 +2537,7 @@ function renderMeetingsView(){var el=$('v-supportinbox');if(!el)return;el.innerH
 function openTasksView(){S.view='supportinbox';document.querySelectorAll('.view').forEach(function(el){el.classList.remove('active')});$('v-supportinbox').classList.add('active');$('mainTabs').style.display='none';$('hdrBack').style.display='block';$('hdrBack').onclick=function(){goView('dashboard')};$('hdrTitle').textContent='Tasks';$('hdrActions').innerHTML='<button class="btn btn-pr btn-sm" onclick="newMeetingTask()">+ New</button>';if(typeof applyDeptTheme==='function')applyDeptTheme('dashboard');renderTasksListView()}
 function renderTasksListView(){var el=$('v-supportinbox');if(!el)return;el.innerHTML='<div style="color:var(--tx3);padding:20px;text-align:center">Loading...</div>';loadAllTasks(function(items){var me=getUserName();var myTasks=items.filter(function(t){return t.type==='task'&&(t.assignedTo===me||t.createdBy===me)});var open=myTasks.filter(function(t){return!t.completed});var done=myTasks.filter(function(t){return t.completed});var h='<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--ac)">Open Tasks ('+open.length+')</div>';if(open.length){open.forEach(function(t){h+=taskCard(t)})}else{h+='<div style="color:var(--tx3);padding:12px;text-align:center;font-size:11px">No open tasks</div>'}h+='<div style="font-size:12px;font-weight:600;margin:12px 0 6px;color:var(--tx3)">Completed ('+done.length+')</div>';done.slice(0,10).forEach(function(t){h+=taskCard(t)});el.innerHTML=h})}
 
-function loadAllTasks(cb){var items=[];if(!fbDb){cb(items);return}fbDb.collection('tasks').orderBy('createdAt','desc').limit(100).get().then(function(snap){items=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});cb(items)}).catch(function(){cb(items)})}
+function loadAllTasks(cb){var items=[];if(!fbDb){cb(items);return}fbDb.collection('tasks').orderBy('createdAt','desc').limit(100).get().then(function(snap){items=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});cb(items)}).catch(function(e){console.warn('loadAllTasks:',e);cb(items)})}
 
 function renderCalendarGrid(items){var cm=window._calMonth!==undefined?window._calMonth:new Date().getMonth();var cy=window._calYear||new Date().getFullYear();window._calMonth=cm;window._calYear=cy;var today=new Date();var fd=new Date(cy,cm,1).getDay();var dim=new Date(cy,cm+1,0).getDate();var mn=new Date(cy,cm,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><button class="btn btn-ghost btn-xs" onclick="calNav(-1)">◀</button><div style="font-size:14px;font-weight:700;color:var(--tx)">'+mn+'</div><button class="btn btn-ghost btn-xs" onclick="calNav(1)">▶</button></div>';h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:12px">';['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){h+='<div style="text-align:center;font-size:9px;color:var(--tx3);padding:4px">'+d+'</div>'});for(var i=0;i<fd;i++)h+='<div></div>';for(var d=1;d<=dim;d++){var ds=cy+'-'+(cm+1<10?'0':'')+(cm+1)+'-'+(d<10?'0':'')+d;var di=items.filter(function(m){return m.date===ds});var isT=d===today.getDate()&&cm===today.getMonth()&&cy===today.getFullYear();h+='<div style="text-align:center;padding:4px 2px;background:'+(isT?'var(--ac2)':di.length?'var(--bg4)':'var(--bg3)')+';border:1px solid '+(isT?'var(--ac)':'var(--bdr)')+';border-radius:6px;cursor:pointer;min-height:36px" onclick="showDayTasks(\''+ds+'\')"><div style="font-size:12px;font-weight:'+(isT?'700':'400')+';color:'+(isT?'#fff':'var(--tx)')+'">'+d+'</div>'+(di.length?'<div style="font-size:7px;color:var(--ac)">'+di.length+'</div>':'')+'</div>'}h+='</div>';var up=items.filter(function(m){return m.date>=today.toISOString().split('T')[0]&&!m.completed}).sort(function(a,b){return(a.date||'').localeCompare(b.date||'')});h+='<div style="font-size:12px;font-weight:600;margin-bottom:6px">Upcoming ('+up.length+')</div>';up.slice(0,10).forEach(function(m){h+=taskCard(m)});if(!up.length)h+='<div style="color:var(--tx3);padding:12px;text-align:center">Nothing scheduled</div>';return h}
 

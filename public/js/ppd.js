@@ -840,7 +840,7 @@
     fbDb.collection('jobTickets').doc(ticketId).update(flatPatch).then(function(){
       var needProvision = !(patch.ppd.driveFolderUrl) && ['Art Review','Engineering','File Prep','Proof Ready','Proof Sent','Waiting Approval','Revision Needed','Plate Ready','Release QA','Released'].indexOf(stage)>=0;
       if(needProvision && typeof provisionPPDWorkspace==='function'){
-        provisionPPDJobFolders(ticketId).catch(function(){});
+        provisionPPDJobFolders(ticketId).catch(function(e){ console.warn('ppdProvisionFolders', e); });
       }
       closeModal(); toast('PPD job updated','ok'); if(window.MFX&&MFX.track) MFX.track('ppd.job.updated',{ticketId:ticketId,stage:stage});
     }).catch(function(e){ toast(e.message,'err'); });

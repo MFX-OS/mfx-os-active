@@ -111,7 +111,7 @@
           if(snap.size > 0) {
             _drivers = snap.docs.map(function(d) { return Object.assign({id: d.id}, d.data()); });
           }
-        }).catch(function() { /* use fallback */ });
+        }).catch(function(e) { console.warn('logisticsLoadFallback', e); });
       } catch(e) {}
     }
   }

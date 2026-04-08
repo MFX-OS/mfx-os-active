@@ -35,7 +35,7 @@
 
   function requestParityNumber(kind,prefix,fallback){
     if(window.MFX_API && navigator.onLine!==false){
-      return window.MFX_API.postJSON('/api/nextSequence',{kind:kind,prefix:prefix}).then(function(r){ return r.formatted; }).catch(function(){ return typeof fallback==='function'?fallback():prefix+Date.now(); });
+      return window.MFX_API.postJSON('/api/nextSequence',{kind:kind,prefix:prefix}).then(function(r){ return r.formatted; }).catch(function(e){ console.warn('ppdNextSequence', e); return typeof fallback==='function'?fallback():prefix+Date.now(); });
     }
     return Promise.resolve(typeof fallback==='function'?fallback():prefix+Date.now());
   }
@@ -421,7 +421,7 @@
     };
     fbDb.collection('jobTickets').doc(ticket.id).set(ticket,{merge:true}).then(function(){
       toast('Estimate converted to job','ok');
-      if(typeof provisionPPDWorkspace==='function') return provisionPPDWorkspace({jobTicketId:ticket.id,jobTicketNum:ticket.jtNum,company:ticket.company,skuName:ticket.skuName,blueprintId:ticket.blueprintId||''}).catch(function(){});
+      if(typeof provisionPPDWorkspace==='function') return provisionPPDWorkspace({jobTicketId:ticket.id,jobTicketNum:ticket.jtNum,company:ticket.company,skuName:ticket.skuName,blueprintId:ticket.blueprintId||''}).catch(function(e){ console.warn('ppdProvisionWorkspace', e); });
     }).then(function(data){
       if(data&&data.rootFolderUrl){ fbDb.collection('jobTickets').doc(ticket.id).set({ppd:{driveFolderUrl:data.rootFolderUrl,driveFolderId:data.rootFolderId,driveFolders:data.folders||{}},updatedAt:new Date().toISOString()},{merge:true}); }
       logParityEvent('estimate.converted',{estimateNum:e.estimateNum||'',jobTicketNum:jtNum,company:e.company||''});

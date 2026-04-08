@@ -110,7 +110,7 @@ function materialSave(m){m.updatedAt=new Date().toISOString();return fbDb.collec
 
 function genVPONumLocal(){var d=new Date();var n=parseInt(localStorage.getItem('mfx_vpoctr')||'0')+1;localStorage.setItem('mfx_vpoctr',n);return'VPO'+String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+'-'+String(n).padStart(3,'0')}
 function genVPONum(){return genVPONumLocal()}
-function upgradeVPONum(vpo){if(typeof requestServerNumber!=='function')return;var tempNum=vpo.vpoNum;requestServerNumber('vendorPO',function(){return tempNum}).then(function(sn){if(sn&&sn!==tempNum){vpo.vpoNum=sn;vpoSave(vpo).catch(function(){})}}).catch(function(){})}
+function upgradeVPONum(vpo){if(typeof requestServerNumber!=='function')return;var tempNum=vpo.vpoNum;requestServerNumber('vendorPO',function(){return tempNum}).then(function(sn){if(sn&&sn!==tempNum){vpo.vpoNum=sn;vpoSave(vpo).catch(function(e){console.warn('vpoSave',e)})}}).catch(function(e){console.warn('vpoUpgradeNum',e)})}
 function genLotNum(){return'LOT-'+Date.now().toString().slice(-8)}
 
 // ─── VENDOR HEALTH SCORE ─────────────────────────────────────────

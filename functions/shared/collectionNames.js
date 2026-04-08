@@ -50,5 +50,10 @@ module.exports = {
   SYSTEM_HEALTH: 'systemHealth',
   CONTROL_CONFIGS: 'controlConfigs',
   EMPLOYEES: 'employees',
-  USERS: 'users'
+  USERS: 'users',
+  INVOICES: 'invoices',
+  VENDOR_INVOICES: 'vendorInvoices',
+  ONBOARDING: 'onboarding',
+  SKILLS: 'skills',
+  CERTIFICATIONS: 'certifications'
 };

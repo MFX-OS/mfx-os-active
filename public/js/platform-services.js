@@ -6,7 +6,7 @@
   function postJSON(path, body){
     return Promise.resolve().then(function(){
       if(typeof fbAuth!=='undefined' && fbAuth.currentUser && typeof fbAuth.currentUser.getIdToken==='function'){
-        return fbAuth.currentUser.getIdToken().catch(function(){ return ''; });
+        return fbAuth.currentUser.getIdToken().catch(function(e){ console.warn('psGetToken:',e); return ''; });
       }
       return '';
     }).then(function(token){
@@ -34,12 +34,12 @@
     postJSON: postJSON,
     nextNumber: function(type, fallbackFn){
       var kindMap={so:'salesOrder',jp:'jobPassport',jt:'jobTicket'};
-      return postJSON('/api/nextSequence', { kind: kindMap[type] || type }).then(function(d){ return d.formatted; }).catch(function(){ return typeof fallbackFn === 'function' ? fallbackFn() : null; });
+      return postJSON('/api/nextSequence', { kind: kindMap[type] || type }).then(function(d){ return d.formatted; }).catch(function(e){ console.warn('psNextSequence:',e); return typeof fallbackFn === 'function' ? fallbackFn() : null; });
     },
     nextNumbers: function(type, count, fallbackFn){
       var list=new Array(count); var tasks=[];
       for(var i=0;i<count;i++){ (function(idx){ tasks.push(MFXApi.nextNumber(type, null).then(function(n){ list[idx]=n; })); })(i); }
-      return Promise.all(tasks).then(function(){ return list; }).catch(function(){ return typeof fallbackFn === 'function' ? fallbackFn() : []; });
+      return Promise.all(tasks).then(function(){ return list; }).catch(function(e){ console.warn('psBatchOps:',e); return typeof fallbackFn === 'function' ? fallbackFn() : []; });
     },
     provisionPPDFolders: function(payload){ return postJSON('/api/provisionPPDWorkspace', payload); },
     syncSharedInbox: function(payload){ return postJSON('/api/ingestSharedInbox', payload); },
@@ -115,7 +115,7 @@
       var existing = tickets.filter(function(t){ return t.ppd && t.ppd.driveFolderUrl; });
       // Provision missing + health-check existing
       var tasks = pending.map(function(t){ return window.MFXPPDService.provisionTicketFolders(t.id).catch(function(err){ console.warn('PPD folder provision:', err.message); return null; }); });
-      var checks = existing.map(function(t){ return window.MFXPPDService.healthCheck(t.id).catch(function(){ return null; }); });
+      var checks = existing.map(function(t){ return window.MFXPPDService.healthCheck(t.id).catch(function(e){ console.warn('psHealthCheck:',e); return null; }); });
       return Promise.all(tasks.concat(checks));
     }
   };

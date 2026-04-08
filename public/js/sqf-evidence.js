@@ -636,7 +636,7 @@
             form.append('quoteNum','MR_'+date+'_'+quarter);
             form.append('fileType','Signatures');
             form.append('file',blob,'chair_signature_'+date+'.png');
-            authFetch('/api/uploadToDrive',form).catch(function(){});
+            authFetch('/api/uploadToDrive',form).catch(function(e){ console.warn('sqfEvidenceUpload', e); });
           });
         }
         if(qaStash.signature){
@@ -646,7 +646,7 @@
             form.append('quoteNum','MR_'+date+'_'+quarter);
             form.append('fileType','Signatures');
             form.append('file',blob,'qa_manager_signature_'+date+'.png');
-            authFetch('/api/uploadToDrive',form).catch(function(){});
+            authFetch('/api/uploadToDrive',form).catch(function(e){ console.warn('sqfEvidenceUpload', e); });
           });
         }
         // Clear stashes

@@ -493,7 +493,7 @@ if(window.MFX && window.MFX.on){
         db.collection('receivingQueue').doc(taskId).update({
           'checklist.10.done': true, // receivingLogSaved index
           updatedAt: new Date().toISOString()
-        }).catch(function() {});
+        }).catch(function(e) { console.warn('sqfAlertDismiss', e); });
         console.log('FSQMS receiving log auto-created:', ref.id);
       }).catch(function(e) { console.warn('FSQMS receiving log:', e); });
 
