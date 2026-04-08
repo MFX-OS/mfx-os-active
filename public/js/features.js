@@ -517,17 +517,7 @@ hookChallenges();
 // Show daily challenge reminder on dashboard
 setTimeout(function(){
 var dc=getDailyChallenge();
-var incomplete=dc.challenges.filter(function(c){return!c.completed}).length;
-if(incomplete>0&&S.view==='dashboard'){
-// Subtle reminder in alert reel
-var reel=document.getElementById('alertReel');
-if(reel&&reel.style.display==='none'){
-reel.style.display='block';
-reel.style.background='linear-gradient(90deg,#7c3aed,#6d28d9,#7c3aed)';
-reel.style.color='#c4b5fd';
-reel.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> '+incomplete+' daily challenge'+(incomplete>1?'s':'')+' remaining — <span style="cursor:pointer;text-decoration:underline" onclick="openDailyChallenges()">View</span>';
-}
-}
+// Daily challenge purple banner removed — challenges tracked in status reel instead
 },2000);
 };
 
