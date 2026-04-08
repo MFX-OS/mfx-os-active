@@ -4228,7 +4228,19 @@ function icSwitchWorkspaceTab(tab) {
 
 function icRenderFilesTab() {
   var h = '<div style="padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1">';
-  h += '<div style="font-size:13px;font-weight:700;color:#fff">Shared Files</div>';
+
+  // ── Shared Drive Folder ──
+  h += '<div style="background:linear-gradient(135deg,rgba(66,133,244,.08),rgba(52,168,83,.08));border:1px solid rgba(66,133,244,.15);border-radius:12px;padding:12px 14px">';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+  h += '<span style="font-size:22px">\uD83D\uDCC2</span>';
+  h += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:#4285f4">Shared Drive Folder</div>';
+  h += '<div style="font-size:9px;color:rgba(255,255,255,.3)">Team files for this conversation</div></div>';
+  h += '</div>';
+  h += '<div id="icDriveFolderArea" style="display:flex;gap:6px;align-items:center">';
+  h += '<span id="icDriveFolderLink" style="font-size:11px;color:rgba(255,255,255,.3)">Loading...</span>';
+  h += '</div></div>';
+
+  h += '<div style="font-size:13px;font-weight:700;color:#fff">Create & Share</div>';
   // Quick-create buttons
   h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
   h += '<button onclick="window.open(\'https://docs.google.com/document/create\',\'_blank\')" style="background:rgba(66,133,244,.15);border:1px solid rgba(66,133,244,.3);padding:6px 12px;border-radius:8px;font-size:11px;color:#4285f4;cursor:pointer;font-family:inherit">\uD83D\uDCC4 New Google Doc</button>';
@@ -4285,8 +4297,98 @@ function icRenderFilesTab() {
       el.innerHTML = dh;
     }).catch(function() {});
   }
+  // Load or provision shared Drive folder
+  _icLoadDriveFolder();
   return h;
 }
+
+function _icLoadDriveFolder(){
+  if(!fbDb||!IC.activeChat)return;
+  var area=document.getElementById('icDriveFolderArea');
+  var linkEl=document.getElementById('icDriveFolderLink');
+  if(!area||!linkEl)return;
+  fbDb.collection('chat_channels').doc(IC.activeChat).get().then(function(doc){
+    if(!doc.exists)return;
+    var data=doc.data();
+    var folderUrl=data.driveFolderUrl||'';
+    var folderId=data.driveFolderId||'';
+    if(folderUrl){
+      area.innerHTML='<a href="'+esc(folderUrl)+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(66,133,244,.1);border:1px solid rgba(66,133,244,.2);border-radius:10px;text-decoration:none;flex:1;transition:background .15s" onmouseover="this.style.background=\'rgba(66,133,244,.18)\'" onmouseout="this.style.background=\'rgba(66,133,244,.1)\'">'
+        +'<svg width="20" height="20" viewBox="0 0 24 24" fill="#4285f4"><path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/></svg>'
+        +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:#4285f4">Open Shared Folder</div>'
+        +'<div style="font-size:9px;color:rgba(255,255,255,.3)">Google Drive</div></div>'
+        +'<span style="font-size:11px;color:rgba(255,255,255,.3)">\u2197</span></a>';
+    }else{
+      // No folder yet — offer to create or link one
+      area.innerHTML='<button onclick="icCreateDriveFolder()" style="flex:1;padding:8px 14px;background:rgba(66,133,244,.1);border:1px solid rgba(66,133,244,.2);border-radius:10px;color:#4285f4;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s" onmouseover="this.style.background=\'rgba(66,133,244,.18)\'" onmouseout="this.style.background=\'rgba(66,133,244,.1)\'">\uD83D\uDCC1 Create Shared Folder</button>'
+        +'<button onclick="icLinkDriveFolder()" style="padding:8px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;font-family:inherit">\uD83D\uDD17 Link Existing</button>';
+    }
+  }).catch(function(){linkEl.textContent='Could not load folder info'});
+}
+
+function icCreateDriveFolder(){
+  if(!fbDb||!IC.activeChat)return;
+  // Try server-side provisioning via existing API
+  if(window.MFX_API&&typeof window.MFX_API.postJSON==='function'){
+    var channelName=IC.activeChat;
+    var convoTitle=document.getElementById('icConvoTitle');
+    if(convoTitle)channelName=convoTitle.textContent||IC.activeChat;
+    if(typeof toast==='function')toast('Creating shared folder...','ok');
+    window.MFX_API.postJSON('/api/getClientFolder',{company:'Chat - '+channelName}).then(function(res){
+      if(res&&res.folderId){
+        var folderUrl='https://drive.google.com/drive/folders/'+res.folderId;
+        fbDb.collection('chat_channels').doc(IC.activeChat).update({
+          driveFolderId:res.folderId,
+          driveFolderUrl:folderUrl
+        });
+        if(typeof toast==='function')toast('Shared folder created!','ok');
+        _icLoadDriveFolder();
+      }else{
+        // Fallback: open Drive and let user create manually
+        _icFallbackCreateFolder();
+      }
+    }).catch(function(){
+      _icFallbackCreateFolder();
+    });
+  }else{
+    _icFallbackCreateFolder();
+  }
+}
+
+function _icFallbackCreateFolder(){
+  window.open('https://drive.google.com/drive/my-drive','_blank','noopener');
+  setTimeout(function(){
+    var url=prompt('Paste the Google Drive folder URL after you create it:');
+    if(url&&url.trim())icSaveDriveFolderUrl(url.trim());
+  },1000);
+}
+
+function icLinkDriveFolder(){
+  var url=prompt('Paste the Google Drive folder URL:');
+  if(!url||!url.trim())return;
+  icSaveDriveFolderUrl(url.trim());
+}
+
+function icSaveDriveFolderUrl(url){
+  if(!fbDb||!IC.activeChat)return;
+  // Extract folder ID from URL
+  var match=url.match(/folders\/([a-zA-Z0-9_-]+)/);
+  var folderId=match?match[1]:'';
+  fbDb.collection('chat_channels').doc(IC.activeChat).update({
+    driveFolderUrl:url,
+    driveFolderId:folderId
+  }).then(function(){
+    if(typeof toast==='function')toast('Folder linked!','ok');
+    _icLoadDriveFolder();
+  }).catch(function(e){
+    console.warn('saveDriveFolder:',e);
+    if(typeof toast==='function')toast('Failed to save folder','err');
+  });
+}
+
+window.icCreateDriveFolder=icCreateDriveFolder;
+window.icLinkDriveFolder=icLinkDriveFolder;
+window.icSaveDriveFolderUrl=icSaveDriveFolderUrl;
 
 function icAddSharedDoc() {
   var inp = document.getElementById('icDocEmbedUrl');
