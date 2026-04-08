@@ -75,8 +75,8 @@ function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/<
 function mfxUnlockPrompt(){}
 function mfxLockMenu(){}
 function _mfxApplyUnlock(){
-  // Gate behind authenticated role — not callable from console by unauthenticated users
-  if(!window.MFX||!window.MFX.role||window.MFX.role==='viewer'){return;}
+  // Gate behind authenticated user — require CURRENT_USER from Firebase auth
+  if(!window.CURRENT_USER){return;}
   // Show advanced tabs
   document.querySelectorAll('.tab.adv').forEach(function(t){t.style.display='';});
   // Inject full colored department menu into hamburger
@@ -531,6 +531,7 @@ if(!window.GTOKEN){var cached=sessionStorage.getItem('mfx_gtoken');var exp=parse
 var ls=$('loginScreen'),ap=$('app');if(ap)ap.style.display='block';if(typeof window.dismissIntroAfterLogin==='function')window.dismissIntroAfterLogin();else if(ls)ls.style.display='none';
 checkAndSeedData().then(()=>{startListeners();setTimeout(()=>{var _pKey='mfx_profile_'+(CURRENT_USER?CURRENT_USER.uid:'default');if(!localStorage.getItem(_pKey)){localStorage.setItem(_pKey,JSON.stringify({flexId:'',role:'',dept:'',pods:'',mood:'😊',yearJoined:'',lastUpdated:new Date().toISOString()}))}var _home='dashboard';goView(_home);/* userBadge avatar removed — dot indicator only */
 if(typeof populateHamUser==='function')populateHamUser();
+if(typeof _mfxApplyUnlock==='function')_mfxApplyUnlock();
 if(typeof initGamification==='function')initGamification();
 if(typeof initSounds==='function')initSounds();
 if(typeof MFX_SENTRY_SET_USER==='function')MFX_SENTRY_SET_USER();
