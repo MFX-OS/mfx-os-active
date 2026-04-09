@@ -1,9 +1,10 @@
 /* ======================================================================
-   MFX OS — Full Hamburger Menu Builder
+   MFX OS — Full Hamburger Menu Builder  (v2.1 — 2026-04-08)
    Returns complete colored department HTML.
    ====================================================================== */
 
 window._buildFullHamMenu = function _buildFullHamMenu() {
+  var _v = '2.1';
   var h = '';
 
   /* ── 1. Job Ticket Tracker ─────────────────────────────────────────── */
@@ -43,6 +44,9 @@ window._buildFullHamMenu = function _buildFullHamMenu() {
   h += '<span id="hamArr-est" style="font-size:9px;color:#c084fc60;transition:transform .2s">&#9656;</span></div>';
   h += '<div id="hamSub-est" style="display:none;padding:2px 0 0 16px">';
   h += '<div class="ham-item" onclick="goView(\'quotes\');toggleHamburger()"><span class="hi-ico" style="color:#c084fc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Quotes</div>';
+  h += '<div class="ham-item" onclick="S_SO.view=\'pipeline\';goView(\'orders\');toggleHamburger()"><span class="hi-ico" style="color:#c084fc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>Quote Pipeline</div>';
+  h += '<div class="ham-item" onclick="S_SO.view=\'pos\';goView(\'orders\');toggleHamburger()"><span class="hi-ico" style="color:#c084fc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>Purchase Orders</div>';
+  h += '<div class="ham-item" onclick="S_SO.view=\'sos\';goView(\'orders\');toggleHamburger()"><span class="hi-ico" style="color:#c084fc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span>Sales Orders</div>';
   h += '</div>';
 
   // CSR / Account Mgmt
@@ -335,6 +339,7 @@ window._buildFullHamMenu = function _buildFullHamMenu() {
   h += '<div class="ham-item" onclick="goView(\'datasync\');toggleHamburger()"><span class="hi-ico" style="color:#d0d0d0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>Data Sync</div>';
   h += '<div class="ham-item" onclick="goView(\'doccontrol\');toggleHamburger()"><span class="hi-ico" style="color:#d0d0d0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>Document Control</div>';
   h += '<div class="ham-item" onclick="goView(\'masterauto\');toggleHamburger()"><span class="hi-ico" style="color:#d0d0d0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>Master Automation</div>';
+  h += '<div class="ham-item" onclick="goView(\'systemcontrol\');toggleHamburger()"><span class="hi-ico" style="color:#00e5ff"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>System Control</div>';
   h += '</div>';
 
   h += '</div></div>';

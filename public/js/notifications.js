@@ -603,6 +603,8 @@
     };
 
     STATE.notifications.unshift(notification_obj);
+    // Cap notifications to prevent unbounded memory growth
+    if (STATE.notifications.length > 200) STATE.notifications = STATE.notifications.slice(0, 200);
     STATE.unreadCount++;
     window.NOTIF_STATE = STATE;
     if(typeof _updateNotifBadge==='function') _updateNotifBadge((window._currentAlerts||[]).length);
@@ -1142,7 +1144,7 @@
 
     try {
       let _qInitialLoad = true;
-      window.fbDb.collection('quotes').onSnapshot(snapshot => {
+      return window.fbDb.collection('quotes').onSnapshot(snapshot => {
         if (_qInitialLoad) { _qInitialLoad = false; return; }
         snapshot.docChanges().forEach(change => {
           if (change.type === 'modified') {
@@ -1197,7 +1199,7 @@
     if (!userId) return;
 
     try {
-      window.fbDb.collection('tasks')
+      return window.fbDb.collection('tasks')
         .where('assignedTo', '==', userId)
         .onSnapshot(snapshot => {
           snapshot.docChanges().forEach(change => {
@@ -1236,7 +1238,7 @@
 
     try {
       let _jtInitialLoad = true;
-      window.fbDb.collection('jobTickets').onSnapshot(snapshot => {
+      return window.fbDb.collection('jobTickets').onSnapshot(snapshot => {
         // Skip the initial snapshot — it fires 'added' for every existing doc and floods notifications
         if (_jtInitialLoad) { _jtInitialLoad = false; return; }
         snapshot.docChanges().forEach(change => {
@@ -1534,7 +1536,7 @@
     if (!userId) return;
 
     try {
-      window.fbDb.collectionGroup('notes')
+      return window.fbDb.collectionGroup('notes')
         .where('mentions', 'array-contains', userId)
         .orderBy('createdAt', 'desc')
         .limit(20)
@@ -1638,7 +1640,7 @@
     // 1. Listen to activity collection for po.approved events from portal clients
     var cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24h
     var _firstActivityLoad = true;
-    window.fbDb.collection('activity')
+    var _unsub1 = window.fbDb.collection('activity')
       .where('type', '==', 'po.approved')
       .orderBy('timestamp', 'desc')
       .limit(20)
@@ -1682,6 +1684,8 @@
 
     // 3. Listen to portalMessages across active quotes
     _watchPortalMessages();
+
+    return _unsub1; // return primary listener for cleanup
   }
 
   function _autoCreateSO(quoteId) {
@@ -1869,7 +1873,7 @@
 
     try {
       var _chatInitial = true;
-      window.fbDb.collectionGroup('chat_messages')
+      return window.fbDb.collectionGroup('chat_messages')
         .orderBy('timestamp', 'desc')
         .limit(30)
         .onSnapshot(function(snapshot) {
@@ -1924,7 +1928,7 @@
     try {
       var _taskInitial = true;
       // Listen for tasks assigned to user (modified)
-      window.fbDb.collection('tasks')
+      return window.fbDb.collection('tasks')
         .where('assignedTo', '==', userId)
         .onSnapshot(function(snapshot) {
           if (_taskInitial) { _taskInitial = false; return; }
@@ -1968,7 +1972,7 @@
 
     try {
       var _jobInitial = true;
-      window.fbDb.collection('jobTickets')
+      return window.fbDb.collection('jobTickets')
         .where('assignedTo', '==', userId)
         .onSnapshot(function(snapshot) {
           if (_jobInitial) { _jobInitial = false; return; }
@@ -2031,15 +2035,24 @@
     injectStyles();
     initializeDOM();
     initializeFirestoreListeners();
-    listenToQuoteUpdates();
-    listenToTaskAssignments();
-    listenToJobTickets();
-    listenToMentions();
-    listenToChatMentions();
-    listenToOwnedTaskUpdates();
-    listenToOwnedJobUpdates();
-    listenToQuoteStatusEvents();
-    listenToPortalActivity();
+    // Register all notification listeners for cleanup on logout
+    var _notifListeners = [
+      listenToQuoteUpdates,
+      listenToTaskAssignments,
+      listenToJobTickets,
+      listenToMentions,
+      listenToChatMentions,
+      listenToOwnedTaskUpdates,
+      listenToOwnedJobUpdates,
+      listenToQuoteStatusEvents,
+      listenToPortalActivity
+    ];
+    _notifListeners.forEach(function(fn, i) {
+      var unsub = fn();
+      if (unsub && typeof mfxRegisterListener === 'function') {
+        mfxRegisterListener('notif_' + fn.name + '_' + i, unsub);
+      }
+    });
     initializeGoogleIntegrations();
     startGmailPolling();
 

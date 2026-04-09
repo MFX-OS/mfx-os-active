@@ -23,7 +23,7 @@ MFX.on('quote.sent', function(d) {
         quoteId: q.id,
         quoteNum: q.quoteNum,
         company: company,
-        filename: pdf && pdf.filename ? pdf.filename : q.quoteNum + '.pdf',
+        filename: pdf && pdf.filename ? pdf.filename : (typeof getQuoteFileName==='function' ? getQuoteFileName(q)+'.pdf' : q.quoteNum+'.pdf'),
         recipient: d.to || '',
         registryNote: 'Sent to ' + (d.to || 'client')
       }).then(function(result) {
@@ -40,7 +40,7 @@ MFX.on('quote.sent', function(d) {
             qq.clientFolderLink = result.clientLink;
             qq.driveSavedAt = new Date().toISOString();
             if (typeof DB !== 'undefined' && DB.saveQ) DB.saveQ(DB.quotes());
-            if (typeof S !== 'undefined' && S.etab === 7 && typeof renderWorkflow === 'function') renderWorkflow();
+            if (typeof S !== 'undefined' && S.etab === 13 && typeof renderWorkflow === 'function') renderWorkflow();
           }
         }
       }).catch(function(err) {
@@ -67,7 +67,7 @@ MFX.on('quote.sent', function(d) {
         if (!qq.workflow) qq.workflow = {};
         qq.workflow.registryUpdated = true;
         if (typeof DB !== 'undefined' && DB.saveQ) DB.saveQ(DB.quotes());
-        if (typeof S !== 'undefined' && S.etab === 7 && typeof renderWorkflow === 'function') renderWorkflow();
+        if (typeof S !== 'undefined' && S.etab === 13 && typeof renderWorkflow === 'function') renderWorkflow();
       }
     }
   }, 2500);
@@ -193,7 +193,7 @@ if (typeof fbDb !== 'undefined') {
 
         if (changed) {
           if (typeof DB !== 'undefined' && DB.saveQ) DB.saveQ(DB.quotes());
-          if (typeof S !== 'undefined' && S.view === 'editor' && S.etab === 7) {
+          if (typeof S !== 'undefined' && S.view === 'editor' && S.etab === 13) {
             if (typeof renderWorkflow === 'function') renderWorkflow();
             if (typeof renderConnections === 'function') renderConnections();
           }

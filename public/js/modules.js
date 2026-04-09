@@ -469,7 +469,7 @@ h+='<div style="flex:1;background:var(--srf);border:1px solid var(--bdr);border-
 h+='<div style="flex:1;background:var(--srf);border:1px solid var(--bdr);border-radius:6px;padding:8px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--or)">'+myDrafts.length+'</div>Drafts</div>';
 h+='<div style="flex:1;background:var(--srf);border:1px solid var(--bdr);border-radius:6px;padding:8px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--gn)">'+myWon.length+'</div>Won</div></div>';
 if(myMentions.length){h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span class="ttl">@Mentions ('+myMentions.length+')</span><span class="arr">▾</span></div><div class="scard-b open">';
-myMentions.forEach(m=>{h+='<div style="padding:6px 0;border-bottom:1px solid var(--bdr);font-size:11px;cursor:pointer" onclick="openEditor(\''+m.q.id+'\');setTimeout(()=>{S.etab=6;renderEditor()},100)"><strong style="color:var(--ac)">'+m.q.quoteNum+'</strong> — <span style="color:var(--tx2)">'+m.n.by+'</span>: '+m.n.text.substring(0,80)+(m.n.text.length>80?'...':'')+'</div>'});h+='</div></div>'}
+myMentions.forEach(m=>{h+='<div style="padding:6px 0;border-bottom:1px solid var(--bdr);font-size:11px;cursor:pointer" onclick="openEditor(\''+m.q.id+'\');setTimeout(()=>{S.etab=12;renderEditor()},100)"><strong style="color:var(--ac)">'+m.q.quoteNum+'</strong> — <span style="color:var(--tx2)">'+m.n.by+'</span>: '+m.n.text.substring(0,80)+(m.n.text.length>80?'...':'')+'</div>'});h+='</div></div>'}
 if(myApprovals.length){h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span class="ttl">Submitted for Approval</span><span class="arr">▾</span></div><div class="scard-b open">';
 myApprovals.forEach(q=>{h+='<div style="padding:6px 0;border-bottom:1px solid var(--bdr);font-size:11px;cursor:pointer" onclick="openEditor(\''+q.id+'\')"><strong>'+q.quoteNum+'</strong> — '+(q.fields.custCo||'—')+' <span class="pill pill-approval" style="font-size:8px;padding:0 4px">pending</span></div>'});h+='</div></div>'}
 h+='<div class="scard"><div class="scard-h" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span><span class="ttl">My Drafts ('+myDrafts.length+')</span><span class="arr">▾</span></div><div class="scard-b">';
@@ -647,7 +647,7 @@ function renderWorkflow(){
 var el=$('workflowContent');if(!el)return;
 var q=getQ(S.editId);if(!q)return;
 var f=q.fields||{};
-var portalLink='https://mfx-2026.web.app/portal?id='+q.id+'&q='+(q.quoteNum||'');
+var portalLink='https://os.microflexfilm.com/portal?id='+q.id+'&q='+(q.quoteNum||'');
 var steps=[
   {label:'Quote Created',done:!!q.createdAt,det:q.createdAt?fD(q.createdAt)+' by '+(q.createdBy||'—'):''},
   {label:'Specs Complete',done:!!(f.sA&&f.sar&&f.shapeType&&f.colors),det:f.sA?f.sA+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' '+(f.colors||'?')+'C':'Missing specs'},
@@ -922,7 +922,7 @@ if (!allowedRoles.includes(userRole)) {
 if(sub){sub.style.display='block';document.getElementById('hamCeoArr').style.transform='rotate(90deg)';document.getElementById('hamCeoBtn').querySelector('span').textContent='🔓'}
 };
 
-function toggleHamburger(){if(typeof populateHamUser==='function')populateHamUser();const m=$('hamMenu');const o=$('hamOverlay');if(m.classList.contains('open')){m.classList.remove('open');o.classList.remove('open')}else{m.classList.add('open');o.classList.add('open');updateHamMenu()}}
+function toggleHamburger(){if(typeof populateHamUser==='function')populateHamUser();var m=$('hamMenu');var o=$('hamOverlay');if(m.classList.contains('open')){m.classList.remove('open');o.classList.remove('open')}else{m.classList.add('open');o.classList.add('open');if(typeof _mfxApplyUnlock==='function')_mfxApplyUnlock();updateHamMenu()}}
 function updateHamMenu(){const me=getUserName();const qs=DB.quotes();
 const hu=$('hamUser');if(hu&&me){const r=calcPoints(me,qs);var _p=getMFXProfile();var _deptC={Operations:'#C0C0C0',Estimation:'#38bdf8','Pre-Press':'#d7ff2f',Production:'#4169E1',Quality:'#ef4444',Accounting:'#22c55e',Sales:'#a855f7',Administration:'#C0C0C0'};var _ac=_deptC[_p.dept||'Operations']||'#C0C0C0';hu.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div style="width:36px;height:36px;border-radius:50%;background:'+_ac+';color:#000;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">'+me.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()+'</div><div><div style="font-weight:600;color:var(--tx)">'+me+'</div><div style="font-size:11px;color:'+_ac+'">'+r.pts.toFixed(2)+' pts</div></div></div>'}
 const ap=qs.filter(q=>q.status==='approval').length;
@@ -954,7 +954,7 @@ qs.forEach(q=>{(q.internalNotes||[]).forEach(n=>{if(n.text&&n.text.includes('@'+
 const ap=qs.filter(q=>q.status==='approval').length;
 const rfqCount=window._rfqPending||0;
 const el=$('alertBanner');if(el){const parts=[];if(mentionCount>0)parts.push('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> '+mentionCount+' @mention'+(mentionCount>1?'s':''));if(ap>0)parts.push('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> '+ap+' pending approval'+(ap>1?'s':''));if(parts.length){el.className='alert-banner show';el.innerHTML=parts.join(' · ')+' — tap to view';el.dataset.qids=JSON.stringify(qids)}else{el.className='alert-banner'}}}
-function goToMentions(){const el=$('alertBanner');if(!el)return;el.className='alert-banner';try{const qids=JSON.parse(el.dataset.qids||'[]');if(qids.length>0){openEditor(qids[0]);setTimeout(()=>{S.etab=6;renderEditor()},100)}else{openCEOPortal()}}catch(e){}}
+function goToMentions(){const el=$('alertBanner');if(!el)return;el.className='alert-banner';try{const qids=JSON.parse(el.dataset.qids||'[]');if(qids.length>0){openEditor(qids[0]);setTimeout(()=>{S.etab=12;renderEditor()},100)}else{openCEOPortal()}}catch(e){}}
 _moduleInterval3 = setInterval(checkAlerts,5000);
 
 function updateBottomBar(view){const bar=$('bottomBar');if(!bar)return;bar.style.display='flex';const map={chat:0,supportboard:0,notifications:1,dashboard:3,quotes:3,calendar:4};bar.querySelectorAll('.bb-btn').forEach((b,i)=>{b.classList.toggle('active',i===(map[view]!==undefined?map[view]:-1))})}
@@ -967,6 +967,41 @@ const msgs=[];if(ap)msgs.push('🔒 '+ap+' quotes pending approval');if(rd)msgs.
 el.textContent=msgs.join('    ·    ')}
 _moduleInterval4 = setInterval(updateDashClock,1000);
 
+// ═══ PAGE VISIBILITY — pause intervals when tab is hidden to save battery ═══
+(function(){
+  var _pausedIntervals = [];
+  var _intervalRegistry = function() {
+    return [
+      {ref:'_moduleInterval1', fn:updateHamNotifs, ms:5000},
+      {ref:'_moduleInterval2', fn:updateActiveUsers, ms:30000},
+      {ref:'_moduleInterval3', fn:checkAlerts, ms:5000},
+      {ref:'_moduleInterval4', fn:updateDashClock, ms:1000}
+    ];
+  };
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      // Pause: clear all tracked intervals
+      _intervalRegistry().forEach(function(item) {
+        if (window[item.ref]) { clearInterval(window[item.ref]); window[item.ref] = null; }
+      });
+      // Also pause realtime presence
+      if (typeof MFX_LISTENERS !== 'undefined' && MFX_LISTENERS._presenceInterval) {
+        clearInterval(MFX_LISTENERS._presenceInterval);
+        MFX_LISTENERS._presenceInterval = null;
+      }
+    } else {
+      // Resume: restart all intervals
+      _intervalRegistry().forEach(function(item) {
+        if (!window[item.ref]) { window[item.ref] = setInterval(item.fn, item.ms); item.fn(); }
+      });
+      // Restart presence
+      if (typeof updatePresence === 'function' && typeof MFX_LISTENERS !== 'undefined' && !MFX_LISTENERS._presenceInterval) {
+        updatePresence();
+        MFX_LISTENERS._presenceInterval = setInterval(updatePresence, 60000);
+      }
+    }
+  });
+})();
 
 // duplicate removed
 
@@ -1381,7 +1416,7 @@ var MFX_SEND_AS=['quotes@microflexfilm.com','info@microflexfilm.com'];
 
 // Email templates for quote sending
 function getSendTemplates(q){
-var co=q.fields.custCo||'Customer';var attn=q.fields.custAttn||'';var qn=q.quoteNum||'';var user=getUserName();var portalLink='https://mfx-2026.web.app/portal?id='+q.id+'&q='+qn;
+var co=q.fields.custCo||'Customer';var attn=q.fields.custAttn||'';var qn=q.quoteNum||'';var user=getUserName();var portalLink='https://os.microflexfilm.com/portal?id='+q.id+'&q='+qn;
 return[
 {label:'Send Quote',subject:qn+' - Quote from Microflex Film Corp',body:'Hi '+(attn||co)+',\n\nPlease see the attached quote '+qn+' for your review.\n\nYou can review, approve, and submit your PO directly here:\n'+portalLink+'\n\nIf you have any questions, feel free to contact us.\n\nBest regards,\n'+user+'\nMicroflex Film Corporation\n(909) 360-9066\nQuotes@MicroflexFilm.com'},
 {label:'Follow Up',subject:'Following Up — '+qn,body:'Hi '+(attn||co)+',\n\nJust following up on quote '+qn+' we sent over. Wanted to make sure you received it and see if you have any questions.\n\nYou can review and approve directly here:\n'+portalLink+'\n\nLet me know how you\'d like to proceed.\n\nBest,\n'+user},
@@ -1492,7 +1527,7 @@ window._mfxSending=true;toast('Generating PDF & sending to '+ov.to+'...','ok');
 setTimeout(function(){
 generateQuotePDF(q).then(function(pdf){getGoogleToken().then(function(token){if(!token){window._mfxSending=false;return toast('Sign out & back in','err')}
 var boundary='mfx'+Date.now();
-var qn=q.quoteNum||'';var portalLink='https://mfx-2026.web.app/portal?id='+q.id+'&q='+qn;
+var qn=q.quoteNum||'';var portalLink='https://os.microflexfilm.com/portal?id='+q.id+'&q='+qn;
 var htmlBody='<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#060d14;border-radius:8px;overflow:hidden">'
 +'<div style="padding:20px 30px;background:#0a1520;border-bottom:1px solid #1a2d40;display:flex;align-items:center">'
 +'<div><span style="font-family:Outfit,Arial,sans-serif;font-size:22px;font-weight:900;color:#e0f2fe">Microflex</span> <span style="font-family:Outfit,Arial,sans-serif;font-size:22px;font-weight:200;color:#5a7888">Film Corp</span>'
@@ -1554,7 +1589,7 @@ generateQuotePDF(q).then(function(pdf){getGoogleToken().then(function(token){if(
 var boundary='mfx'+Date.now();var pRows='';var c_mtx=edCalc();var f=q.fields||{};
 var jobDesc=(f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo');
 if(c_mtx&&c_mtx.mtx){c_mtx.mtx.forEach(function(r){pRows+='<tr><td style="padding:8px 14px;font-size:13px;color:#94a3b8;border-bottom:1px solid #0f1d2b">'+fN(r.qty)+' units</td><td style="padding:8px 14px;font-size:13px;color:#e0f2fe;font-weight:700;text-align:right;border-bottom:1px solid #0f1d2b">'+f$(r.skus[1].tot)+'</td></tr>'})}
-var _portalLink2='https://mfx-2026.web.app/portal?id='+q.id+'&q='+q.quoteNum;
+var _portalLink2='https://os.microflexfilm.com/portal?id='+q.id+'&q='+q.quoteNum;
 var htmlBody='<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#060d14;border-radius:8px;overflow:hidden">'
 +'<div style="padding:20px 30px;background:#0a1520;border-bottom:1px solid #1a2d40">'
 +'<span style="font-family:Outfit,Arial,sans-serif;font-size:22px;font-weight:900;color:#e0f2fe">Microflex</span> <span style="font-family:Outfit,Arial,sans-serif;font-size:22px;font-weight:200;color:#5a7888">Film Corp</span>'

@@ -86,21 +86,23 @@ service cloud.firestore {
         && request.resource.data.status is string
         && request.resource.data.status.size() <= 50;
       allow update, delete: if companyUser();
-      // Portal clients: can read quote ONLY if their verified email matches the quote's clientEmail
-      // or if the quote was explicitly shared with their email via poClientEmail
-      allow get: if signedIn()
+      // Portal clients: direct doc access by ID (the link IS the access token)
+      // Any verified user with the doc ID can read — the secret URL grants access
+      allow get: if signedIn() && request.auth.token.email != null;
+      // Query by quoteNum (legacy links) — requires email match for security
+      allow list: if signedIn()
         && request.auth.token.email != null
         && (resource.data.get('poClientEmail', '') == request.auth.token.email
             || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email);
-      // Portal PO submission: no status changes allowed (removed 'status' from writable fields)
+      // Portal PO submission + visit tracking: no status changes allowed
+      // Any authenticated portal user with doc access can update portal-safe fields
       allow update: if signedIn()
         && request.auth.token.email != null
-        && (resource.data.get('poClientEmail', '') == request.auth.token.email
-            || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['poNumber','poShipTo','poInstructions','poSignature',
                        'poSignedAt','poQtyIndex','poSkuCount','poSelectedQty',
-                       'poSelectedTotal','poClientEmail','poFiles','artFiles','updatedAt']);
+                       'poSelectedTotal','poClientEmail','poFiles','artFiles',
+                       'artFilesBySku','portalStats','updatedAt']);
 
       // Portal messages subcollection — scoped to quote participants
       match /portalMessages/{msgId} {
@@ -127,6 +129,15 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['status','soNum'])
         && request.resource.data.status is string;
       allow update, delete: if canEditCommercial() || isManagement();
+      // Portal clients: can read SO linked to their quote email, and sign/approve it
+      allow get, list: if signedIn()
+        && request.auth.token.email != null
+        && resource.data.get('email', '') == request.auth.token.email;
+      allow update: if signedIn()
+        && request.auth.token.email != null
+        && resource.data.get('email', '') == request.auth.token.email
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['clientSignature','clientSignedAt','clientEmail','clientApproved']);
     }
 
     match /jobPassports/{passportId} {

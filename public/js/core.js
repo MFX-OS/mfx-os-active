@@ -79,15 +79,54 @@ function _mfxApplyUnlock(){
   if(!window.CURRENT_USER){return;}
   // Show advanced tabs
   document.querySelectorAll('.tab.adv').forEach(function(t){t.style.display='';});
-  // Inject full colored department menu into hamburger
+  // Inject full colored department menu into hamburger (always re-inject if empty)
   var adv=document.getElementById('hamAdvanced');
   if(adv){
-    if(typeof _buildFullHamMenu==='function'){
+    if(typeof _buildFullHamMenu==='function' && (!adv.innerHTML || adv.innerHTML.length<100)){
       adv.innerHTML=_buildFullHamMenu();
     }
     adv.style.display='block';
+    // Apply department visibility filter to hamburger menu sections
+    _applyHamDeptFilter();
   }
 }
+// Hide ham menu departments the user doesn't belong to (unless admin)
+function _applyHamDeptFilter(){
+  if(!CURRENT_USER||!CURRENT_USER.dept)return; // no dept = admin, show all
+  var dept=CURRENT_USER.dept.toLowerCase().trim();
+  var role=(CURRENT_USER.role||'').toLowerCase();
+  // Admin/exec/operations/CEO see everything
+  if(/ceo|admin|owner|director|vp|operations|administration|executive|management/.test(role))return;
+  if(/operations|administration|ceo|executive|management/.test(dept))return;
+  // Map dept to which ham sections to show (hamSub-XX IDs)
+  var DEPT_HAM_SECTIONS={
+    'client services':['cs','jt'],'sales':['cs'],'estimation':['cs','jt'],
+    'pre-press':['pp','jt'],'prepress':['pp','jt'],
+    'production':['prod','jt','pp'],'manufacturing':['prod','jt','pp'],
+    'logistics':['log','jt'],'shipping':['log','jt'],
+    'quality':['qa','fsqms'],'qa':['qa','fsqms'],
+    'finance':['fin'],'accounting':['fin'],
+    'fsqms':['fsqms','qa'],'sqf':['fsqms','qa'],
+    'hr':['ops']
+  };
+  var allowed=DEPT_HAM_SECTIONS[dept];
+  if(!allowed)return; // unknown dept = show all
+  // Each top-level dept button is wrapped in a div with padding:2px 12px
+  var adv=document.getElementById('hamAdvanced');
+  if(!adv)return;
+  var topSections=adv.children;
+  for(var i=0;i<topSections.length;i++){
+    var sec=topSections[i];
+    // Find the hamSub-XX inside this section
+    var sub=sec.querySelector('[id^="hamSub-"]');
+    if(!sub)continue;
+    var secId=sub.id.replace('hamSub-','');
+    // Always show FlexAi/dashboard items
+    if(secId==='ai'||secId==='flex')continue;
+    sec.style.display=allowed.indexOf(secId)>=0?'':'none';
+  }
+}
+window._applyHamDeptFilter=_applyHamDeptFilter;
 window.mfxUnlockPrompt=mfxUnlockPrompt;
 window.mfxLockMenu=mfxLockMenu;
 
@@ -233,7 +272,7 @@ window.animateLogoToTopbar = function(){
 
 
 // ═══ FIREBASE CONFIG — REPLACE WITH YOUR PROJECT ═══
-const firebaseConfig={apiKey:"AIzaSyA5N8V4jVNe4pVt3jmjEdbQEfv1lnKj7PM",authDomain:"mfx-2026.web.app",projectId:"mfx-2026",storageBucket:"mfx-2026.firebasestorage.app",messagingSenderId:"21746521413",appId:"1:21746521413:web:7229f14cabaebb1e0a1a2c",measurementId:"G-DLLD80B7YS"};
+const firebaseConfig={apiKey:"AIzaSyA5N8V4jVNe4pVt3jmjEdbQEfv1lnKj7PM",authDomain:"os.microflexfilm.com",projectId:"mfx-2026",storageBucket:"mfx-2026.firebasestorage.app",messagingSenderId:"21746521413",appId:"1:21746521413:web:7229f14cabaebb1e0a1a2c",measurementId:"G-DLLD80B7YS"};
 firebase.initializeApp(firebaseConfig);
 const fbAuth=firebase.auth();
 const fbDb=firebase.firestore();
@@ -355,7 +394,8 @@ MFX.state = {
 
 const $=id=>document.getElementById(id);
 const f$=n=>{n=parseFloat(n)||0;return '$'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');};
-let CURRENT_USER=null;
+var CURRENT_USER=null;
+window.CURRENT_USER=null;
 var _coreListeners=[];
 window._rfqPending=0;window._rfqData={pending:0,overdue:[]};if(fbDb){_coreListeners.push(fbDb.collection('requests').where('status','==','pending').onSnapshot(function(s){window._rfqPending=s.size;window._rfqData.pending=s.size;window._rfqData.overdue=s.docs.filter(function(d){var r=d.data();return r.submittedAt&&(Date.now()-new Date(r.submittedAt).getTime()>48*3600000);}).map(function(d){return Object.assign({id:d.id},d.data());});if(S.view==='dashboard')renderDash()}, function(err){ console.warn('core requests listener:', err.message); }))}
 function getUserEmail(){return CURRENT_USER?CURRENT_USER.email:''}
@@ -471,7 +511,7 @@ window.syncPPDInbox=function(opts){
 function _makeGoogleProvider(){var gp=new firebase.auth.GoogleAuthProvider();gp.addScope('https://www.googleapis.com/auth/calendar.events');gp.addScope('https://www.googleapis.com/auth/gmail.send');gp.addScope('https://www.googleapis.com/auth/gmail.readonly');gp.addScope('https://www.googleapis.com/auth/drive');gp.addScope('https://www.googleapis.com/auth/tasks');gp.addScope('https://www.googleapis.com/auth/spreadsheets');return gp}
 function _captureGoogleCred(result){var cred=result.credential||firebase.auth.GoogleAuthProvider.credentialFromResult(result);if(cred&&cred.accessToken){window.GTOKEN=cred.accessToken;sessionStorage.setItem('mfx_gtoken',cred.accessToken);sessionStorage.setItem('mfx_gtoken_exp',String(Date.now()+3500000));/* token captured */}else{ /* no credential */ }}
 // Popup-first sign-in with redirect fallback
-function signInWithGoogle(){var gp=_makeGoogleProvider();gp.setCustomParameters({hd:'microflexfilm.com'});fbAuth.signInWithPopup(gp).then(function(result){if(result.user&&result.user.email&&!result.user.email.endsWith('@microflexfilm.com')){result.user.delete();alert('Access restricted to @microflexfilm.com accounts only.');return}_captureGoogleCred(result)}).catch(function(e){console.warn('Popup sign-in failed ('+e.code+'), trying redirect...');fbAuth.signInWithRedirect(gp)})}
+function signInWithGoogle(){var gp=_makeGoogleProvider();gp.setCustomParameters({hd:'microflexfilm.com'});fbAuth.signInWithRedirect(gp)}
 // Handle redirect result on page load
 fbAuth.getRedirectResult().then(function(result){if(result&&result.user){if(!result.user.email.endsWith('@microflexfilm.com')){result.user.delete();alert('Access restricted to @microflexfilm.com accounts only.');return}_captureGoogleCred(result)}}).catch(function(e){console.warn('Redirect result:',e.code)})
 // Email/password sign-in
@@ -515,21 +555,88 @@ _coreListeners.push(fbDb.collection('quotes').orderBy('updatedAt','desc').onSnap
   _cache.quotes=incoming;
   if(_ready){
     if(S.view!=='editor'){({dashboard:renderDash,quotes:renderQuotes,customers:renderCust,templates:renderTpl,clientservices:window.MFX_VIEW_RENDERERS&&window.MFX_VIEW_RENDERERS.clientservices,sales:window.MFX_VIEW_RENDERERS&&window.MFX_VIEW_RENDERERS.sales})[S.view]?.()}
-    else if(S.etab===7&&typeof renderWorkflow==='function'){renderWorkflow();if(typeof renderConnections==='function')renderConnections()}
+    else if(S.etab===13&&typeof renderWorkflow==='function'){renderWorkflow();if(typeof renderConnections==='function')renderConnections()}
   }
 }, err => console.warn('core quotes listener:', err.message)));
 _coreListeners.push(fbDb.collection('customers').orderBy('company').onSnapshot(s=>{_cache.customers=s.docs.map(d=>({...d.data(),id:d.id}));if(_ready){if(S.view==='customers')renderCust();if(S.view==='clientservices'&&window.MFX_VIEW_RENDERERS&&window.MFX_VIEW_RENDERERS.clientservices)window.MFX_VIEW_RENDERERS.clientservices();}}, err => console.warn('core customers listener:', err.message)));
 _coreListeners.push(fbDb.collection('quoteTemplates').onSnapshot(s=>{_cache.templates=s.docs.map(d=>({...d.data(),id:d.id}))}, err => console.warn('core quoteTemplates listener:', err.message)));
 _ready=true}
 
-fbAuth.onAuthStateChanged(user=>{try{if(user){if(user.email&&!user.email.endsWith('@microflexfilm.com')&&!user.isAnonymous){ /* blocked non-company user */ fbAuth.signOut();alert('Access restricted to @microflexfilm.com accounts only.');return} /* Auth signed in */ CURRENT_USER={uid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL};
+// ═══ DEPARTMENT → HOME VIEW MAPPING ═══
+var DEPT_HOME_MAP={
+  'client services':'dept-cs-home','sales':'dept-cs-home','estimation':'dept-cs-home',
+  'pre-press':'dept-pp-home','prepress':'dept-pp-home',
+  'production':'dept-production-home','manufacturing':'dept-production-home',
+  'logistics':'dept-logistics-home','shipping':'dept-logistics-home','warehouse':'dept-logistics-home',
+  'quality':'dept-quality-home','qa':'dept-quality-home',
+  'finance':'dept-finance-home','accounting':'dept-finance-home',
+  'fsqms':'dept-fsqms-home','sqf':'dept-fsqms-home','food safety':'dept-fsqms-home',
+  'operations':'dept-operations-home','administration':'dept-operations-home',
+  'ceo':'dashboard','executive':'dashboard','management':'dashboard'
+};
+window.DEPT_HOME_MAP=DEPT_HOME_MAP;
+// ═══ DEPARTMENT → ALLOWED VIEWS ═══
+var DEPT_ALLOWED_VIEWS={
+  'client services':['quotes','customers','orders','templates','clientservices','sales','vendorpos','vendorprofile','ppd','jobtracker','dept-cs-home','dashboard','ceodash','launchpad','aiops','dept-jt-home'],
+  'sales':['quotes','customers','orders','templates','clientservices','sales','vendorpos','vendorprofile','dept-cs-home','dashboard','launchpad'],
+  'estimation':['quotes','customers','orders','templates','clientservices','sales','vendorpos','vendorprofile','ppd','dept-cs-home','dashboard','launchpad'],
+  'pre-press':['ppd','jobtracker','production','dept-pp-home','dashboard','launchpad','dept-jt-home'],
+  'prepress':['ppd','jobtracker','production','dept-pp-home','dashboard','launchpad','dept-jt-home'],
+  'production':['production','jobtracker','operator','ppd','dept-production-home','dashboard','launchpad','dept-jt-home'],
+  'manufacturing':['production','jobtracker','operator','ppd','dept-production-home','dashboard','launchpad','dept-jt-home'],
+  'logistics':['logistics','production','jobtracker','dept-logistics-home','dashboard','launchpad','dept-jt-home'],
+  'shipping':['logistics','production','jobtracker','dept-logistics-home','dashboard','launchpad','dept-jt-home'],
+  'quality':['quality','capa','gmp','audit','training','doccontrol','sqfdatalogs','fsqms','records','dept-quality-home','dashboard','launchpad'],
+  'qa':['quality','capa','gmp','audit','training','doccontrol','sqfdatalogs','fsqms','records','dept-quality-home','dashboard','launchpad'],
+  'finance':['accounting','finance','dept-finance-home','dashboard','launchpad'],
+  'accounting':['accounting','finance','dept-finance-home','dashboard','launchpad'],
+  'fsqms':['gmp','capa','audit','training','doccontrol','sqfdatalogs','fsqms','records','quality','dept-fsqms-home','dashboard','launchpad'],
+  'operations':null,'administration':null,'ceo':null,'executive':null,'management':null
+};
+window.DEPT_ALLOWED_VIEWS=DEPT_ALLOWED_VIEWS;
+
+function getUserDeptHome(dept){
+  if(!dept)return'dashboard';
+  var key=dept.toLowerCase().trim();
+  return DEPT_HOME_MAP[key]||'dashboard';
+}
+function isViewAllowedForDept(view,dept,role){
+  if(!dept)return true; // no dept set = show everything (admin/unassigned)
+  var key=dept.toLowerCase().trim();
+  // CEO/admin/operations see everything
+  if(role&&/ceo|admin|owner|director|vp|operations/i.test(role))return true;
+  if(/operations|administration|ceo|executive|management/i.test(key))return true;
+  var allowed=DEPT_ALLOWED_VIEWS[key];
+  if(!allowed)return true; // null = unrestricted (admin depts)
+  return allowed.indexOf(view)>=0;
+}
+window.getUserDeptHome=getUserDeptHome;
+window.isViewAllowedForDept=isViewAllowedForDept;
+
+fbAuth.onAuthStateChanged(user=>{try{if(user){if(user.email&&!user.email.endsWith('@microflexfilm.com')&&!user.isAnonymous){ /* blocked non-company user */ fbAuth.signOut();alert('Access restricted to @microflexfilm.com accounts only.');return} /* Auth signed in */ CURRENT_USER={uid:user.uid,email:user.email,displayName:user.displayName,photoURL:user.photoURL};window.CURRENT_USER=CURRENT_USER;
 syncUserAccessProfile().catch(function(e){console.warn('User doc write:',e)});
 if(typeof DB!=='undefined'&&DB.logActivity) DB.logActivity('user.login', (user.displayName||user.email)+' logged in');
 // FlexAi auto-status: user online
 if(typeof fbDb!=='undefined'){try{fbDb.collection('statusReel').add({text:(user.displayName||user.email)+' is online',emoji:'🟢',gif:null,user:'Flex Ai',userId:'system-flexai',dept:'System',createdAt:firebase.firestore.FieldValue.serverTimestamp(),announcement:false,likes:[],replyCount:0,mentions:[],replies:[]})}catch(e){}}
 if(!window.GTOKEN){var cached=sessionStorage.getItem('mfx_gtoken');var exp=parseInt(sessionStorage.getItem('mfx_gtoken_exp')||'0');if(cached&&Date.now()<exp)window.GTOKEN=cached;}
 var ls=$('loginScreen'),ap=$('app');if(ap)ap.style.display='block';if(typeof window.dismissIntroAfterLogin==='function')window.dismissIntroAfterLogin();else if(ls)ls.style.display='none';
-checkAndSeedData().then(()=>{startListeners();setTimeout(()=>{var _pKey='mfx_profile_'+(CURRENT_USER?CURRENT_USER.uid:'default');if(!localStorage.getItem(_pKey)){localStorage.setItem(_pKey,JSON.stringify({flexId:'',role:'',dept:'',pods:'',mood:'😊',yearJoined:'',lastUpdated:new Date().toISOString()}))}var _home='dashboard';goView(_home);/* userBadge avatar removed — dot indicator only */
+// Fetch user dept/role from Firestore for department routing
+var _userDeptPromise=Promise.resolve({dept:'',role:''});
+if(typeof fbDb!=='undefined'){
+  _userDeptPromise=fbDb.collection('users').doc(user.uid).get().then(function(doc){
+    if(doc.exists){var d=doc.data();return{dept:d.dept||'',role:d.role||'',permissions:d.permissions||{}};}
+    return{dept:'',role:''};
+  }).catch(function(){return{dept:'',role:''};});
+}
+_userDeptPromise.then(function(_uInfo){
+CURRENT_USER.dept=_uInfo.dept||'';CURRENT_USER.role=_uInfo.role||'';CURRENT_USER.permissions=_uInfo.permissions||{};window.CURRENT_USER=CURRENT_USER;
+checkAndSeedData().then(()=>{startListeners();setTimeout(()=>{var _pKey='mfx_profile_'+(CURRENT_USER?CURRENT_USER.uid:'default');if(!localStorage.getItem(_pKey)){localStorage.setItem(_pKey,JSON.stringify({flexId:'',role:'',dept:'',pods:'',mood:'😊',yearJoined:'',lastUpdated:new Date().toISOString()}))}
+// Restore editor state from URL or sessionStorage
+var _restoredEditor=false;
+var _urlPath=window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+if(_urlPath.indexOf('editor/')===0){var _rQid=_urlPath.split('/')[1];if(_rQid){_restoredEditor=true;setTimeout(function(){openEditor(_rQid)},200)}}
+else{var _ssEdit=sessionStorage.getItem('mfx_editId');if(_ssEdit&&_urlPath==='editor'){_restoredEditor=true;setTimeout(function(){openEditor(_ssEdit)},200)}}
+if(!_restoredEditor){var _home=getUserDeptHome(CURRENT_USER.dept);goView(_home)}
 if(typeof populateHamUser==='function')populateHamUser();
 if(typeof _mfxApplyUnlock==='function')_mfxApplyUnlock();
 if(typeof initGamification==='function')initGamification();
@@ -541,10 +648,10 @@ if(typeof _initInactivity==='function')_initInactivity();
 if(typeof initPresenceBar==='function')initPresenceBar();
 if(typeof MFXAi!=='undefined'&&MFXAi.init)MFXAi.init().then(function(){if(MFXAi._initChatBridge)MFXAi._initChatBridge()}).catch(function(e){console.warn('FlexAi init:',e)});
 // duplicate syncUserAccessProfile call removed — already called on line 279
-},500)}).catch(function(e){console.error('Auth init error:',e);goView('launchpad')})}else{_clearInactivity();
+},500)}).catch(function(e){console.error('Auth init error:',e);goView('launchpad')})});/*end _userDeptPromise.then*/}else{_clearInactivity();
 // FlexAi auto-status: user offline
 if(typeof fbDb!=='undefined'&&CURRENT_USER){try{var _offName=CURRENT_USER.displayName||CURRENT_USER.email||'User';fbDb.collection('statusReel').add({text:_offName+' went offline',emoji:'🔴',gif:null,user:'Flex Ai',userId:'system-flexai',dept:'System',createdAt:firebase.firestore.FieldValue.serverTimestamp(),announcement:false,likes:[],replyCount:0,mentions:[],replies:[]})}catch(e){}}
-CURRENT_USER=null;var ls2=$('loginScreen'),ap2=$('app');if(ap2)ap2.style.display='none';
+CURRENT_USER=null;window.CURRENT_USER=null;var ls2=$('loginScreen'),ap2=$('app');if(ap2)ap2.style.display='none';
 var intr=document.getElementById('introScreen');
 if(intr){intr.style.display='block';intr.style.opacity='1';intr.style.transform='';
   // Show the form immediately on re-login
@@ -552,8 +659,13 @@ if(intr){intr.style.display='block';intr.style.opacity='1';intr.style.transform=
   if(fw){fw.style.opacity='1';fw.style.transform='translateY(0)';}
 }}}catch(e){console.error('onAuthStateChanged error:',e)}});
 
-// FlexAi auto-status on tab close
-window.addEventListener('beforeunload', function(){
+// FlexAi auto-status on tab close + unsaved changes warning
+window.addEventListener('beforeunload', function(e){
+  // Warn if there are unsaved changes in the editor
+  if(window._viewDirty && S && S.view === 'editor'){
+    e.preventDefault();
+    e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+  }
   if(typeof fbDb!=='undefined'&&CURRENT_USER){
     try{var _name=CURRENT_USER.displayName||CURRENT_USER.email||'User';
     navigator.sendBeacon&&navigator.sendBeacon('/__/noop',''); // keep connection alive briefly
@@ -891,6 +1003,14 @@ window.applyDeptTheme=applyDeptTheme;
 function isLightColor(hex){if(!hex||hex.charAt(0)!=='#')return true;var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return(r*299+g*587+b*114)/1000>150}
 
 function goView(v){
+// ═══ DEPARTMENT ACCESS GATE ═══
+if(window.CURRENT_USER&&CURRENT_USER.dept&&typeof isViewAllowedForDept==='function'){
+  if(!isViewAllowedForDept(v,CURRENT_USER.dept,CURRENT_USER.role)){
+    if(typeof toast==='function')toast('Access restricted — '+v+' is not available for your department','err');
+    console.warn('[Dept Gate] Blocked: '+v+' not allowed for dept='+CURRENT_USER.dept+' role='+CURRENT_USER.role);
+    return;
+  }
+}
 if (window._dashRefreshTimer && v !== 'dashboard') {
   clearInterval(window._dashRefreshTimer);
   window._dashRefreshTimer = null;
@@ -969,10 +1089,17 @@ if (window.history && window.history.pushState && !window._isPopState) {
 // Browser back/forward navigation
 window.addEventListener('popstate', function(e) {
   window._isPopState = true;
-  if (e.state && e.state.view) {
+  if (e.state && e.state.view === 'editor' && e.state.editId) {
+    openEditor(e.state.editId);
+  } else if (e.state && e.state.view) {
     goView(e.state.view);
   } else {
     var path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+    // Handle /editor/QUOTEID URLs
+    if (path.indexOf('editor/') === 0) {
+      var qid = path.split('/')[1];
+      if (qid) { openEditor(qid); window._isPopState = false; return; }
+    }
     goView(path || 'dashboard');
   }
   window._isPopState = false;
@@ -982,6 +1109,14 @@ function openEditor(qid){const prevProfile=S.profileId;S.view='editor';S.editId=
 // Update center title with quote info
 var _eq=DB.quotes().find(function(q){return q.id===qid});if($('hdrTitle'))$('hdrTitle').textContent=_eq?(_eq.quoteNum||'Quote'):('Quote');
 if(typeof trackView==='function')trackView('editor');
+// Persist editor state to URL + sessionStorage so navigating away doesn't lose the quote
+sessionStorage.setItem('mfx_editId', qid);
+if (window.history && window.history.pushState && !window._isPopState) {
+  var edPath = '/editor/' + qid;
+  if (window.location.pathname !== edPath) {
+    window.history.pushState({ view: 'editor', editId: qid }, '', edPath);
+  }
+}
 // Wire dirty detection after render
 setTimeout(function(){var edEl=$('v-editor');if(edEl){edEl.addEventListener('input',function(){if(typeof markDirty==='function')markDirty()},{once:false})}},500);
 renderEditor();
@@ -1023,7 +1158,7 @@ if (window.fbDb && typeof getUserId === 'function') {
 }
 function saveCurrentWork(){if(S.view==='editor'&&typeof saveQ==='function'){saveQ();if(typeof toast==='function')toast('Saved','ok')}if(typeof markClean==='function')markClean()}
 window.saveCurrentWork=saveCurrentWork;
-function exitEditor(){if(typeof markClean==='function')markClean();saveQ();
+function exitEditor(){if(typeof markClean==='function')markClean();saveQ();sessionStorage.removeItem('mfx_editId');
 // Clear editing presence
 if (window.fbDb && typeof getUserId === 'function') {
   window.fbDb.collection('presence').doc(getUserId()).update({

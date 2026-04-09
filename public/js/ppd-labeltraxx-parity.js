@@ -44,11 +44,12 @@
     ensureParityState();
     if(PPD.parityListenersStarted || typeof fbDb==='undefined') return;
     PPD.parityListenersStarted = true;
-    try{ fbDb.collection('ppdEstimates').limit(300).onSnapshot(function(s){ PPD.estimates = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity ppdEstimates listener:', err.message); }); }catch(e){}
-    try{ fbDb.collection('ppdTemplates').limit(300).onSnapshot(function(s){ PPD.templates = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity ppdTemplates listener:', err.message); }); }catch(e){}
-    try{ fbDb.collection('equipmentProfiles').limit(300).onSnapshot(function(s){ PPD.equipmentProfiles = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity equipmentProfiles listener:', err.message); }); }catch(e){}
-    try{ fbDb.collection('qcProcedures').limit(300).onSnapshot(function(s){ PPD.qcProcedures = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity qcProcedures listener:', err.message); }); }catch(e){}
-    try{ fbDb.collection('returnMaterials').limit(300).onSnapshot(function(s){ PPD.returnMaterials = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity returnMaterials listener:', err.message); }); }catch(e){}
+    var reg=typeof mfxRegisterListener==='function'?mfxRegisterListener:function(){};
+    try{ reg('ppdEstimates',fbDb.collection('ppdEstimates').limit(300).onSnapshot(function(s){ PPD.estimates = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity ppdEstimates listener:', err.message); })); }catch(e){}
+    try{ reg('ppdTemplates',fbDb.collection('ppdTemplates').limit(300).onSnapshot(function(s){ PPD.templates = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity ppdTemplates listener:', err.message); })); }catch(e){}
+    try{ reg('equipmentProfiles',fbDb.collection('equipmentProfiles').limit(300).onSnapshot(function(s){ PPD.equipmentProfiles = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity equipmentProfiles listener:', err.message); })); }catch(e){}
+    try{ reg('qcProcedures',fbDb.collection('qcProcedures').limit(300).onSnapshot(function(s){ PPD.qcProcedures = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity qcProcedures listener:', err.message); })); }catch(e){}
+    try{ reg('returnMaterials',fbDb.collection('returnMaterials').limit(300).onSnapshot(function(s){ PPD.returnMaterials = byDate(s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }),'updatedAt'); decorate(); }, function(err){ console.warn('ppd-labeltraxx-parity returnMaterials listener:', err.message); })); }catch(e){}
   }
 
   function getEquipmentById(id){ return (PPD.equipmentProfiles||[]).find(function(x){ return x.id===id; }) || null; }

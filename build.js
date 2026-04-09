@@ -27,7 +27,7 @@ const JS_FILES = [
   'vendor-patches.js', 'logistics.js', 'gmp.js', 'capa.js',
   'audit.js', 'training.js', 'doccontrol.js', 'hr.js', 'operator.js',
   'launchpad.js', 'sqf-datalogs.js', 'sqf-alerts.js', 'sqf-evidence.js', 'sqf-records.js', 'master-automation.js', 'client-services.js', 'sales.js',
-  'job-tracker.js', 'ceo-dash.js',
+  'job-tracker.js', 'ceo-dash.js', 'system-control.js',
   'ai-core.js', 'ai-recommendations.js', 'ai-approvals.js', 'ai-module-panels.js', 'ai-ops-center.js', 'ai-chat-bridge.js',
   'data-sync.js', 'chat.js', 'notifications.js',
   'platform-services.js', 'drive-listener.js', 'fsqms-module.js', 'a11y.js'
@@ -86,7 +86,8 @@ async function minify(code) {
   const result = await esbuild.transform(code, {
     minify: true,
     target: 'es2020',
-    legalComments: 'none'
+    legalComments: 'none',
+    pure: ['console.log']
   });
   if (result.warnings.length > 0) {
     result.warnings.forEach(w => console.warn(`  ⚠ ${w.text}`));

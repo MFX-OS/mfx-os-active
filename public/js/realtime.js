@@ -8,6 +8,30 @@ function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/<
 
 var MFX_LISTENERS = {};
 
+// ═══ GLOBAL LISTENER REGISTRY — any module can register listeners for cleanup ═══
+window._mfxGlobalListeners = window._mfxGlobalListeners || {};
+window.mfxRegisterListener = function(key, unsub) {
+  if (window._mfxGlobalListeners[key] && typeof window._mfxGlobalListeners[key] === 'function') {
+    window._mfxGlobalListeners[key](); // clean up previous
+  }
+  window._mfxGlobalListeners[key] = unsub;
+};
+window.mfxUnregisterListener = function(key) {
+  if (window._mfxGlobalListeners[key] && typeof window._mfxGlobalListeners[key] === 'function') {
+    window._mfxGlobalListeners[key]();
+  }
+  delete window._mfxGlobalListeners[key];
+};
+window.mfxCleanupAllListeners = function() {
+  Object.keys(window._mfxGlobalListeners).forEach(function(key) {
+    if (typeof window._mfxGlobalListeners[key] === 'function') {
+      try { window._mfxGlobalListeners[key](); } catch(e) {}
+    }
+  });
+  window._mfxGlobalListeners = {};
+  console.log('[MFX] All global listeners cleaned up');
+};
+
 function startRealtimeSync() {
   if (!fbDb) return;
   console.log('🔴 Starting real-time sync...');
@@ -89,13 +113,13 @@ function stopRealtimeSync() {
   Object.keys(MFX_LISTENERS).forEach(function(key) {
     if (typeof MFX_LISTENERS[key] === 'function') {
       MFX_LISTENERS[key](); // unsubscribe
-      console.log('Stopped listener:', key);
     } else if (key === '_presenceInterval') {
       clearInterval(MFX_LISTENERS[key]);
-      console.log('Stopped presence interval');
     }
   });
   MFX_LISTENERS = {};
+  // Clean up all globally registered listeners from other modules
+  if (typeof window.mfxCleanupAllListeners === 'function') window.mfxCleanupAllListeners();
 }
 
 // ═══ SYNC INDICATOR ═══

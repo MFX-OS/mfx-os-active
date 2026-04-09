@@ -25,10 +25,10 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 </head>
 <body>
 
@@ -221,8 +221,31 @@
 </div>
 </div>
 
-<!-- ═══ ADVANCED MODULES (injected by full-menu.js when unlocked) ═══ -->
+<!-- ═══ ADVANCED MODULES — auto-injected on auth ═══ -->
 <div id="hamAdvanced" style="display:none"></div>
+<script>
+(function(){
+  var _hamTimer = setInterval(function(){
+    try {
+      if(!window.CURRENT_USER) return;
+      var adv = document.getElementById('hamAdvanced');
+      if(!adv) { console.warn('[HAM] no #hamAdvanced element'); return; }
+      var hasFn = typeof window._buildFullHamMenu === 'function';
+      if(!hasFn) { console.warn('[HAM] _buildFullHamMenu not found yet'); return; }
+      if(adv.innerHTML.length < 100){
+        console.log('[HAM] injecting menu...');
+        adv.innerHTML = window._buildFullHamMenu();
+        adv.style.display = 'block';
+        console.log('[HAM] injected ' + adv.innerHTML.length + ' chars');
+      }
+      if(adv.innerHTML.length > 100) clearInterval(_hamTimer);
+    } catch(e) {
+      console.error('[HAM] error:', e.message, e.stack);
+    }
+  }, 500);
+  setTimeout(function(){ clearInterval(_hamTimer); }, 30000);
+})();
+</script>
 
 <!-- ═══ COMMUNICATION ═══ -->
 <div style="border-top:1px solid var(--bdr);margin:8px 16px 4px"></div>
@@ -295,6 +318,7 @@
 <div class="view" id="v-dept-fsqms-home"></div>
 <div class="view" id="v-dept-flexai-home"></div>
 <div class="view" id="v-aiops"></div>
+<div class="view" id="v-systemcontrol"></div>
 </main>
 
 <!-- STREAK BANNER — gamification streak display -->
@@ -412,7 +436,7 @@
 <style>@keyframes mfx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 <!-- Login, SW, keyboard — moved to js/inline-boot.js -->
 <script src="js/inline-boot.js"></script>
-<script src="js/mfx-bundle.af0ca8a4.js"></script>
+<script src="js/mfx-bundle.328a69f3.js"></script>
 <script defer src="js/orders.js"></script>
 </body>
 </html>

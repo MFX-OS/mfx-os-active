@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "mfx-local",
-      "runtimeExecutable": "/opt/homebrew/bin/node",
-      "runtimeArgs": ["/opt/homebrew/bin/serve", "public", "-l", "5000", "--no-clipboard"],
-      "port": 5000
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "public", "--no-clipboard"],
+      "port": 5000,
+      "autoPort": true
     }
   ]
 }

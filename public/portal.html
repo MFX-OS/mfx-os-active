@@ -158,7 +158,7 @@ a{color:var(--accent);text-decoration:none}
 <script>
 firebase.initializeApp({
   apiKey:"AIzaSyA5N8V4jVNe4pVt3jmjEdbQEfv1lnKj7PM",
-  authDomain:"mfx-2026.web.app",
+  authDomain:"os.microflexfilm.com",
   projectId:"mfx-2026",
   storageBucket:"mfx-2026.firebasestorage.app"
 });
@@ -173,9 +173,20 @@ var UPLOADED_FILES=[];
 // ─── Auth: Anonymous + Email Identification ───
 function loadQuote(){
   var params=new URLSearchParams(window.location.search);
-  var docId=params.get('id');
-  var qNum=params.get('q');
+  var docId=params.get('id')||'';
+  var qNum=params.get('q')||'';
+
+  // Restore quote params from localStorage if missing from URL (email link redirect strips them)
+  if(!docId&&!qNum){
+    docId=localStorage.getItem('mfxPortalPendingId')||'';
+    qNum=localStorage.getItem('mfxPortalPendingQ')||'';
+  }
   if(!docId&&!qNum){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
+
+  // Always save current quote params so email link redirect can recover them
+  if(docId)localStorage.setItem('mfxPortalPendingId',docId);
+  if(qNum)localStorage.setItem('mfxPortalPendingQ',qNum);
+
   // Check if returning from email verification link
   if(auth.isSignInWithEmailLink(window.location.href)){
     var email=localStorage.getItem('mfxPortalPendingEmail')||localStorage.getItem('mfxPortalEmail');
@@ -184,16 +195,30 @@ function loadQuote(){
       localStorage.removeItem('mfxPortalEmail');
       localStorage.removeItem('mfxPortalPendingEmail');
       CLIENT_EMAIL=result.user.email;
+      // Recover quote params — URL may have lost them during Firebase redirect
+      var recoveredId=params.get('id')||localStorage.getItem('mfxPortalPendingId')||'';
+      var recoveredQ=params.get('q')||localStorage.getItem('mfxPortalPendingQ')||'';
       var cleanParams=[];
-      if(params.get('id'))cleanParams.push('id='+params.get('id'));
-      if(params.get('q'))cleanParams.push('q='+params.get('q'));
+      if(recoveredId)cleanParams.push('id='+recoveredId);
+      if(recoveredQ)cleanParams.push('q='+recoveredQ);
       var clean=window.location.origin+window.location.pathname+(cleanParams.length?'?'+cleanParams.join('&'):'');
       window.history.replaceState({},'',clean);
       doLoadQuote();
-    }).catch(function(e){ showAuthScreen(qNum); });
+    }).catch(function(e){
+      console.error('[Portal Auth] signInWithEmailLink failed:', e.code, e.message);
+      // Show error to user instead of silently going back to auth screen
+      var wrap=document.querySelector('.wrap');
+      if(wrap)wrap.innerHTML='<div style="max-width:380px;margin:60px auto;text-align:center">'
+        +'<div style="font-family:Outfit;font-size:28px;font-weight:900;color:var(--h1);margin-bottom:12px">Microflex</div>'
+        +'<div style="font-size:14px;color:var(--red,#ff6474);font-weight:700;margin-bottom:8px">Verification Failed</div>'
+        +'<div style="font-size:12px;color:var(--sub);margin-bottom:16px">'+escPortal(e.message)+'</div>'
+        +'<div style="font-size:11px;color:var(--sub);margin-bottom:16px">This can happen if the link has expired or was already used. Please request a new verification link.</div>'
+        +'<button onclick="location.href=location.pathname+location.search.replace(/&?oobCode=[^&]*/g,\\\'\\\').replace(/&?mode=[^&]*/g,\\\'\\\')" style="padding:10px 24px;border-radius:8px;background:var(--accent,#00e5ff);color:#060d14;font-size:12px;font-weight:700;border:none;cursor:pointer">Try Again</button>'
+        +'</div>';
+    });
     return;
   }
-  // Check for saved email
+  // Already signed in — skip auth, load quote directly
   var savedEmail=localStorage.getItem('mfxPortalEmail');
   auth.onAuthStateChanged(function(user){
     if(user){
@@ -245,9 +270,21 @@ function portalSignIn(){
     return;
   }
 
+  // Build a clean return URL that preserves the quote id/q params
+  var params=new URLSearchParams(window.location.search);
+  var returnUrl=window.location.origin+window.location.pathname+'?';
+  var rp=[];
+  if(params.get('id'))rp.push('id='+params.get('id'));
+  if(params.get('q'))rp.push('q='+params.get('q'));
+  returnUrl+=rp.join('&');
+
+  // Save quote params to localStorage as backup (Firebase redirects can lose URL params)
+  if(params.get('id'))localStorage.setItem('mfxPortalPendingId',params.get('id'));
+  if(params.get('q'))localStorage.setItem('mfxPortalPendingQ',params.get('q'));
+
   // Send email verification link
   var actionCodeSettings={
-    url: window.location.href,
+    url: returnUrl,
     handleCodeInApp: true
   };
   auth.sendSignInLinkToEmail(email, actionCodeSettings).then(function(){
@@ -264,10 +301,17 @@ function escPortal(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&
 
 function doLoadQuote(){
   var params=new URLSearchParams(window.location.search);
-  var docId=params.get('id');
-  var qNum=params.get('q');
+  var docId=params.get('id')||localStorage.getItem('mfxPortalPendingId')||'';
+  var qNum=params.get('q')||localStorage.getItem('mfxPortalPendingQ')||'';
   if(!docId&&!qNum){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
   document.querySelector('.status h2').textContent='Loading quote '+(qNum||docId)+'...';
+  // Clean up URL if params were recovered from localStorage
+  if(!params.get('id')&&!params.get('q')){
+    var cp=[];
+    if(docId)cp.push('id='+docId);
+    if(qNum)cp.push('q='+qNum);
+    if(cp.length)window.history.replaceState({},'',window.location.pathname+'?'+cp.join('&'));
+  }
   // Prefer doc ID (direct fetch, works with security rules)
   var loadPromise;
   if(docId){
@@ -285,6 +329,27 @@ function doLoadQuote(){
     if(!result){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">Quote not found</h2><p>'+(qNum||docId)+' could not be found.</p></div>';return}
     QUOTE_ID=result.id;
     QUOTE_DATA=result.data;
+    // Clear stale quote params — this quote is now loaded
+    localStorage.removeItem('mfxPortalPendingId');
+    localStorage.removeItem('mfxPortalPendingQ');
+    // Track portal visit
+    try{
+      var now=new Date().toISOString();
+      var statsRef=db.collection('quotes').doc(QUOTE_ID);
+      statsRef.get().then(function(doc){
+        var d=doc.data()||{};var ps=d.portalStats||{visits:0,firstVisit:null,lastVisit:null,visitors:[]};
+        ps.visits=(ps.visits||0)+1;
+        if(!ps.firstVisit)ps.firstVisit=now;
+        ps.lastVisit=now;
+        ps.lastIP=null;
+        var vName=localStorage.getItem('portalVisitorName')||'Anonymous';
+        if(ps.visitors&&ps.visitors.indexOf(vName)===-1&&ps.visitors.length<50)ps.visitors.push(vName);
+        ps.visitLog=ps.visitLog||[];
+        ps.visitLog.push({at:now,name:vName,ua:navigator.userAgent.substring(0,80)});
+        if(ps.visitLog.length>100)ps.visitLog=ps.visitLog.slice(-50);
+        statsRef.update({portalStats:ps}).catch(function(){});
+      }).catch(function(){});
+    }catch(e){}
     renderPortalData();
   }).catch(function(e){
     document.querySelector('.status h2').textContent='Error loading quote';
@@ -374,6 +439,8 @@ function renderPortalData(){
     var fcEl=document.getElementById('fixedChargesBar')||document.querySelector('.fixed-charges-bar');
     if(fcEl)fcEl.innerHTML='Fixed Charges / SKU (Die + Plates + MR + Shipping) <span style="float:right;font-weight:700">$'+fcTotal.toLocaleString(undefined,{minimumFractionDigits:2})+'</span>';
   }
+  // Render per-SKU art upload zones
+  renderPerSkuArtZones(q);
   // Handle already submitted PO
   if(q.status==='won'&&q.poSignature){
     document.querySelector('.status h2').textContent='PO Already Submitted';
@@ -395,6 +462,8 @@ function renderPortalData(){
     sh+='<div style="margin-top:12px;padding:10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:6px;font-size:11px;color:#4ade80;font-weight:600;text-align:center">Your order is being processed by the Microflex team.</div>';
     sumDiv.innerHTML=sh;
     var pricingEl=document.querySelector('.pricing');if(pricingEl)pricingEl.after(sumDiv);
+    // Show SO approval section if SO exists
+    renderPortalSOSection(q, sumDiv);
   }else{
     document.querySelector('.status h2').textContent='Your quote is ready for approval';
     document.querySelector('.status p').textContent='Review the details below, select your quantity, and submit your PO.';
@@ -411,6 +480,7 @@ function renderPortalData(){
 // ─── File Upload via Cloud Function → Google Drive ───
 var UPLOADED_PO_FILES=[];
 var UPLOADED_ART_FILES=[];
+var UPLOADED_ART_BY_SKU={}; // {1: [{name,url,...}], 2: [...], ...}
 
 function getAuthToken(){
   var user=auth.currentUser;
@@ -418,10 +488,15 @@ function getAuthToken(){
   return user.getIdToken();
 }
 
-function handleFiles(files,type){
-  var listId=type==='po'?'poFileList':'artFileList';
+function handleFiles(files,type,skuIdx){
+  // skuIdx is optional — only for per-SKU art uploads
+  var listId=type==='po'?'poFileList':(skuIdx?'artFileList_sku'+skuIdx:'artFileList');
   var list=document.getElementById(listId);
   var arr=type==='po'?UPLOADED_PO_FILES:UPLOADED_ART_FILES;
+  // Also track per-SKU
+  if(type==='art'&&skuIdx){
+    if(!UPLOADED_ART_BY_SKU[skuIdx])UPLOADED_ART_BY_SKU[skuIdx]=[];
+  }
   for(var i=0;i<files.length;i++){
     (function(f){
       if(f.size>25*1024*1024){alert(f.name+' is too large (max 25MB)');return}
@@ -430,17 +505,18 @@ function handleFiles(files,type){
       var div=document.createElement('div');
       div.className='file-item';div.id=itemId;
       div.innerHTML='<div><span>'+f.name+'</span><br><small>'+size+' — <span class="upload-status" style="color:var(--accent)">Uploading to Drive... 0%</span></small></div><div class="upload-bar"><div class="upload-fill" id="bar_'+itemId+'" style="width:5%"></div></div>';
-      list.appendChild(div);
+      if(list)list.appendChild(div);
 
       var company=(QUOTE_DATA&&QUOTE_DATA.fields?QUOTE_DATA.fields.custCo:'Unknown');
       var qNum=QUOTE_DATA?QUOTE_DATA.quoteNum:'unknown';
       var qId=QUOTE_ID||'';
+      var subFolder=type==='po'?'PO':(skuIdx?'Art/SKU'+skuIdx:'Art');
 
       var formData=new FormData();
       formData.append('file',f);
       formData.append('company',company);
       formData.append('quoteNum',qNum);
-      formData.append('fileType',type==='po'?'PO':'Art');
+      formData.append('fileType',subFolder);
       formData.append('quoteId',qId);
 
       // Show progress animation
@@ -462,29 +538,29 @@ function handleFiles(files,type){
           if(barWrap)setTimeout(function(){barWrap.style.display='none'},1000);
           var linkDiv=document.createElement('div');
           linkDiv.innerHTML='<a href="'+escPortal(data.driveLink)+'" target="_blank" style="font-size:9px;color:var(--accent)">📁 '+escPortal(data.folder)+'</a>';
-          document.getElementById(itemId).appendChild(linkDiv);
-          arr.push({name:data.name,url:data.driveLink,driveId:data.driveId,driveLink:data.driveLink,uploadedAt:new Date().toISOString()});
+          var el=document.getElementById(itemId);if(el)el.appendChild(linkDiv);
+          var fileObj={name:data.name,url:data.driveLink,driveId:data.driveId,driveLink:data.driveLink,uploadedAt:new Date().toISOString(),skuIndex:skuIdx||null};
+          arr.push(fileObj);
+          if(type==='art'&&skuIdx&&UPLOADED_ART_BY_SKU[skuIdx])UPLOADED_ART_BY_SKU[skuIdx].push(fileObj);
         }else{
-          // Fallback to Firebase Storage
           var st2=document.querySelector('#'+itemId+' .upload-status');
           if(st2){st2.innerHTML='<span style="color:var(--accent)">Saving...</span>'}
-          fallbackStorageUpload(f,type,itemId,arr);
+          fallbackStorageUpload(f,type,itemId,arr,skuIdx);
         }
       })
       .catch(function(err){
         clearInterval(progInterval);
-        // Fallback to Firebase Storage on network error
-        fallbackStorageUpload(f,type,itemId,arr);
+        fallbackStorageUpload(f,type,itemId,arr,skuIdx);
       });
     })(files[i]);
   }
 }
 
 // Fallback: upload to Firebase Storage if Cloud Function not available
-function fallbackStorageUpload(f,type,itemId,arr){
+function fallbackStorageUpload(f,type,itemId,arr,skuIdx){
   var company=(QUOTE_DATA&&QUOTE_DATA.fields?QUOTE_DATA.fields.custCo:'Unknown').replace(/[^a-zA-Z0-9 ]/g,'').trim();
   var qNum=QUOTE_DATA?QUOTE_DATA.quoteNum:'unknown';
-  var folder=type==='po'?'PO':'Art';
+  var folder=type==='po'?'PO':(skuIdx?'Art/SKU'+skuIdx:'Art');
   var path='portal-uploads/'+company+'/'+qNum+'/'+folder+'/'+Date.now()+'_'+f.name;
   var ref=storage.ref(path);
   var task=ref.put(f);
@@ -498,8 +574,183 @@ function fallbackStorageUpload(f,type,itemId,arr){
     task.snapshot.ref.getDownloadURL().then(function(url){
       var st=document.querySelector('#'+itemId+' .upload-status');if(st){st.innerHTML='<span style="color:#22c55e">✓ Uploaded</span>'}
       var barWrap=document.querySelector('#'+itemId+' .upload-bar');if(barWrap)barWrap.style.display='none';
-      arr.push({name:f.name,url:url,path:path,type:type,uploadedAt:new Date().toISOString()});
+      var fileObj={name:f.name,url:url,path:path,type:type,uploadedAt:new Date().toISOString(),skuIndex:skuIdx||null};
+      arr.push(fileObj);
+      if(type==='art'&&skuIdx&&UPLOADED_ART_BY_SKU[skuIdx]){UPLOADED_ART_BY_SKU[skuIdx].push(fileObj)}
     });
+  });
+}
+
+// ─── Per-SKU Art Upload Zones ───
+function renderPerSkuArtZones(q){
+  var f=q.fields||{};
+  var skuCount=parseInt(f.skuCols)||1;
+  var container=document.getElementById('perSkuArtZones');
+  if(!container)return;
+  if(skuCount<=1){
+    // Single SKU — keep default flat zone but tag as SKU 1
+    var inp=document.getElementById('artFileInput');
+    if(inp)inp.setAttribute('onchange','handleFiles(this.files,"art",1)');
+    return;
+  }
+  // Multiple SKUs — render per-SKU sections
+  var h='';
+  for(var sk=1;sk<=skuCount;sk++){
+    var skuLabel=f['skuName'+sk]||f['sku'+sk+'Name']||('SKU '+sk);
+    var inputId='artFileInput_sku'+sk;
+    h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+    h+='<span style="background:rgba(167,139,250,.15);color:#a78bfa;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px">SKU '+sk+'</span>';
+    h+='<span style="font-size:12px;color:var(--h1);font-weight:600">'+escPortal(skuLabel)+'</span>';
+    h+='</div>';
+    h+='<div class="dropzone" onclick="document.getElementById(\''+inputId+'\').click()" style="padding:16px">';
+    h+='<svg viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
+    h+='<p style="font-size:11px">Drop art files for <b>'+escPortal(skuLabel)+'</b>, or <b>browse</b></p>';
+    h+='<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 25MB each</small>';
+    h+='</div>';
+    h+='<input type="file" id="'+inputId+'" multiple style="display:none" onchange="handleFiles(this.files,\'art\','+sk+')">';
+    h+='<div class="file-list" id="artFileList_sku'+sk+'"></div>';
+    h+='</div>';
+  }
+  container.innerHTML=h;
+  // Setup drag-drop for each SKU zone
+  setTimeout(function(){
+    for(var s=1;s<=skuCount;s++){
+      (function(si){
+        var zones=container.querySelectorAll('.dropzone');
+        var dz=zones[si-1];
+        if(!dz)return;
+        dz.addEventListener('dragover',function(e){e.preventDefault();dz.style.borderColor='var(--accent)';dz.style.background='rgba(0,229,255,.04)'});
+        dz.addEventListener('dragleave',function(){dz.style.borderColor='var(--border)';dz.style.background='var(--card)'});
+        dz.addEventListener('drop',function(e){e.preventDefault();dz.style.borderColor='var(--border)';dz.style.background='var(--card)';if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files,'art',si)});
+      })(s);
+    }
+  },100);
+}
+
+// ─── SO Approval / Signature / Deposit Section on Portal ───
+function renderPortalSOSection(q, afterEl){
+  if(!QUOTE_ID)return;
+  // Look for a linked SO in salesOrders collection
+  db.collection('salesOrders').where('quoteId','==',QUOTE_ID).get().then(function(snap){
+    if(snap.empty){
+      // Also try by quoteNum
+      db.collection('salesOrders').where('quoteNum','==',q.quoteNum).get().then(function(snap2){
+        if(!snap2.empty)_renderSOBlock(snap2.docs[0],afterEl);
+      }).catch(function(){});
+      return;
+    }
+    _renderSOBlock(snap.docs[0],afterEl);
+  }).catch(function(e){console.warn('SO lookup:',e.message)});
+}
+
+function _renderSOBlock(soDoc,afterEl){
+  var so=soDoc.data();
+  var soId=soDoc.id;
+  var soDiv=document.createElement('div');
+  soDiv.className='section';
+  soDiv.style.cssText='border:2px solid rgba(0,229,255,.25);background:rgba(0,229,255,.02)';
+  var h='<h3 style="color:var(--accent)">Sales Order — '+escPortal(so.soNum||'')+'</h3>';
+  // Status badge
+  var stColors={'pending':'#f59e0b','approved':'#2ee89e','sent':'var(--accent)','completed':'#22c55e','cancelled':'#ef4444'};
+  var stc=stColors[so.status]||'#64748b';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+  h+='<span style="font-size:12px;color:var(--h1);font-weight:700">Order Status</span>';
+  h+='<span style="padding:4px 12px;border-radius:20px;font-size:10px;font-weight:700;background:'+stc+';color:#fff">'+escPortal((so.status||'pending').toUpperCase())+'</span>';
+  h+='</div>';
+
+  // Line items table
+  if(so.lineItems&&so.lineItems.length){
+    h+='<div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:6px">LINE ITEMS</div>';
+    h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    h+='<thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:6px 8px;color:var(--sub);font-size:9px;font-weight:700">ITEM</th><th style="text-align:right;padding:6px 8px;color:var(--sub);font-size:9px;font-weight:700">QTY</th><th style="text-align:right;padding:6px 8px;color:var(--sub);font-size:9px;font-weight:700">UNIT PRICE</th><th style="text-align:right;padding:6px 8px;color:var(--sub);font-size:9px;font-weight:700">TOTAL</th></tr></thead><tbody>';
+    so.lineItems.forEach(function(li){
+      h+='<tr style="border-bottom:1px solid rgba(26,45,64,.3)"><td style="padding:6px 8px;color:var(--h1)">'+escPortal(li.desc||li.description||'Item')+'</td>';
+      h+='<td style="text-align:right;padding:6px 8px;color:var(--h1)">'+Number(li.qty||0).toLocaleString()+'</td>';
+      h+='<td style="text-align:right;padding:6px 8px;color:var(--body)">$'+(li.ppu||li.unitPrice||0).toFixed(4)+'</td>';
+      h+='<td style="text-align:right;padding:6px 8px;color:var(--accent);font-weight:700">$'+Number(li.total||0).toLocaleString(undefined,{minimumFractionDigits:2})+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    // Grand total
+    var gt=0;so.lineItems.forEach(function(li){gt+=(li.total||0)});
+    if(so.fixedChargesTotal)gt+=so.fixedChargesTotal;
+    h+='<div style="text-align:right;margin-top:8px;font-size:16px;font-weight:900;color:var(--accent)">Total: $'+gt.toLocaleString(undefined,{minimumFractionDigits:2})+'</div>';
+  }
+
+  // CEO Approval badge
+  if(so.approvedAt){
+    h+='<div style="margin-top:12px;padding:10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:6px;display:flex;align-items:center;gap:8px">';
+    h+='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    h+='<div><div style="font-size:11px;color:#4ade80;font-weight:700">Approved by '+escPortal(so.approvedBy||'Management')+'</div>';
+    h+='<div style="font-size:9px;color:var(--sub)">'+new Date(so.approvedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div></div>';
+    h+='</div>';
+  }
+
+  // Client SO signature (if not yet signed)
+  if(so.status==='sent'||so.status==='approved'){
+    if(so.clientSignature){
+      h+='<div style="margin-top:12px;padding:10px;background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.15);border-radius:6px">';
+      h+='<div style="font-size:11px;color:var(--accent);font-weight:700">Client Signed: '+escPortal(so.clientSignature)+'</div>';
+      h+='<div style="font-size:9px;color:var(--sub)">'+escPortal(so.clientSignedAt?new Date(so.clientSignedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'')+'</div>';
+      h+='</div>';
+    }else{
+      h+='<div style="margin-top:16px;padding:14px;background:var(--card);border:1.5px solid var(--accent);border-radius:8px">';
+      h+='<div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:8px">APPROVE SALES ORDER</div>';
+      h+='<p style="font-size:11px;color:var(--body);margin-bottom:10px">By signing below, you confirm the line items and pricing above and authorize Microflex to proceed with production.</p>';
+      h+='<div style="margin-bottom:8px"><label style="font-size:9px;color:var(--sub);font-weight:600;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:4px">Authorized Signature</label>';
+      h+='<input type="text" id="soSigInput" placeholder="Type your full name" style="width:100%;background:transparent;border:none;border-bottom:2px solid var(--border);padding:8px 0;font-size:20px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:var(--h1);outline:none"></div>';
+      h+='<button id="soApproveBtn" onclick="submitSOApproval(\''+escPortal(soId)+'\')" style="width:100%;padding:12px;background:var(--accent);color:#060d14;font-size:13px;font-weight:700;border:none;border-radius:6px;cursor:pointer;margin-top:8px">Approve & Sign Sales Order</button>';
+      h+='</div>';
+    }
+  }
+
+  // Deposit link
+  if(so.depositRequired&&so.depositLink){
+    h+='<div style="margin-top:12px;padding:14px;background:rgba(218,165,32,.06);border:1.5px solid rgba(218,165,32,.3);border-radius:8px;text-align:center">';
+    h+='<div style="font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1px;margin-bottom:6px">DEPOSIT REQUIRED</div>';
+    h+='<div style="font-size:12px;color:var(--h1);margin-bottom:8px">Amount: <strong style="color:var(--gold)">$'+Number(so.depositAmount||0).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong></div>';
+    h+='<a href="'+escPortal(so.depositLink)+'" target="_blank" style="display:inline-block;padding:10px 24px;background:var(--gold);color:#060d14;font-size:12px;font-weight:700;border-radius:6px;text-decoration:none">Pay Deposit</a>';
+    h+='</div>';
+  }else if(so.depositRequired&&!so.depositLink){
+    h+='<div style="margin-top:12px;padding:10px;background:rgba(218,165,32,.04);border:1px solid rgba(218,165,32,.15);border-radius:6px;font-size:11px;color:var(--gold);text-align:center;font-weight:600">Deposit required — payment link will be provided shortly.</div>';
+  }
+
+  soDiv.innerHTML=h;
+  if(afterEl&&afterEl.parentNode){afterEl.parentNode.insertBefore(soDiv,afterEl.nextSibling)}
+}
+
+// Submit SO client approval from portal
+function submitSOApproval(soId){
+  var sigInput=document.getElementById('soSigInput');
+  if(!sigInput||!sigInput.value.trim()){alert('Please type your name to sign');return}
+  var btn=document.getElementById('soApproveBtn');
+  if(btn){btn.textContent='Submitting...';btn.disabled=true}
+  var sig=sigInput.value.trim();
+  db.collection('salesOrders').doc(soId).update({
+    clientSignature:sig,
+    clientSignedAt:new Date().toISOString(),
+    clientEmail:CLIENT_EMAIL||'',
+    clientApproved:true
+  }).then(function(){
+    if(btn){btn.textContent='Sales Order Approved ✓';btn.style.background='#22c55e'}
+    // Log activity
+    db.collection('activity').add({
+      type:'so.clientApproved',
+      soId:soId,
+      signedBy:sig,
+      clientEmail:CLIENT_EMAIL||'',
+      timestamp:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // Notify via portal message
+    if(QUOTE_ID){
+      db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').add({
+        text:'Sales Order approved and signed by '+sig+'.',
+        name:CLIENT_EMAIL||'Client',from:'client',timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }).catch(function(e){
+    if(btn){btn.textContent='Error — Try Again';btn.style.background='#ef4444';btn.disabled=false}
+    alert('Error: '+e.message);
   });
 }
 
@@ -541,6 +792,7 @@ function submitPO(){
   var shipTo=document.querySelectorAll('.field input')[1].value;
   var instructions=document.querySelector('.field textarea').value;
   var sigName=document.getElementById('sigInput').value;
+  if(sigName)try{localStorage.setItem('portalVisitorName',sigName)}catch(e){}
   // Save PO fields (no status change — server handles transition to 'won')
   db.collection('quotes').doc(QUOTE_ID).update({
     poNumber:poNum,
@@ -555,6 +807,7 @@ function submitPO(){
     poClientEmail:CLIENT_EMAIL||'',
     poFiles:UPLOADED_PO_FILES,
     artFiles:UPLOADED_ART_FILES,
+    artFilesBySku:UPLOADED_ART_BY_SKU,
     updatedAt:new Date().toISOString()
   }).then(function(){
     // Trigger server-side status transition to 'won' via portal-safe endpoint
@@ -693,8 +946,10 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 <div class="file-list" id="poFileList"></div>
 </div>
 
-<div class="section">
+<div class="section" id="artUploadSection">
 <h3>Upload Art Files</h3>
+<div id="perSkuArtZones">
+<!-- Per-SKU zones rendered by JS; fallback single zone if no SKU data -->
 <div class="dropzone" onclick="document.getElementById('artFileInput').click()">
 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 <p>Drop your art/design files here, or <b>browse</b></p>
@@ -702,6 +957,7 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 </div>
 <input type="file" id="artFileInput" multiple style="display:none" onchange="handleFiles(this.files,'art')">
 <div class="file-list" id="artFileList"></div>
+</div>
 </div>
 
 <!-- MESSAGES -->
@@ -784,12 +1040,12 @@ function checkReady() {
   }
 }
 
-// Drag and drop for both dropzones
-document.querySelectorAll('.dropzone').forEach(function(dz,i){
-  var type=i===0?'po':'art';
-  dz.addEventListener('dragover',function(e){e.preventDefault();dz.style.borderColor='var(--accent)';dz.style.background='rgba(0,229,255,.04)'});
-  dz.addEventListener('dragleave',function(){dz.style.borderColor='var(--border)';dz.style.background='var(--card)'});
-  dz.addEventListener('drop',function(e){e.preventDefault();dz.style.borderColor='var(--border)';dz.style.background='var(--card)';if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files,type)});
-});
+// Drag and drop for PO dropzone only (art zones handled by renderPerSkuArtZones)
+var poDz=document.querySelector('.section:not(#artUploadSection) .dropzone');
+if(poDz){
+  poDz.addEventListener('dragover',function(e){e.preventDefault();poDz.style.borderColor='var(--accent)';poDz.style.background='rgba(0,229,255,.04)'});
+  poDz.addEventListener('dragleave',function(){poDz.style.borderColor='var(--border)';poDz.style.background='var(--card)'});
+  poDz.addEventListener('drop',function(e){e.preventDefault();poDz.style.borderColor='var(--border)';poDz.style.background='var(--card)';if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files,'po')});
+}
 </script>
 

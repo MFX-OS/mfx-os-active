@@ -151,7 +151,8 @@
   }
 
   function loadSanitationLogs() {
-    db.collection('sqfSanitation')
+    var reg=typeof mfxRegisterListener==='function'?mfxRegisterListener:function(){};
+    reg('sqfSanitation',db.collection('sqfSanitation')
       .orderBy('date', 'desc')
       .limit(100)
       .onSnapshot(function(snap) {
@@ -163,11 +164,12 @@
         render();
       }, function(err) {
         console.error('Load sanitation error:', err);
-      });
+      }));
   }
 
   function loadFacilitiesLogs() {
-    db.collection('sqfFacilities')
+    var reg=typeof mfxRegisterListener==='function'?mfxRegisterListener:function(){};
+    reg('sqfFacilities',db.collection('sqfFacilities')
       .orderBy('date', 'desc')
       .limit(100)
       .onSnapshot(function(snap) {
@@ -179,11 +181,12 @@
         render();
       }, function(err) {
         console.error('Load facilities error:', err);
-      });
+      }));
   }
 
   function loadQualityLogs() {
-    db.collection('sqfQuality')
+    var reg=typeof mfxRegisterListener==='function'?mfxRegisterListener:function(){};
+    reg('sqfQuality',db.collection('sqfQuality')
       .orderBy('timestamp', 'desc')
       .limit(100)
       .onSnapshot(function(snap) {
@@ -195,11 +198,12 @@
         render();
       }, function(err) {
         console.error('Load quality error:', err);
-      });
+      }));
   }
 
   function loadMaterialsLogs() {
-    db.collection('sqfMaterials')
+    var reg=typeof mfxRegisterListener==='function'?mfxRegisterListener:function(){};
+    reg('sqfMaterials',db.collection('sqfMaterials')
       .orderBy('date', 'desc')
       .limit(100)
       .onSnapshot(function(snap) {
@@ -211,7 +215,7 @@
         render();
       }, function(err) {
         console.error('Load materials error:', err);
-      });
+      }));
   }
 
   // ============================================================================

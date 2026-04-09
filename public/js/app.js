@@ -1247,8 +1247,61 @@ const f=q.fields;
 const mkOpts=(opts,cur)=>opts.map(o=>`<option ${cur===o?'selected':''}>${o}</option>`).join('');
 const mkOptV=(opts,cur)=>opts.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l||v}</option>`).join('');
 
-$('v-editor').innerHTML=`<div class="etabs">${['Info','Specs','Materials','Pricing','Matrix','Preview',(function(){var qq=getQ(S.editId);if(!qq)return'Send';if(qq.status==='draft')return'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';if(qq.status==='approval')return'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';if(qq.status==='rejected')return'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';if(qq.status==='ready'||qq.status==='sent')return'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';return'Send'})(),'Timeline'].map((t,i)=>`<div class="etab ${i===S.etab?'active':''}" onclick="switchET(${i})">${t}</div>`).join('')}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
+$('v-editor').innerHTML=`<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO','Passport','Timeline','Workflow'].map(function(t,i){return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
 <style>#statusBar{max-width:250px}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
+
+<div class="epane ${S.etab===12?'active':''}" id="ep-timeline">
+<div style="display:flex;gap:0;border-bottom:2px solid var(--bdr);margin-bottom:8px">
+<div class="tl-sub ${!window._tlSub||window._tlSub==='activity'?'active':''}" onclick="switchTLSub('activity')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${!window._tlSub||window._tlSub==='activity'?'var(--ac)':'transparent'};color:${!window._tlSub||window._tlSub==='activity'?'var(--ac)':'var(--tx3)'}">Activity</div>
+<div class="tl-sub ${window._tlSub==='notes'?'active':''}" onclick="switchTLSub('notes')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${window._tlSub==='notes'?'var(--ac)':'transparent'};color:${window._tlSub==='notes'?'var(--ac)':'var(--tx3)'}">Notes</div>
+<div class="tl-sub ${window._tlSub==='connections'?'active':''}" onclick="switchTLSub('connections')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${window._tlSub==='connections'?'var(--ac)':'transparent'};color:${window._tlSub==='connections'?'var(--ac)':'var(--tx3)'}">Links</div>
+</div>
+<div id="tlActivity" style="display:${!window._tlSub||window._tlSub==='activity'?'block':'none'}">
+<div id="activityLog" style="max-height:500px;overflow-y:auto"></div>
+</div>
+<div id="tlNotes" style="display:${window._tlSub==='notes'?'block':'none'}">
+<div id="internalNotes" style="max-height:300px;overflow-y:auto;margin-bottom:8px"></div>
+<div style="position:relative">
+<textarea id="noteInput" placeholder="Type @ to mention a team member..." oninput="checkAtMention(this)" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--bdr);border-radius:6px;background:var(--inp);color:var(--tx);font-size:12px;box-sizing:border-box"></textarea>
+<div id="mentionDropdown" style="display:none;position:absolute;bottom:100%;left:0;width:100%;max-height:150px;overflow-y:auto;background:var(--card);border:1px solid var(--ac);border-radius:6px;z-index:100"></div>
+</div>
+<button class="btn btn-pr btn-sm" onclick="addInternalNote()" style="margin-top:6px;width:100%">+ Add Note</button>
+</div>
+<div id="tlConnections" style="display:${window._tlSub==='connections'?'block':'none'}">
+<div id="connectionsContent"></div>
+</div>
+</div>
+
+<div class="epane ${S.etab===13?'active':''}" id="ep-workflow">
+<div id="workflowContent"></div>
+${(function(){var qq=getQ(S.editId);if(!qq)return'';var h='';
+if(qq.status==='won'||qq.poNumber){
+  var hasSO=typeof getSalesOrders==='function'&&getSalesOrders().some(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum});
+  if(!hasSO&&qq.poNumber){
+    h+='<div style="background:linear-gradient(135deg,rgba(0,229,255,.06),rgba(46,232,158,.06));border:1px solid rgba(0,229,255,.2);border-radius:10px;padding:16px;margin-top:12px">';
+    h+='<div style="font-size:12px;font-weight:700;color:#2ee89e;margin-bottom:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> '+(qq.status==='won'?'Quote Won — ':'PO Received — ')+'Ready for Sales Order</div>';
+    h+='<div style="font-size:11px;color:var(--tx2);margin-bottom:10px">PO# '+(qq.poNumber||'N/A')+' · Generate the Sales Order for CEO approval, then send to client.</div>';
+    h+='<button class="btn btn-pr" onclick="if(typeof createSOFromPO===\'function\')createSOFromPO(\''+qq.id+'\');else toast(\'SO module not loaded\',\'err\')" style="width:100%"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M12 11v6"/><path d="M9 14h6"/></svg> Generate Sales Order</button></div>';
+  }else if(hasSO){
+    var so=getSalesOrders().find(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum});
+    h+='<div style="background:rgba(46,232,158,.06);border:1px solid rgba(46,232,158,.2);border-radius:10px;padding:16px;margin-top:12px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+    h+='<div><div style="font-size:12px;font-weight:700;color:#2ee89e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Sales Order Created</div>';
+    h+='<div style="font-size:11px;color:var(--tx2);margin-top:2px">'+(so?so.soNum+' · Status: '+so.status:'')+'</div></div>';
+    if(so){h+='<button class="btn btn-ghost btn-sm" onclick="openSODetail(\''+so.id+'\')">View SO</button>';}
+    h+='</div></div>';
+  }
+}
+if(qq.status==='sent'){
+  h+='<div style="background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:16px;margin-top:12px">';
+  h+='<div style="font-size:12px;font-weight:700;color:#38bdf8;margin-bottom:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Quote Sent — Awaiting Client PO</div>';
+  h+='<div style="font-size:11px;color:var(--tx2);margin-bottom:8px">Client portal link for PO submission:</div>';
+  h+='<a href="https://os.microflexfilm.com/portal?id='+qq.id+'&q='+qq.quoteNum+'" target="_blank" style="display:block;background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:8px 12px;color:var(--ac);font-size:11px;text-decoration:none;word-break:break-all">https://os.microflexfilm.com/portal?id='+qq.id+'&q='+qq.quoteNum+'</a>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="openPortalMessages(\''+qq.id+'\')" style="margin-top:8px;width:100%"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Portal Messages</button>';
+  h+='</div>';
+}
+return h})()}
+</div>
 
 <div class="epane ${S.etab===0?'active':''}" id="ep-info">
 <div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span><span class="ttl">Quote</span><span class="arr">▾</span></div><div class="scard-b open">
@@ -1380,37 +1433,539 @@ $('v-editor').innerHTML=`<div class="etabs">${['Info','Specs','Materials','Prici
 <div id="sendPaneContent"></div>
 </div>
 
-<div class="epane ${S.etab===7?'active':''}" id="ep-timeline">
-<div style="display:flex;gap:0;border-bottom:2px solid var(--bdr);margin-bottom:8px">
-<div class="tl-sub ${!window._tlSub||window._tlSub==='activity'?'active':''}" onclick="switchTLSub('activity')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${!window._tlSub||window._tlSub==='activity'?'var(--ac)':'transparent'};color:${!window._tlSub||window._tlSub==='activity'?'var(--ac)':'var(--tx3)'}">Activity</div>
-<div class="tl-sub ${window._tlSub==='notes'?'active':''}" onclick="switchTLSub('notes')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${window._tlSub==='notes'?'var(--ac)':'transparent'};color:${window._tlSub==='notes'?'var(--ac)':'var(--tx3)'}">Notes</div>
-<div class="tl-sub ${window._tlSub==='workflow'?'active':''}" onclick="switchTLSub('workflow')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${window._tlSub==='workflow'?'var(--ac)':'transparent'};color:${window._tlSub==='workflow'?'var(--ac)':'var(--tx3)'}">Workflow</div>
-<div class="tl-sub ${window._tlSub==='connections'?'active':''}" onclick="switchTLSub('connections')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${window._tlSub==='connections'?'var(--ac)':'transparent'};color:${window._tlSub==='connections'?'var(--ac)':'var(--tx3)'}">Links</div>
+<div class="epane ${S.etab===7?'active':''}" id="ep-portal">
+${(function(){var qq=getQ(S.editId);if(!qq)return'';var h='';
+var ps=qq.portalStats||{visits:0,lastVisit:null,firstVisit:null,visitors:[],visitLog:[]};
+h+='<div style="font-size:13px;font-weight:700;color:var(--ac);margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Client Portal — '+esc(qq.quoteNum)+'</div>';
+// KPI bar
+h+='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">';
+h+='<div style="flex:1;min-width:70px;background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:8px;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--ac)">'+(ps.visits||0)+'</div><div style="font-size:8px;color:var(--tx3);font-weight:700">VISITS</div></div>';
+h+='<div style="flex:1;min-width:70px;background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;font-weight:700;color:var(--tx)">'+(ps.lastVisit?fD(ps.lastVisit):'Never')+'</div><div style="font-size:8px;color:var(--tx3);font-weight:700">LAST VISIT</div></div>';
+h+='<div style="flex:1;min-width:70px;background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;font-weight:700;color:'+(qq.poNumber?'var(--gn)':qq.status==='sent'?'var(--or)':'var(--tx3)')+'">'+(qq.poNumber?'PO Received':qq.status==='sent'?'Awaiting PO':'Not Sent')+'</div><div style="font-size:8px;color:var(--tx3);font-weight:700">STATUS</div></div>';
+h+='<div style="flex:1;min-width:70px;background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;font-weight:700;color:var(--tx)">'+(ps.visitors&&ps.visitors.length?ps.visitors.length:'0')+'</div><div style="font-size:8px;color:var(--tx3);font-weight:700">VISITORS</div></div>';
+h+='</div>';
+// Portal link
+h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:10px">';
+h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">PORTAL LINK</div>';
+var pLink='https://os.microflexfilm.com/portal?id='+qq.id+'&q='+qq.quoteNum;
+h+='<a href="'+pLink+'" target="_blank" style="display:block;padding:8px;background:var(--bg2);border:1px solid var(--ac3);border-radius:6px;color:var(--ac);font-size:10px;text-decoration:none;font-family:JetBrains Mono,monospace;word-break:break-all">'+pLink+'</a>';
+h+='<div style="display:flex;gap:6px;margin-top:6px">';
+h+='<button class="btn btn-pr btn-sm" onclick="navigator.clipboard.writeText(\''+pLink+'\');toast(\'Copied!\',\'ok\')" style="flex:1">📋 Copy Link</button>';
+h+='<a href="'+pLink+'" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;text-align:center;text-decoration:none">🌐 Open Portal</a>';
+h+='</div></div>';
+// Visit log
+if(ps.visitLog&&ps.visitLog.length){
+  h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:10px">';
+  h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">RECENT VISITS ('+ps.visitLog.length+')</div>';
+  var recent=ps.visitLog.slice(-10).reverse();
+  recent.forEach(function(v){
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--bdr);font-size:10px">';
+    h+='<span style="color:var(--tx);font-weight:600">'+(v.name||'Anonymous')+'</span>';
+    h+='<span style="color:var(--tx3)">'+fD(v.at)+'</span></div>';
+  });
+  if(ps.visitors&&ps.visitors.length){h+='<div style="margin-top:6px;font-size:9px;color:var(--tx3)">All visitors: '+ps.visitors.join(', ')+'</div>'}
+  h+='</div>';
+}
+// Inline messages
+h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;padding:12px">';
+h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px">PORTAL MESSAGES</div><div id="portalMsgBadge" style="display:none;background:var(--rd);color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">NEW</div></div>';
+h+='<div id="portalMsgList" style="max-height:300px;overflow-y:auto;margin-bottom:8px;padding:4px"><div style="text-align:center;color:var(--tx3);font-size:10px;padding:20px">Loading messages...</div></div>';
+h+='<div style="display:flex;gap:6px"><input id="portalMsgInline" placeholder="Reply to client..." style="flex:1;padding:8px;border:1px solid var(--bdr);border-radius:6px;background:var(--inp);color:var(--tx);font-size:11px" onkeydown="if(event.key===\'Enter\')sendInlinePortalMsg(\''+qq.id+'\')">';
+h+='<button class="btn btn-pr btn-sm" onclick="sendInlinePortalMsg(\''+qq.id+'\')">Send</button></div>';
+h+='</div>';
+return h})()}
 </div>
-<div id="tlActivity" style="display:${!window._tlSub||window._tlSub==='activity'?'block':'none'}">
-<div id="activityLog" style="max-height:500px;overflow-y:auto"></div>
-</div>
-<div id="tlNotes" style="display:${window._tlSub==='notes'?'block':'none'}">
-<div id="internalNotes" style="max-height:300px;overflow-y:auto;margin-bottom:8px"></div>
-<div style="position:relative">
-<textarea id="noteInput" placeholder="Type @ to mention a team member..." oninput="checkAtMention(this)" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--bdr);border-radius:6px;background:var(--inp);color:var(--tx);font-size:12px;box-sizing:border-box"></textarea>
-<div id="mentionDropdown" style="display:none;position:absolute;bottom:100%;left:0;width:100%;max-height:150px;overflow-y:auto;background:var(--card);border:1px solid var(--ac);border-radius:6px;z-index:100"></div>
-</div>
-<button class="btn btn-pr btn-sm" onclick="addInternalNote()" style="margin-top:6px;width:100%">+ Add Note</button>
-</div>
-<div id="tlWorkflow" style="display:${window._tlSub==='workflow'?'block':'none'}">
-<div id="workflowContent"></div>
-</div>
-<div id="tlConnections" style="display:${window._tlSub==='connections'?'block':'none'}">
-<div id="connectionsContent"></div>
-</div>
-</div>`;
 
-buildMS('ed-fs',f.faceStock);buildMS('ed-lam',f.lamination);buildDieSelect(f);buildVarnishSelect(f.coating);edMat('faceStock');edMat('lamination');edRQ();renderTermsEditor();edCalcAll();renderInternalNotes();renderActivityLog();if(S.etab===6)setTimeout(renderSendPane,100);if(S.etab===7){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}
+<div class="epane ${S.etab===8?'active':''}" id="ep-po">
+${(function(){var qq=getQ(S.editId);if(!qq)return'';var h='';
+h+='<div style="font-size:13px;font-weight:700;color:var(--ac);margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Purchase Order — '+esc(qq.quoteNum)+'</div>';
+// PO file preview
+var poFiles=qq.poDriveFiles&&qq.poDriveFiles.length?qq.poDriveFiles:qq.poFiles;
+if(poFiles&&poFiles.length){
+  h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:10px">';
+  h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">PO DOCUMENTS ('+poFiles.length+')</div>';
+  poFiles.forEach(function(pf){var url=pf.driveLink||pf.url||'';var name=pf.name||'PO File';var isImg=/\\.(jpg|jpeg|png|gif|webp)$/i.test(name);var isPdf=/\\.pdf$/i.test(name);
+    h+='<div style="margin-bottom:6px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;overflow:hidden">';
+    if(isImg&&url){h+='<div style="max-height:180px;overflow:hidden;background:#111;text-align:center"><img src="'+url+'" style="max-width:100%;max-height:180px;object-fit:contain" onerror="this.parentNode.style.display=\'none\'"></div>'}
+    if(isPdf&&url){h+='<div style="height:200px;background:#111"><iframe src="'+url+'" style="width:100%;height:100%;border:none" sandbox></iframe></div>'}
+    h+='<a href="'+url+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:8px 10px;text-decoration:none">';
+    h+='<span style="font-size:16px">📄</span><div style="flex:1"><div style="font-size:11px;color:var(--ac);font-weight:600">'+esc(name)+'</div>';
+    if(pf.size)h+='<div style="font-size:9px;color:var(--tx3)">'+(pf.size>1048576?(pf.size/1048576).toFixed(1)+' MB':(pf.size/1024).toFixed(0)+' KB')+'</div>';
+    h+='</div><span style="font-size:10px;color:var(--ac)">Open ↗</span></a></div>'});
+  h+='</div>';
+}
+// PO received data (read-only)
+if(qq.poNumber){
+  h+='<div style="background:rgba(46,232,158,.06);border:1px solid rgba(46,232,158,.2);border-radius:10px;padding:12px;margin-bottom:10px">';
+  h+='<div style="font-size:9px;color:#2ee89e;font-weight:700;letter-spacing:1.5px;margin-bottom:6px">PO RECEIVED DATA</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">';
+  h+='<div><span style="color:var(--tx3);font-size:9px">PO#</span><div style="font-size:14px;font-weight:800;color:#2ee89e;font-family:JetBrains Mono,monospace">'+esc(qq.poNumber)+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:9px">Signed By</span><div style="font-weight:600;color:var(--tx)">'+(qq.poSignature||'—')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:9px">Signed Date</span><div style="color:var(--tx)">'+(qq.poSignedAt?fD(qq.poSignedAt):'—')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:9px">Client Email</span><div style="color:var(--tx)">'+(qq.poClientEmail||qq.fields.custEmail||'—')+'</div></div>';
+  if(qq.poSelectedQty||qq.poQty){h+='<div><span style="color:var(--tx3);font-size:9px">Qty Selected</span><div style="font-weight:600;color:var(--tx)">'+Number(qq.poSelectedQty||qq.poQty||0).toLocaleString()+'</div></div>'}
+  if(qq.poSelectedTotal||qq.poTotal){h+='<div><span style="color:var(--tx3);font-size:9px">Total</span><div style="font-weight:700;color:var(--ac)">$'+Number(qq.poSelectedTotal||qq.poTotal||0).toLocaleString(undefined,{minimumFractionDigits:2})+'</div></div>'}
+  h+='</div>';
+  if(qq.poInstructions){h+='<div style="margin-top:8px;padding:8px;background:var(--bg2);border-radius:6px;border:1px solid var(--bdr)"><div style="font-size:9px;color:var(--tx3);font-weight:700;margin-bottom:2px">SPECIAL INSTRUCTIONS</div><div style="font-size:11px;color:var(--or);font-weight:600">'+esc(qq.poInstructions)+'</div></div>'}
+  h+='</div>';
+}
+// ═══ SKU ARTWORK REQUIREMENTS ═══
+var _poSkuCount=parseInt(qq.fields.skuCols)||1;
+var _poSkuSel=qq.poSkuCount||_poSkuCount;
+var _artBySku=qq.artFilesBySku||{};
+var _allArt=qq.artDriveFiles&&qq.artDriveFiles.length?qq.artDriveFiles:qq.artFiles;
+h+='<div style="background:var(--bg3);border:1.5px solid #a78bfa;border-radius:10px;padding:12px;margin-bottom:10px">';
+h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:9px;color:#a78bfa;font-weight:700;letter-spacing:1.5px">🎨 ARTWORK REQUIRED — '+_poSkuSel+' SKU'+(_poSkuSel>1?'s':'')+'</div>';
+// Count how many SKUs have art
+var _skusWithArt=0;
+for(var _asi=1;_asi<=_poSkuSel;_asi++){
+  var _hasArt=(_artBySku[_asi]&&_artBySku[_asi].length>0);
+  if(!_hasArt&&_allArt&&_allArt.length){_hasArt=_allArt.some(function(af){return af.skuIndex==_asi})}
+  if(!_hasArt&&_poSkuSel===1&&_allArt&&_allArt.length)_hasArt=true;
+  if(_hasArt)_skusWithArt++;
+}
+var _artPct=_poSkuSel>0?Math.round((_skusWithArt/_poSkuSel)*100):0;
+var _artColor=_artPct===100?'var(--gn)':(_artPct>0?'var(--or)':'var(--rd)');
+h+='<span style="font-size:10px;font-weight:700;color:'+_artColor+'">'+_skusWithArt+'/'+_poSkuSel+' received</span></div>';
+// Progress bar
+h+='<div style="height:4px;background:var(--bdr);border-radius:2px;margin-bottom:10px;overflow:hidden"><div style="height:100%;width:'+_artPct+'%;background:'+_artColor+';border-radius:2px;transition:width .3s"></div></div>';
+// Per-SKU art status rows
+h+='<div style="display:flex;flex-direction:column;gap:4px">';
+for(var _psi=1;_psi<=_poSkuSel;_psi++){
+  var _pHas=(_artBySku[_psi]&&_artBySku[_psi].length>0);
+  var _pCount=_artBySku[_psi]?_artBySku[_psi].length:0;
+  if(!_pHas&&_allArt&&_allArt.length){var _filtered=_allArt.filter(function(af){return af.skuIndex==_psi});_pCount=_filtered.length;_pHas=_pCount>0}
+  if(!_pHas&&_poSkuSel===1&&_allArt&&_allArt.length){_pCount=_allArt.length;_pHas=true}
+  var _pColor=_pHas?'var(--gn)':'var(--rd)';
+  var _skPP=qq.prePress&&qq.prePress['sku'+_psi]?qq.prePress['sku'+_psi]:{};
+  var _skCkDone=0;var _skCkTotal=6;
+  if(_skPP.checklist){var _ckKeys=['filesReceived','artReviewed','proofApproved','plateReady','colorMatched','dielineApproved'];_ckKeys.forEach(function(k){if(_skPP.checklist[k])_skCkDone++})}
+  h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px">';
+  h+='<div style="width:8px;height:8px;border-radius:50%;background:'+_pColor+';flex-shrink:0"></div>';
+  h+='<span style="font-size:10px;font-weight:700;color:#a78bfa;min-width:42px">SKU '+_psi+'</span>';
+  h+='<span style="font-size:10px;color:var(--tx);flex:1">'+(qq.fields['skuName'+_psi]||'')+'</span>';
+  h+='<span style="font-size:9px;color:'+_pColor+';font-weight:600">'+(_pHas?_pCount+' file'+(_pCount!==1?'s':''):'No files')+'</span>';
+  if(_skCkDone>0){h+='<span style="font-size:8px;color:var(--tx3);background:var(--bg3);padding:1px 5px;border-radius:3px">PP '+_skCkDone+'/'+_skCkTotal+'</span>'}
+  h+='<button class="btn btn-ghost btn-xs" onclick="switchET(9)" style="font-size:8px;padding:2px 6px">Art →</button>';
+  h+='</div>';
+}
+h+='</div>';
+h+='</div>';
+
+// Estimator PO Data Entry — editable fields
+h+='<div style="background:var(--bg3);border:1px solid '+(qq.poNumber?'var(--or)':'var(--bdr)')+';border-radius:10px;padding:12px;margin-bottom:10px">';
+h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:9px;color:var(--or);font-weight:700;letter-spacing:1.5px">⚠ ESTIMATOR DATA ENTRY</div><div style="font-size:8px;color:var(--tx3)">Fill from PO document</div></div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+h+='<div class="fg"><label style="font-size:9px;color:var(--or);font-weight:700">PO Number <span class="req">*</span></label><input id="po-number" value="'+(qq.poNumber||'')+'" placeholder="Enter PO#" oninput="poFieldChange()" style="border-color:var(--or)"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Ship To</label><input id="po-shipTo" value="'+(qq.poShipTo||qq.fields.shipTo||qq.fields.cityState||'')+'" placeholder="Shipping address" oninput="poFieldChange()"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">PO Quantity</label><input id="po-qty" type="number" value="'+(qq.poSelectedQty||qq.poQty||'')+'" placeholder="Confirmed qty" oninput="poFieldChange()"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">PO Total ($)</label><input id="po-total" type="number" step="0.01" value="'+(qq.poSelectedTotal||qq.poTotal||'')+'" placeholder="Confirmed total" oninput="poFieldChange()"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Client Email</label><input id="po-email" value="'+(qq.poClientEmail||qq.fields.custEmail||'')+'" placeholder="client@co.com" oninput="poFieldChange()"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Client Contact</label><input id="po-contact" value="'+(qq.poSignature||qq.fields.custAttn||'')+'" placeholder="Contact name" oninput="poFieldChange()"></div>';
+h+='<div class="fg" style="grid-column:1/-1"><label style="font-size:9px;font-weight:700">Special Instructions / Notes</label><textarea id="po-instructions" placeholder="Delivery schedule, special packaging, rush..." oninput="poFieldChange()" style="min-height:50px">'+(qq.poInstructions||'')+'</textarea></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Required Date</label><input id="po-reqDate" type="date" value="'+(qq.poRequiredDate||'')+'" oninput="poFieldChange()"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Payment Terms</label><select id="po-terms" onchange="poFieldChange()">';
+var pt=qq.fields.payTerms||'Net 30';
+['Net 30','Net 15','Net 45','Net 60','Due on Receipt','COD','Prepaid'].forEach(function(t){h+='<option'+(pt===t?' selected':'')+'>'+t+'</option>'});
+h+='</select></div>';
+h+='</div>';
+h+='<button class="btn btn-pr btn-sm" onclick="savePOFields(\''+qq.id+'\')" style="margin-top:8px;width:100%"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg> Save PO Data</button>';
+h+='</div>';
+if(!qq.poNumber){
+  h+='<div style="text-align:center;padding:20px;background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;color:var(--tx3)">';
+  h+='<div style="font-size:24px;margin-bottom:6px">📭</div>';
+  h+='<div style="font-size:11px">No PO received yet. Estimators can manually enter PO data above, or wait for client portal submission.</div></div>';
+}
+return h})()}
+</div>
+
+<div class="epane ${S.etab===9?'active':''}" id="ep-art">
+${(function(){var qq=getQ(S.editId);if(!qq)return'';var f=qq.fields||{};var pp=qq.prePress||{};var h='';
+var skuCount=parseInt(f.skuCols)||1;
+h+='<div style="font-size:13px;font-weight:700;color:var(--ac);margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Artwork & Pre-Press — '+esc(qq.quoteNum)+' ('+skuCount+' SKU'+(skuCount>1?'s':'')+')</div>';
+var allArtFiles=qq.artDriveFiles&&qq.artDriveFiles.length?qq.artDriveFiles:qq.artFiles;
+var artBySku=qq.artFilesBySku||{};
+var artStatus=qq.artStatus||'pending';
+var skuArt=qq.skuArt||{};
+// Art Status bar
+h+='<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap">';
+var artStatuses=[{k:'pending',l:'⏳ Pending',c:'var(--tx3)'},{k:'received',l:'📥 Received',c:'var(--or)'},{k:'review',l:'🔍 In Review',c:'#a78bfa'},{k:'approved',l:'✅ Approved',c:'var(--gn)'},{k:'revision',l:'🔄 Revision',c:'var(--rd)'}];
+artStatuses.forEach(function(st){var active=artStatus===st.k;
+  h+='<button class="btn btn-ghost btn-xs" onclick="updateArtStatus(\''+qq.id+'\',\''+st.k+'\')" style="font-size:9px;'+(active?'background:'+st.c+';color:#fff;border-color:'+st.c:'')+'">'+st.l+'</button>';
+});
+h+='</div>';
+
+// ═══ PER-SKU ART FOLDERS ═══
+for(var _ski=1;_ski<=skuCount;_ski++){
+  var _skFiles=[];
+  // Gather files for this SKU from artBySku, skuArt, or filter allArtFiles by skuIndex
+  if(artBySku[_ski]&&artBySku[_ski].length){_skFiles=artBySku[_ski]}
+  else if(skuArt[_ski]&&skuArt[_ski].length){_skFiles=skuArt[_ski]}
+  else if(allArtFiles&&allArtFiles.length){
+    _skFiles=allArtFiles.filter(function(af){return af.skuIndex==_ski});
+    // If single SKU, show all files
+    if(skuCount===1&&!_skFiles.length)_skFiles=allArtFiles;
+  }
+  var _skPP=pp['sku'+_ski]||{};
+  var _skOpen=window['_artSkuOpen'+_ski]!==false;
+  var _skColor=['#00e5ff','#a78bfa','#DAA520','#22c55e','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16','#f97316'][(_ski-1)%10];
+  h+='<div style="background:var(--bg3);border:2px solid '+_skColor+'40;border-radius:10px;margin-bottom:10px;overflow:hidden">';
+  // SKU Header (clickable to expand/collapse)
+  h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;background:'+_skColor+'10" onclick="window[\'_artSkuOpen'+_ski+'\']=!window[\'_artSkuOpen'+_ski+'\'];if(typeof switchET===\'function\')switchET(9)">';
+  h+='<span style="background:'+_skColor+';color:#000;font-size:10px;font-weight:800;padding:3px 10px;border-radius:4px">SKU '+_ski+'</span>';
+  h+='<span style="font-size:12px;font-weight:700;color:var(--tx);flex:1">'+(f['skuName'+_ski]||'SKU '+_ski+' Art Package')+'</span>';
+  h+='<span style="font-size:10px;color:var(--tx3)">'+_skFiles.length+' file'+ (_skFiles.length!==1?'s':'')+'</span>';
+  h+='<span style="font-size:14px;color:'+_skColor+'">'+(_skOpen?'▾':'▸')+'</span>';
+  h+='</div>';
+
+  if(_skOpen){
+  h+='<div style="padding:12px 14px">';
+
+  // Art Files for this SKU
+  if(_skFiles.length){
+    h+='<div style="font-size:9px;color:'+_skColor+';font-weight:700;letter-spacing:1.5px;margin-bottom:6px">ART FILES ('+_skFiles.length+')</div>';
+    _skFiles.forEach(function(af){var url=af.driveLink||af.url||'';var name=af.name||'Art File';var isImg=/\\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
+      h+='<div style="margin-bottom:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;overflow:hidden">';
+      if(isImg&&url){h+='<div style="max-height:120px;overflow:hidden;background:#111;text-align:center"><img src="'+url+'" style="max-width:100%;max-height:120px;object-fit:contain" onerror="this.style.display=\'none\'"></div>'}
+      h+='<a href="'+url+'" target="_blank" style="display:flex;align-items:center;gap:6px;padding:6px 10px;text-decoration:none">';
+      h+='<span style="font-size:14px">'+(isImg?'🖼️':'📁')+'</span><div style="flex:1"><div style="font-size:10px;color:var(--ac);font-weight:600">'+esc(name)+'</div>';
+      if(af.uploadedAt)h+='<div style="font-size:8px;color:var(--tx3)">'+fD(af.uploadedAt)+'</div>';
+      h+='</div><span style="font-size:9px;color:var(--ac)">Open ↗</span></a></div>'});
+  }else{
+    h+='<div style="text-align:center;padding:12px;background:var(--bg2);border:1px dashed var(--bdr);border-radius:6px;margin-bottom:6px">';
+    h+='<div style="font-size:18px;margin-bottom:2px">🎨</div>';
+    h+='<div style="font-size:10px;color:var(--tx3)">No art files for SKU '+_ski+' yet</div></div>';
+  }
+
+  // Per-SKU Print Specs Reference
+  h+='<div style="margin-top:8px;padding:8px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px">';
+  h+='<div style="font-size:8px;color:var(--ac);font-weight:700;letter-spacing:1px;margin-bottom:4px">📐 PRINT SPECS</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:9px">';
+  h+='<div><span style="color:var(--tx3);font-size:7px">Size</span><div style="font-weight:600">'+(f.sA||'?')+'×'+(f.sar||'?')+'"</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:7px">Shape</span><div style="font-weight:600">'+(f.shapeType||'—')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:7px">Colors</span><div style="font-weight:600">'+(f.colors||'?')+'C '+(f.jobType||'')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:7px">Material</span><div>'+(f.faceStock||f.face||'—')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:7px">Lamination</span><div>'+(f.lamination||f.laminate||'—')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:7px">Coating</span><div>'+(f.coating||'—')+'</div></div>';
+  h+='</div></div>';
+
+  // Per-SKU Color & Plate Details
+  h+='<div style="margin-top:6px;padding:8px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px">';
+  h+='<div style="font-size:8px;color:#DAA520;font-weight:700;letter-spacing:1px;margin-bottom:4px">🎨 COLOR & PLATE</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+  h+='<div class="fg"><label style="font-size:8px;font-weight:700">Color Sequence</label><input value="'+esc(_skPP.colorSequence||pp.colorSequence||'')+'" placeholder="W, C, M, Y, K" onchange="saveSkuPPField(\''+qq.id+'\','+_ski+',\'colorSequence\',this.value)" style="font-size:10px;padding:4px 6px"></div>';
+  h+='<div class="fg"><label style="font-size:8px;font-weight:700">PMS / Spot Colors</label><input value="'+esc(_skPP.pmsColors||pp.pmsColors||'')+'" placeholder="PMS 185C, 300C" onchange="saveSkuPPField(\''+qq.id+'\','+_ski+',\'pmsColors\',this.value)" style="font-size:10px;padding:4px 6px"></div>';
+  h+='<div class="fg"><label style="font-size:8px;font-weight:700">Die #</label><input value="'+esc(_skPP.dieNum||f.dieNum||'')+'" onchange="saveSkuPPField(\''+qq.id+'\','+_ski+',\'dieNum\',this.value)" style="font-size:10px;padding:4px 6px"></div>';
+  h+='<div class="fg"><label style="font-size:8px;font-weight:700">Plate Type</label><select onchange="saveSkuPPField(\''+qq.id+'\','+_ski+',\'plateType\',this.value)" style="font-size:10px;padding:4px 6px">';
+  ['','Flat Top Dot','Digital','Conventional','Laser Engraved'].forEach(function(t){h+='<option'+(_skPP.plateType===t||(!_skPP.plateType&&pp.plateType===t)?' selected':'')+'>'+t+'</option>'});
+  h+='</select></div>';
+  h+='<div class="fg" style="grid-column:1/-1"><label style="font-size:8px;font-weight:700">Design Elements Needed</label><input value="'+esc(_skPP.designElements||'')+'" placeholder="Barcode, nutritional panel, die cut marks..." onchange="saveSkuPPField(\''+qq.id+'\','+_ski+',\'designElements\',this.value)" style="font-size:10px;padding:4px 6px"></div>';
+  h+='</div></div>';
+
+  // Per-SKU Pre-Press Checklist
+  var _skCk=_skPP.checklist||{};
+  var _ckItems=[{k:'filesReceived',l:'Files Received',ico:'📥'},{k:'artReviewed',l:'Art Reviewed',ico:'🎨'},{k:'proofApproved',l:'Proof Approved',ico:'✅'},{k:'plateReady',l:'Plates Ready',ico:'🔲'},{k:'colorMatched',l:'Color Matched',ico:'🎯'},{k:'dielineApproved',l:'Dieline OK',ico:'✂'}];
+  var _ckDone=_ckItems.filter(function(c){return _skCk[c.k]}).length;
+  var _ckPct=Math.round((_ckDone/_ckItems.length)*100);
+  h+='<div style="margin-top:6px;padding:10px 12px;background:var(--bg2);border:1px solid #a78bfa30;border-radius:8px">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+  h+='<div style="font-size:9px;color:#a78bfa;font-weight:700;letter-spacing:1px">⚙ PRE-PRESS CHECKLIST</div>';
+  h+='<div style="font-size:9px;font-weight:700;color:'+(_ckPct===100?'var(--gn)':'var(--tx3)')+'">'+_ckDone+'/'+_ckItems.length+(_ckPct===100?' ✓':'')+'</div></div>';
+  h+='<div style="height:3px;background:var(--bg3);border-radius:2px;margin-bottom:8px;overflow:hidden"><div style="height:100%;width:'+_ckPct+'%;background:'+(_ckPct===100?'var(--gn)':'#a78bfa')+';border-radius:2px;transition:width .3s"></div></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">';
+  _ckItems.forEach(function(c){
+    var done=_skCk[c.k];
+    h+='<label onclick="toggleSkuPPCheck(\''+qq.id+'\','+_ski+',\''+c.k+'\','+(!done)+')" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:'+(done?'rgba(34,197,94,.08)':'var(--bg3)')+';border:1px solid '+(done?'rgba(34,197,94,.25)':'var(--bdr)')+';border-radius:6px;cursor:pointer;transition:all .15s">';
+    h+='<span style="font-size:12px;line-height:1;opacity:'+(done?'1':'.4')+'">'+c.ico+'</span>';
+    h+='<span style="font-size:10px;font-weight:'+(done?'700':'500')+';color:'+(done?'var(--gn)':'var(--tx2)')+'">'+c.l+'</span></label>';
+  });
+  h+='</div></div>';
+
+  // Per-SKU Art Notes
+  h+='<div style="margin-top:6px"><textarea placeholder="Notes for SKU '+_ski+'..." style="width:100%;min-height:40px;padding:6px;border:1px solid var(--bdr);border-radius:4px;background:var(--inp);color:var(--tx);font-size:10px;box-sizing:border-box" onchange="saveSkuPPField(\''+qq.id+'\','+_ski+',\'notes\',this.value)">'+esc(_skPP.notes||'')+'</textarea></div>';
+
+  h+='</div>';// end expanded content
+  }// end if _skOpen
+  h+='</div>';// end SKU card
+}// end SKU loop
+
+// ═══ GLOBAL PRE-PRESS (shared across all SKUs) ═══
+h+='<div style="background:var(--bg3);border:2px solid #a78bfa;border-radius:10px;padding:14px;margin-bottom:10px">';
+h+='<div style="font-size:9px;color:#a78bfa;font-weight:700;letter-spacing:1.5px;margin-bottom:8px">⚙ GLOBAL PRE-PRESS</div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">';
+h+='<div class="fg"><label style="font-size:9px;color:#a78bfa;font-weight:700">Pre-Press Stage</label><select id="pp-stage" onchange="savePPField(\''+qq.id+'\',\'stage\',this.value)">';
+var stages=['Intake','Art Review','Engineering','File Prep','Proof Ready','Proof Sent','Waiting Approval','Revision Needed','Plate Ready','Release QA','Released'];
+stages.forEach(function(s){h+='<option'+(pp.stage===s?' selected':'')+'>'+s+'</option>'});
+h+='</select></div>';
+h+='<div class="fg"><label style="font-size:9px;color:#a78bfa;font-weight:700">Proof Status</label><select id="pp-proofStatus" onchange="savePPField(\''+qq.id+'\',\'proofStatus\',this.value)">';
+['Not Started','Internal Review','Sent to Client','Awaiting Approval','Approved','Rejected'].forEach(function(s){h+='<option'+(pp.proofStatus===s?' selected':'')+'>'+s+'</option>'});
+h+='</select></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Assigned Artist</label><input id="pp-assignedTo" value="'+esc(pp.assignedTo||'')+'" placeholder="Pre-press operator" onchange="savePPField(\''+qq.id+'\',\'assignedTo\',this.value)"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Due Date</label><input id="pp-dueDate" type="date" value="'+(pp.dueDate||'')+'" onchange="savePPField(\''+qq.id+'\',\'dueDate\',this.value)"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Proof Version</label><input id="pp-proofVersion" value="'+esc(pp.proofVersion||'')+'" placeholder="v1, Rev A, etc." onchange="savePPField(\''+qq.id+'\',\'proofVersion\',this.value)"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Proof Sent Date</label><input id="pp-proofSentDate" type="date" value="'+(pp.proofSentDate||'')+'" onchange="savePPField(\''+qq.id+'\',\'proofSentDate\',this.value)"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Screen Ruling (LPI)</label><input id="pp-screenLPI" value="'+esc(pp.screenLPI||'')+'" placeholder="133, 150, 175..." onchange="savePPField(\''+qq.id+'\',\'screenLPI\',this.value)"></div>';
+h+='<div class="fg"><label style="font-size:9px;font-weight:700">Anilox (BCM)</label><input id="pp-anilox" value="'+esc(pp.anilox||'')+'" placeholder="e.g. 800/3.0, 500/5.0" onchange="savePPField(\''+qq.id+'\',\'anilox\',this.value)"></div>';
+h+='<div class="fg" style="grid-column:1/-1"><label style="font-size:9px;font-weight:700">Ink Specs / Special Instructions</label><input id="pp-inkSpecs" value="'+esc(pp.inkSpecs||'')+'" placeholder="UV inks, water-based, FDA compliant..." onchange="savePPField(\''+qq.id+'\',\'inkSpecs\',this.value)"></div>';
+h+='</div></div>';
+
+// ═══ LINKED JOB TICKET PRE-PRESS ═══
+var jt=typeof getJobTickets==='function'?getJobTickets().find(function(t){return t.quoteNum===qq.quoteNum}):null;
+if(jt&&jt.ppd){
+  var jp=jt.ppd;
+  h+='<div style="background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.3);border-radius:10px;padding:14px;margin-bottom:10px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:9px;color:#a78bfa;font-weight:700;letter-spacing:1.5px">🎫 JOB TICKET PRE-PRESS</div><span style="font-size:10px;color:var(--ac);font-weight:600">'+(jt.jtNum||jt.id)+'</span></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">';
+  h+='<div><span style="color:var(--tx3);font-size:8px">PPD Stage</span><div style="font-weight:600;color:#a78bfa">'+(jp.stage||'—')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:8px">Proof Status</span><div style="font-weight:600">'+(jp.proofStatus||'—')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:8px">Assigned</span><div>'+(jp.assignedTo||'Unassigned')+'</div></div>';
+  h+='<div><span style="color:var(--tx3);font-size:8px">File Status</span><div>'+(jp.fileStatus||'—')+'</div></div>';
+  var jck=jp.checklist||{};
+  h+='<div style="grid-column:1/-1"><span style="color:var(--tx3);font-size:8px">Checklist</span><div style="display:flex;gap:8px;margin-top:2px">';
+  [{k:'files',l:'Files'},{k:'art',l:'Art'},{k:'proof',l:'Proof'},{k:'release',l:'Release'}].forEach(function(c){
+    h+='<span style="font-size:9px;'+(jck[c.k]?'color:var(--gn);font-weight:700':'color:var(--tx3)')+'">'+(jck[c.k]?'✅':'⬜')+' '+c.l+'</span>';
+  });
+  h+='</div></div>';
+  h+='</div>';
+  if(typeof openTicketDetail==='function'){h+='<button class="btn btn-ghost btn-sm" onclick="openTicketDetail(\''+jt.id+'\')" style="margin-top:6px;width:100%">Open Full PPD Workspace →</button>'}
+  h+='</div>';
+}
+
+// Art notes (global)
+h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;padding:14px">';
+h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">📝 ART & PRE-PRESS NOTES</div>';
+h+='<textarea id="artNotesInput" placeholder="Revision notes, color match details, trapping instructions, special ink requirements..." style="width:100%;min-height:70px;padding:8px;border:1px solid var(--bdr);border-radius:6px;background:var(--inp);color:var(--tx);font-size:11px;box-sizing:border-box">'+(qq.artNotes||'')+'</textarea>';
+h+='<button class="btn btn-pr btn-sm" onclick="saveArtNotes(\''+qq.id+'\')" style="margin-top:6px;width:100%">Save Notes</button>';
+h+='</div>';
+return h})()}
+</div>
+
+<div class="epane ${S.etab===10?'active':''}" id="ep-so">
+${(function(){var qq=getQ(S.editId);if(!qq)return'';var f=qq.fields||{};var h='';
+var linkedSO=typeof getSalesOrders==='function'?getSalesOrders().find(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum}):null;
+var so=linkedSO||{};
+// Header with status
+h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+h+='<div style="font-size:13px;font-weight:700;color:var(--ac)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Sales Order'+(linkedSO?' — '+esc(so.soNum):' — '+esc(qq.quoteNum))+'</div>';
+if(linkedSO){var sc={'pending':'#f59e0b','approved':'#2ee89e','sent':'var(--ac)','completed':'var(--gn)','cancelled':'var(--rd)'}[so.status]||'var(--tx3)';h+='<span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:'+sc+';color:#fff">'+(so.status||'').toUpperCase()+'</span>'}
+h+='</div>';
+// Action buttons at top
+h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+if(linkedSO){
+  if(so.status==='pending')h+='<button class="btn btn-approve btn-sm" onclick="if(typeof approveSO===\'function\')approveSO(\''+so.id+'\')" style="flex:1">✅ CEO Approve</button>';
+  if(so.status==='approved')h+='<button class="btn btn-pr btn-sm" onclick="if(typeof sendSOToClient===\'function\')sendSOToClient(\''+so.id+'\')" style="flex:1">✉ Send to Client & Drive</button>';
+  h+='<button class="btn btn-pr btn-sm" onclick="if(typeof downloadSOPDF===\'function\')downloadSOPDF(\''+so.id+'\');else toast(\'SO module not loaded\',\'err\')" title="Download SO PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download PDF</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="if(typeof soPrintPreview===\'function\')soPrintPreview(\''+so.id+'\');else toast(\'SO module not loaded\',\'err\')">🖨 Print</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="if(typeof openSODetail===\'function\')openSODetail(\''+so.id+'\')">View Modal</button>';
+  if(so.driveLink)h+='<a href="'+so.driveLink+'" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">☁ Drive</a>';
+}else if(qq.poNumber){
+  h+='<button class="btn btn-pr btn-sm" onclick="if(typeof createSOFromPO===\'function\')createSOFromPO(\''+qq.id+'\');else toast(\'Module not loaded\',\'err\')" style="flex:1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Generate Sales Order</button>';
+}else{
+  h+='<div style="font-size:10px;color:var(--tx3);padding:4px 0">PO required before generating SO</div>';
+}
+h+='</div>';
+// ═══ INLINE SO DOCUMENT PREVIEW (matches quote preview pattern with different layout) ═══
+if(linkedSO&&typeof window.buildSOPrintHTML==='function'){
+  var _soTab=window._soTab||'preview';
+  var _previewHTML='';
+  try{_previewHTML=window.buildSOPrintHTML(so)}catch(_e){_previewHTML='<div style="padding:40px;text-align:center;color:#dc2626;font-size:12px">Preview failed: '+esc(_e.message||String(_e))+'</div>';console.error('[SO Preview]',_e)}
+  h+='<div style="display:flex;gap:0;margin-bottom:8px;border:1px solid var(--bdr);border-radius:8px;overflow:hidden">';
+  h+='<button id="soViewPrev" onclick="window._soTab=\'preview\';document.getElementById(\'soPreviewWrap\').style.display=\'block\';document.getElementById(\'soFormWrap\').style.display=\'none\';this.style.background=\'var(--ac)\';this.style.color=\'#000\';document.getElementById(\'soViewEdit\').style.background=\'var(--bg3)\';document.getElementById(\'soViewEdit\').style.color=\'var(--tx)\'" style="flex:1;padding:8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(_soTab==='preview'?'var(--ac);color:#000':'var(--bg3);color:var(--tx)')+'">📄 Document Preview</button>';
+  h+='<button id="soViewEdit" onclick="window._soTab=\'form\';document.getElementById(\'soFormWrap\').style.display=\'block\';document.getElementById(\'soPreviewWrap\').style.display=\'none\';this.style.background=\'var(--ac)\';this.style.color=\'#000\';document.getElementById(\'soViewPrev\').style.background=\'var(--bg3)\';document.getElementById(\'soViewPrev\').style.color=\'var(--tx)\'" style="flex:1;padding:8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(_soTab==='form'?'var(--ac);color:#000':'var(--bg3);color:var(--tx)')+'">✏ Edit Details</button>';
+  h+='</div>';
+  h+='<div id="soPreviewWrap" style="display:'+(_soTab==='preview'?'block':'none')+';margin-bottom:10px">';
+  h+='<div class="qp" id="soPage" style="max-height:calc(100vh - 320px);overflow-y:auto;-webkit-overflow-scrolling:touch">'+_previewHTML+'</div>';
+  h+='<div style="text-align:center;margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">';
+  h+='<button class="btn btn-pr btn-sm" onclick="if(window.soPrintPreview)window.soPrintPreview(\''+so.id+'\');else toast(\'Module not loaded\',\'err\')">🖨 Print / Save PDF</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="if(window.downloadSOPDF)window.downloadSOPDF(\''+so.id+'\');else toast(\'Module not loaded\',\'err\')">⬇ Download PDF</button>';
+  h+='</div>';
+  h+='</div>';
+  h+='<div id="soFormWrap" style="display:'+(_soTab==='form'?'block':'none')+'">';
+}
+// Auto-populated SO form — all fields from quote+PO+client
+var _s=linkedSO?so:{};
+h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">📋</span><span class="ttl">Order Identity</span><span class="arr">▾</span></div><div class="scard-b open">';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+h+='<div class="fg"><label>SO Number</label><input id="so-soNum" value="'+esc(_s.soNum||'')+'" readonly style="color:var(--ac);font-family:JetBrains Mono,monospace"></div>';
+h+='<div class="fg"><label>Quote Ref</label><input value="'+esc(qq.quoteNum)+' Rev '+(qq.rev||'A')+'" readonly></div>';
+h+='<div class="fg"><label>PO Number</label><input id="so-poNum" value="'+esc(_s.poNumber||qq.poNumber||'')+'" '+(linkedSO?'readonly':'')+' style="'+(qq.poNumber?'':'border-color:var(--or)')+'"></div>';
+h+='<div class="fg"><label>Status</label><input value="'+(_s.status||'not created').toUpperCase()+'" readonly></div>';
+h+='<div class="fg"><label>Date Created</label><input value="'+(_s.createdAt?fD(_s.createdAt):fD(new Date().toISOString()))+'" readonly></div>';
+h+='<div class="fg"><label>Created By</label><input value="'+esc(_s.createdBy||getUserName())+'" readonly></div>';
+h+='</div></div></div>';
+// Client section
+h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🏢</span><span class="ttl">Client Information</span><span class="arr">▾</span></div><div class="scard-b open">';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+h+='<div class="fg"><label>Company</label><input id="so-company" value="'+esc(_s.company||f.custCo||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='<div class="fg"><label>Contact</label><input id="so-contact" value="'+esc(_s.contact||qq.poSignature||f.custAttn||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='<div class="fg"><label>Email</label><input id="so-email" value="'+esc(_s.email||qq.poClientEmail||f.custEmail||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='<div class="fg"><label>Phone</label><input id="so-phone" value="'+esc(_s.phone||f.custPhone||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='<div class="fg"><label>Ship To</label><input id="so-shipTo" value="'+esc(_s.shipTo||qq.poShipTo||f.shipTo||f.cityState||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='<div class="fg"><label>Industry</label><input id="so-industry" value="'+esc(_s.industry||f.industry||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='</div></div></div>';
+// Product specs
+h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🏷️</span><span class="ttl">Product Specifications</span><span class="arr">▾</span></div><div class="scard-b open">';
+var _jd=_s.jobDesc||((f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo'));
+h+='<div class="fg"><label>Job Description</label><input id="so-jobDesc" value="'+esc(_jd)+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
+h+='<div class="fg"><label>Size Across</label><input value="'+esc(_s.sizeA||f.sA||'')+'" readonly></div>';
+h+='<div class="fg"><label>Size Around</label><input value="'+esc(_s.sizeB||f.sar||'')+'" readonly></div>';
+h+='<div class="fg"><label>Colors</label><input value="'+esc(_s.colors||f.colors||'')+'" readonly></div>';
+h+='</div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+h+='<div class="fg"><label>Shape</label><input value="'+esc(_s.shapeType||f.shapeType||'')+'" readonly></div>';
+h+='<div class="fg"><label>Job Type</label><input value="'+esc(_s.jobType||f.jobType||'')+'" readonly></div>';
+h+='<div class="fg"><label>Face Stock</label><input value="'+esc(_s.faceStock||_s.face||f.faceStock||'')+'" readonly></div>';
+h+='<div class="fg"><label>Lamination</label><input value="'+esc(_s.lamination||_s.laminate||f.lamination||'')+'" readonly></div>';
+h+='<div class="fg"><label>Adhesive</label><input value="'+esc(_s.adhesive||f.adhesive||'')+'" readonly></div>';
+h+='<div class="fg"><label>Coating</label><input value="'+esc(_s.coating||f.coating||'')+'" readonly></div>';
+h+='<div class="fg"><label>Wind Dir</label><input value="'+esc(_s.windDir||f.windDir||'')+'" readonly></div>';
+h+='<div class="fg"><label>Labels/Roll</label><input value="'+esc(_s.labRoll||f.labRoll||'')+'" readonly></div>';
+h+='</div>';
+if(qq.description){h+='<div class="fg" style="margin-top:6px"><label>Description</label><input value="'+esc(_s.description||qq.description||'')+'" readonly></div>'}
+h+='</div></div>';
+// Line items / Pricing
+h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="ttl">Line Items & Pricing</span><span class="arr">▾</span></div><div class="scard-b open">';
+// All quantities as line items
+var allQ=_s.allQtys||qq.qtys||[];
+var selIdx=_s.selectedQtyIndex||(qq.poQtyIndex||0);
+if(allQ.length){
+  h+='<div style="border:1px solid var(--bdr);border-radius:6px;overflow:hidden;margin-bottom:8px">';
+  h+='<div style="display:grid;grid-template-columns:40px 1fr 1fr 1fr;background:var(--bg2);padding:6px 8px;font-size:9px;font-weight:700;color:var(--ac);letter-spacing:1px">';
+  h+='<div></div><div>QTY</div><div>UNIT PRICE</div><div>TOTAL</div></div>';
+  allQ.forEach(function(row,ri){
+    var rQty=typeof row==='object'?row.qty:row;
+    var rPPU=typeof row==='object'?(row.ppu||0):0;
+    var rTot=typeof row==='object'?(row.total||0):0;
+    if(!rPPU&&qq.pricingMatrix&&qq.pricingMatrix[ri]){rPPU=qq.pricingMatrix[ri].ppu||0;rTot=qq.pricingMatrix[ri].total||0}
+    if(!rPPU&&qq.calculatedPrices&&qq.calculatedPrices[ri]){rPPU=qq.calculatedPrices[ri].ppu||0;rTot=qq.calculatedPrices[ri].total||0}
+    var isSel=ri===selIdx;
+    h+='<div style="display:grid;grid-template-columns:40px 1fr 1fr 1fr;padding:6px 8px;font-size:11px;border-top:1px solid var(--bdr);'+(isSel?'background:rgba(0,229,255,.08);border-left:3px solid var(--ac)':'')+'">';
+    h+='<div>'+(isSel?'<span style="color:var(--ac);font-weight:700">✓</span>':'')+'</div>';
+    h+='<div style="font-weight:'+(isSel?'700':'400')+'">'+Number(rQty||0).toLocaleString()+'</div>';
+    h+='<div>$'+(rPPU||0).toFixed(4)+'</div>';
+    h+='<div style="font-weight:700;color:'+(isSel?'var(--ac)':'var(--tx)')+'">$'+Number(rTot||0).toLocaleString(undefined,{minimumFractionDigits:2})+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+}
+// Selected line summary
+var soQty=_s.selectedQty||qq.poSelectedQty||qq.poQty||0;
+var soPPU=_s.ppu||0;
+var soTot=_s.total||qq.poSelectedTotal||qq.poTotal||0;
+if(soQty&&soTot&&!soPPU)soPPU=soTot/soQty;
+h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:8px;padding:10px">';
+h+='<div style="text-align:center"><div style="font-size:8px;color:var(--tx3);font-weight:700">CONFIRMED QTY</div><div style="font-size:16px;font-weight:800;color:var(--tx)">'+Number(soQty).toLocaleString()+'</div></div>';
+h+='<div style="text-align:center"><div style="font-size:8px;color:var(--tx3);font-weight:700">UNIT PRICE</div><div style="font-size:16px;font-weight:800;color:var(--tx)">$'+(soPPU||0).toFixed(4)+'</div></div>';
+h+='<div style="text-align:center"><div style="font-size:8px;color:var(--tx3);font-weight:700">ORDER TOTAL</div><div style="font-size:16px;font-weight:800;color:var(--ac)">$'+Number(soTot).toLocaleString(undefined,{minimumFractionDigits:2})+'</div></div>';
+h+='</div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
+h+='<div class="fg"><label>Payment Terms</label><input value="'+esc(_s.payTerms||f.payTerms||'Net 30')+'" readonly></div>';
+h+='<div class="fg"><label>Estimator</label><input value="'+esc(_s.estimator||f.estimator||'')+'" readonly></div>';
+h+='<div class="fg"><label>Sales Rep</label><input value="'+esc(_s.salesRep||f.salesRep||'')+'" readonly></div>';
+h+='<div class="fg"><label>PO Instructions</label><input value="'+esc(_s.poInstructions||qq.poInstructions||'')+'" readonly></div>';
+h+='</div>';
+h+='</div></div>';
+// SO Timeline
+if(linkedSO&&so.notes&&so.notes.length){
+  h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">📜</span><span class="ttl">SO Timeline ('+so.notes.length+')</span><span class="arr">▾</span></div><div class="scard-b open">';
+  so.notes.forEach(function(n){h+='<div style="font-size:10px;padding:4px 0;border-bottom:1px solid var(--bdr)"><span style="color:var(--tx3)">'+fD(n.at)+'</span> · '+esc(n.text)+' <span style="color:var(--tx3)">by '+esc(n.by)+'</span></div>'});
+  h+='</div></div>';
+}
+if(linkedSO&&so.approvedBy){
+  h+='<div style="background:rgba(46,232,158,.06);border:1px solid rgba(46,232,158,.2);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:11px"><span style="color:var(--gn);font-weight:700">✅ Approved</span> by '+esc(so.approvedBy)+' on '+fD(so.approvedAt)+'</div>';
+}
+if(linkedSO&&so.sentAt){
+  h+='<div style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:8px;padding:8px 12px;margin-top:6px;font-size:11px"><span style="color:var(--ac);font-weight:700">✉ Sent</span> to '+esc(so.sentTo)+' on '+fD(so.sentAt)+'</div>';
+}
+// Client SO Approval badge
+if(linkedSO&&so.clientSignature){
+  h+='<div style="background:rgba(46,232,158,.06);border:1px solid rgba(46,232,158,.2);border-radius:8px;padding:8px 12px;margin-top:6px;font-size:11px"><span style="color:var(--gn);font-weight:700">✅ Client Signed</span> by '+esc(so.clientSignature)+' on '+fD(so.clientSignedAt||'')+'</div>';
+}
+// Deposit Configuration
+if(linkedSO){
+  h+='<div class="scard" style="margin-top:8px"><div class="scard-h" onclick="togCard(this)"><span class="ico">💳</span><span class="ttl">Deposit & Payment</span><span class="arr">▾</span></div><div class="scard-b">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h+='<div class="fg"><label>Deposit Required</label><select id="so-depositReq" onchange="saveSOField(\''+so.id+'\',\'depositRequired\',this.value===\'yes\')">';
+  h+='<option value="no"'+(!so.depositRequired?' selected':'')+'>No</option><option value="yes"'+(so.depositRequired?' selected':'')+'>Yes</option></select></div>';
+  h+='<div class="fg"><label>Deposit Amount</label><input id="so-depositAmt" type="number" step="0.01" value="'+(so.depositAmount||'')+'" placeholder="e.g. 5000.00" onchange="saveSOField(\''+so.id+'\',\'depositAmount\',parseFloat(this.value)||0)"></div>';
+  h+='<div class="fg" style="grid-column:1/-1"><label>Deposit Payment Link</label><input id="so-depositLink" value="'+esc(so.depositLink||'')+'" placeholder="https://pay.stripe.com/... or payment URL" onchange="saveSOField(\''+so.id+'\',\'depositLink\',this.value)"></div>';
+  h+='<div class="fg"><label>Deposit Status</label><select id="so-depositStatus" onchange="saveSOField(\''+so.id+'\',\'depositStatus\',this.value)">';
+  ['pending','invoiced','paid','waived'].forEach(function(ds){h+='<option'+(so.depositStatus===ds?' selected':'')+'>'+ds+'</option>'});
+  h+='</select></div>';
+  h+='<div class="fg"><label>Deposit Paid Date</label><input type="date" value="'+(so.depositPaidDate||'')+'" onchange="saveSOField(\''+so.id+'\',\'depositPaidDate\',this.value)"></div>';
+  h+='</div>';
+  if(so.depositRequired&&so.depositLink){
+    h+='<div style="margin-top:8px;padding:8px;background:rgba(218,165,32,.06);border:1px solid rgba(218,165,32,.2);border-radius:6px;font-size:10px;text-align:center">';
+    h+='<span style="color:var(--or);font-weight:700">Client Deposit Link: </span><a href="'+esc(so.depositLink)+'" target="_blank" style="color:var(--ac)">'+esc(so.depositLink)+'</a></div>';
+  }
+  h+='</div></div>';
+}
+// Close soFormWrap div if inline preview was opened
+if(linkedSO&&typeof window.buildSOPrintHTML==='function'){h+='</div>'}
+return h})()}
+</div>
+
+<div class="epane ${S.etab===11?'active':''}" id="ep-passport">
+${(function(){var qq=getQ(S.editId);if(!qq)return'';var h='';
+h+='<div style="font-size:13px;font-weight:700;color:var(--ac);margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Job Passport & Tickets — '+esc(qq.quoteNum)+'</div>';
+var linkedSO=typeof getSalesOrders==='function'?getSalesOrders().find(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum}):null;
+var passport=typeof getPassports==='function'?getPassports().find(function(p){return p.quoteId===qq.id||p.quoteNum===qq.quoteNum}):null;
+var tickets=typeof getJobTickets==='function'?getJobTickets().filter(function(t){return t.quoteNum===qq.quoteNum}):[];
+// Job Passport section
+h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;padding:14px;margin-bottom:10px">';
+h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:8px">JOB PASSPORT</div>';
+if(passport){
+  var psc={'draft':'var(--tx3)','active':'var(--ac)','in-progress':'#f59e0b','complete':'var(--gn)','cancelled':'var(--rd)'}[passport.status]||'var(--tx3)';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  h+='<div style="font-size:14px;font-weight:700;color:var(--ac);font-family:JetBrains Mono,monospace">'+(passport.jpNum||passport.id)+'</div>';
+  h+='<span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:'+psc+';color:#fff">'+(passport.status||'draft').toUpperCase()+'</span>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">';
+  h+='<div><span style="color:var(--tx3)">Company</span><div style="color:var(--tx);font-weight:600">'+esc(passport.company||qq.fields.custCo)+'</div></div>';
+  if(passport.soId&&linkedSO){h+='<div><span style="color:var(--tx3)">Sales Order</span><div style="color:var(--ac)">'+esc(linkedSO.soNum)+'</div></div>'}
+  h+='<div><span style="color:var(--tx3)">Created</span><div style="color:var(--tx)">'+fD(passport.createdAt)+' by '+(passport.createdBy||'—')+'</div></div>';
+  h+='</div>';
+  if(typeof openPassportDetail==='function'){h+='<button class="btn btn-pr btn-sm" onclick="openPassportDetail(\''+passport.id+'\')" style="margin-top:8px;width:100%">View Full Passport</button>'}
+}else{
+  h+='<div style="text-align:center;padding:16px;color:var(--tx3)">';
+  h+='<div style="font-size:24px;margin-bottom:6px">🛂</div>';
+  h+='<div style="font-size:11px">'+(linkedSO&&linkedSO.status==='approved'||linkedSO&&linkedSO.status==='sent'?'Ready — create a Job Passport from the Sales Order':'Job Passport is created after SO is approved')+'</div>';
+  if(linkedSO&&typeof createPassportFromSO==='function'){h+='<button class="btn btn-pr btn-sm" onclick="createPassportFromSO(\''+linkedSO.id+'\')" style="margin-top:8px">Create Job Passport</button>'}
+  h+='</div>';
+}
+h+='</div>';
+// Job Tickets section
+h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:10px;padding:14px">';
+h+='<div style="font-size:9px;color:#DAA520;font-weight:700;letter-spacing:1.5px;margin-bottom:8px">JOB TICKETS ('+tickets.length+')</div>';
+if(tickets.length){
+  tickets.forEach(function(t){
+    var tsc={'pending':'var(--tx3)','in-progress':'#f59e0b','pre-press':'#a78bfa','printing':'var(--ac)','finishing':'#38bdf8','complete':'var(--gn)','cancelled':'var(--rd)'}[t.status]||'var(--tx3)';
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;cursor:pointer" onclick="if(typeof openTicketDetail===\'function\')openTicketDetail(\''+t.id+'\')">';
+    h+='<div style="width:8px;height:8px;border-radius:50%;background:'+tsc+'"></div>';
+    h+='<div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--tx)">'+(t.jtNum||t.id)+'</div>';
+    h+='<div style="font-size:9px;color:var(--tx3)">'+(t.status||'pending').toUpperCase()+'</div></div>';
+    if(t.ppd&&t.ppd.prePressStatus){h+='<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--bg3);color:var(--tx2)">PP: '+t.ppd.prePressStatus+'</span>'}
+    h+='<span style="font-size:10px;color:var(--ac)">→</span>';
+    h+='</div>'});
+}else{
+  h+='<div style="text-align:center;padding:16px;color:var(--tx3)">';
+  h+='<div style="font-size:24px;margin-bottom:6px">🎫</div>';
+  h+='<div style="font-size:11px">'+(passport?'Create job tickets from the passport':'Job Tickets are generated from confirmed Job Passport')+'</div>';
+  h+='</div>';
+}
+h+='</div>';
+return h})()}
+</div>
+
+`;
+// old ep-timeline pane removed — now at tab 0
+
+buildMS('ed-fs',f.faceStock);buildMS('ed-lam',f.lamination);buildDieSelect(f);buildVarnishSelect(f.coating);edMat('faceStock');edMat('lamination');edRQ();renderTermsEditor();edCalcAll();renderInternalNotes();renderActivityLog();if(S.etab===6)setTimeout(renderSendPane,100);if(S.etab===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(S.etab===12){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(S.etab===13){setTimeout(renderWorkflow,100)}
 if(f.custCo){var _mc=DB.customers().find(function(x){return x.company&&x.company.toLowerCase()===f.custCo.toLowerCase()});if(_mc)setTimeout(function(){renderClientMiniDash(_mc)},200)}
 // Inject Next/Prev navigation buttons into each pane
-var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Timeline'];
-var _paneIds=['ep-info','ep-specs','ep-mats','ep-pricing','ep-matrix','ep-preview','ep-send','ep-timeline'];
+var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Portal','PO','Art','SO','Passport','Timeline','Workflow'];
+var _paneIds=['ep-info','ep-specs','ep-mats','ep-pricing','ep-matrix','ep-preview','ep-send','ep-portal','ep-po','ep-art','ep-so','ep-passport','ep-timeline','ep-workflow'];
 _paneIds.forEach(function(pid,i){var pane=$(pid);if(!pane)return;var nav=document.createElement('div');nav.style.cssText='display:flex;gap:8px;margin-top:16px;padding:12px 0;border-top:1px solid var(--bdr)';if(i>0){var prev=document.createElement('button');prev.className='btn btn-ghost btn-sm';prev.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px';prev.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> '+_tabNames[i-1];prev.onclick=function(){switchET(i-1)};nav.appendChild(prev)}if(i<_paneIds.length-1){var next=document.createElement('button');next.className='btn btn-pr btn-sm';next.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px;margin-left:auto';next.innerHTML=_tabNames[i+1]+' <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';next.onclick=function(){switchET(i+1)};nav.appendChild(next)}pane.appendChild(nav)})}
 
 function buildDieSelect(f){const sel=$('ed-die');if(!sel)return;const dies=getSpecList('dies');sel.innerHTML='<option value="">- Select Die -</option>';
@@ -1490,8 +2045,71 @@ function resetTerms(){if(!confirm('Reset to default terms?'))return;
 const all=DB.quotes();const q=all.find(x=>x.id===S.editId);if(!q)return;
 q.terms=[...DEFAULT_TERMS];DB.saveQ(all,S.editId);renderTermsEditor();edCalcAll()}
 
-function switchET(n){S.etab=n;saveQ();renderEditor();if(n===6)setTimeout(renderSendPane,100);if(n===7){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}$('vc').scrollTop=0}
-function switchTLSub(sub){window._tlSub=sub;var tabs=['activity','notes','workflow','connections'];tabs.forEach(function(t){var el=$('tl'+t.charAt(0).toUpperCase()+t.slice(1));if(el)el.style.display=t===sub?'block':'none'});if(sub==='workflow')renderWorkflow();if(sub==='connections')renderConnections();S.etab=7;renderEditor()}
+function switchET(n){S.etab=n;saveQ();renderEditor();if(n===6)setTimeout(renderSendPane,100);if(n===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(n===12){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(n===13)setTimeout(renderWorkflow,100);$('vc').scrollTop=0}
+function switchTLSub(sub){window._tlSub=sub;var tabs=['activity','notes','connections'];tabs.forEach(function(t){var el=$('tl'+t.charAt(0).toUpperCase()+t.slice(1));if(el)el.style.display=t===sub?'block':'none'});if(sub==='connections')renderConnections();S.etab=12;renderEditor()}
+// ═══ Portal/PO/Art tab helpers ═══
+var _portalMsgUnsub=null;
+function initPortalMsgListener(qq){
+  if(_portalMsgUnsub){_portalMsgUnsub();_portalMsgUnsub=null}
+  if(!qq||!qq.id||typeof fbDb==='undefined')return;
+  var el=$('portalMsgList');if(!el)return;
+  _portalMsgUnsub=fbDb.collection('quotes').doc(qq.id).collection('portalMessages').orderBy('timestamp','asc').onSnapshot(function(snap){
+    var msgs=snap.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
+    var list=$('portalMsgList');if(!list)return;
+    if(!msgs.length){list.innerHTML='<div style="text-align:center;color:var(--tx3);font-size:10px;padding:20px">No messages yet</div>';return}
+    var h='';
+    msgs.forEach(function(m){
+      var isClient=m.from==='client';
+      h+='<div style="display:flex;flex-direction:column;align-items:'+(isClient?'flex-start':'flex-end')+';margin-bottom:6px">';
+      h+='<div style="max-width:85%;padding:8px 10px;border-radius:'+(isClient?'2px 10px 10px 10px':'10px 2px 10px 10px')+';background:'+(isClient?'rgba(255,165,0,.12)':'rgba(0,229,255,.12)')+';border:1px solid '+(isClient?'rgba(255,165,0,.25)':'rgba(0,229,255,.25)')+'">';
+      h+='<div style="font-size:10px;font-weight:700;color:'+(isClient?'var(--or)':'var(--ac)')+';margin-bottom:2px">'+(m.name||'Unknown')+' <span style="font-weight:400;color:var(--tx3);font-size:8px">'+(isClient?'Client':'MFX')+'</span></div>';
+      h+='<div style="font-size:11px;color:var(--tx)">'+esc(m.text)+'</div>';
+      if(m.timestamp){h+='<div style="font-size:8px;color:var(--tx3);margin-top:2px;text-align:right">'+fD(m.timestamp.toDate?m.timestamp.toDate():m.timestamp)+'</div>'}
+      h+='</div></div>';
+    });
+    list.innerHTML=h;list.scrollTop=list.scrollHeight;
+    // Badge for new client msgs
+    var lastMsg=msgs[msgs.length-1];
+    var badge=$('portalMsgBadge');
+    if(badge&&lastMsg&&lastMsg.from==='client'){badge.style.display='inline';setTimeout(function(){if(badge)badge.style.display='none'},5000)}
+  },function(err){console.warn('portal msg listener:',err.message)});
+}
+function sendInlinePortalMsg(qid){
+  var el=$('portalMsgInline');if(!el||!el.value.trim())return;
+  var text=el.value.trim();el.value='';
+  fbDb.collection('quotes').doc(qid).collection('portalMessages').add({
+    text:text,name:getUserName(),from:'mfx',timestamp:firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){}).catch(function(e){toast('Message error: '+e.message,'err')});
+}
+function poFieldChange(){/* mark dirty */}
+function savePOFields(qid){
+  var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;
+  var v=function(id){var e=$(id);return e?e.value:''};
+  q.poNumber=v('po-number');q.poShipTo=v('po-shipTo');
+  q.poSelectedQty=parseFloat(v('po-qty'))||0;q.poQty=q.poSelectedQty;
+  q.poSelectedTotal=parseFloat(v('po-total'))||0;q.poTotal=q.poSelectedTotal;
+  q.poClientEmail=v('po-email');q.poSignature=v('po-contact');
+  q.poInstructions=v('po-instructions');q.poRequiredDate=v('po-reqDate');
+  q.fields.payTerms=v('po-terms');
+  q.updatedAt=new Date().toISOString();
+  // Auto-set status to won if PO entered
+  if(q.poNumber&&q.status==='sent'){q.status='won';toast('Status → Won (PO received)','ok')}
+  DB.saveQ(all,qid);toast('PO data saved','ok');renderEditor();
+}
+function togglePPCheck(qid,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};if(!q.prePress.checklist)q.prePress.checklist={};q.prePress.checklist[key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid)}
+function savePPField(qid,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};q.prePress[key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid)}
+window.togglePPCheck=togglePPCheck;window.savePPField=savePPField;
+function updateArtStatus(qid,status){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;q.artStatus=status;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid);toast('Art status → '+status,'ok');renderEditor()}
+function saveArtNotes(qid){var el=$('artNotesInput');if(!el)return;var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;q.artNotes=el.value;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid);toast('Art notes saved','ok')}
+function saveSkuPPField(qid,skuIdx,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};var sk='sku'+skuIdx;if(!q.prePress[sk])q.prePress[sk]={};q.prePress[sk][key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid)}
+function toggleSkuPPCheck(qid,skuIdx,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};var sk='sku'+skuIdx;if(!q.prePress[sk])q.prePress[sk]={};if(!q.prePress[sk].checklist)q.prePress[sk].checklist={};q.prePress[sk].checklist[key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid);if(typeof renderEditor==='function')setTimeout(renderEditor,50)}
+function saveSOField(soId,key,val){if(!soId||typeof fbDb==='undefined')return;var upd={};upd[key]=val;upd.updatedAt=new Date().toISOString();fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){toast('SO updated','ok')}).catch(function(e){toast('Save failed: '+e.message,'err')});var sos=typeof getSalesOrders==='function'?getSalesOrders():[];var so=sos.find(function(x){return x.id===soId});if(so){so[key]=val}}
+window.saveSOField=saveSOField;
+window.saveSkuPPField=saveSkuPPField;window.toggleSkuPPCheck=toggleSkuPPCheck;
+window.updateArtStatus=updateArtStatus;window.saveArtNotes=saveArtNotes;
+window.initPortalMsgListener=initPortalMsgListener;window.sendInlinePortalMsg=sendInlinePortalMsg;
+window.savePOFields=savePOFields;window.poFieldChange=poFieldChange;
+
 function _validateQuoteForSubmit(q){
 if(!q.fields.custCo || !q.fields.custCo.trim()) { toast('Customer company is required','err'); return false; }
 if(!q.fields.estimator || !q.fields.estimator.trim()) { toast('Estimator is required','err'); return false; }
@@ -1730,7 +2348,7 @@ toast('Generating PDF for attachment...','ok');
 generateQuotePDF(q).then(function(pdf){
 // Build MIME multipart message with PDF attachment
 var boundary='mfx_boundary_'+Date.now();
-var htmlBody='<table cellpadding="0" cellspacing="0" width="100%" style="max-width:660px;margin:0 auto;font-family:Arial,sans-serif;background:#060d14"><tr><td style="height:3px;background:#00e5ff;font-size:0">&nbsp;</td></tr><tr><td style="padding:16px 24px;text-align:center;border-bottom:1px solid #0f1d2b"><div style="font-size:24px;font-weight:900;color:#e0f2fe">Microflex</div><div style="width:70px;height:2px;background:#00e5ff;margin:4px auto"></div><div style="font-size:8px;color:#00838f;letter-spacing:4px">FILM CORPORATION</div></td></tr><tr><td style="padding:5px 24px;background:#0a2e3e;text-align:center;font-size:7px;color:#00e5ff;letter-spacing:1px;border-bottom:1px solid #0f1d2b">FLEXIBLE PACKAGING &nbsp;|&nbsp; LABELS &nbsp;|&nbsp; POUCHES &nbsp;|&nbsp; SHRINK SLEEVES</td></tr><tr><td style="padding:16px 24px;font-size:14px;color:#94a3b8;line-height:1.6">'+body.replace(/\n/g,'<br>')+'</td></tr><tr><td style="padding:12px 24px;text-align:center"><a href="https://mfx-2026.web.app/portal?q='+q.quoteNum+'" style="display:block;text-align:center;padding:14px;border-radius:6px;font-size:14px;font-weight:700;text-decoration:none;background-color:#00e5ff;color:#060d14">Approve Quote &amp; Submit PO</a></td></tr><tr><td style="padding:10px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation &middot; 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 &middot; Quotes@MicroflexFilm.com<br>SQF Certified | Made in USA</td></tr></table>';
+var htmlBody='<table cellpadding="0" cellspacing="0" width="100%" style="max-width:660px;margin:0 auto;font-family:Arial,sans-serif;background:#060d14"><tr><td style="height:3px;background:#00e5ff;font-size:0">&nbsp;</td></tr><tr><td style="padding:16px 24px;text-align:center;border-bottom:1px solid #0f1d2b"><div style="font-size:24px;font-weight:900;color:#e0f2fe">Microflex</div><div style="width:70px;height:2px;background:#00e5ff;margin:4px auto"></div><div style="font-size:8px;color:#00838f;letter-spacing:4px">FILM CORPORATION</div></td></tr><tr><td style="padding:5px 24px;background:#0a2e3e;text-align:center;font-size:7px;color:#00e5ff;letter-spacing:1px;border-bottom:1px solid #0f1d2b">FLEXIBLE PACKAGING &nbsp;|&nbsp; LABELS &nbsp;|&nbsp; POUCHES &nbsp;|&nbsp; SHRINK SLEEVES</td></tr><tr><td style="padding:16px 24px;font-size:14px;color:#94a3b8;line-height:1.6">'+body.replace(/\n/g,'<br>')+'</td></tr><tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?q='+q.quoteNum+'" style="display:block;text-align:center;padding:14px;border-radius:6px;font-size:14px;font-weight:700;text-decoration:none;background-color:#00e5ff;color:#060d14">Approve Quote &amp; Submit PO</a></td></tr><tr><td style="padding:10px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation &middot; 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 &middot; Quotes@MicroflexFilm.com<br>SQF Certified | Made in USA</td></tr></table>';
 var raw='Content-Type: multipart/mixed; boundary="'+boundary+'"\r\n';
 raw+='To: '+to+'\r\nSubject: '+subj+'\r\nMIME-Version: 1.0\r\n\r\n';
 raw+='--'+boundary+'\r\n';
@@ -1846,7 +2464,7 @@ method:'PATCH',headers:{'Authorization':'Bearer '+token}}).catch(function(e){con
 /* Created registry */ return s.spreadsheetId||null})
 })}).catch(function(e){ /* Registry err */ return null})}
 
-function getQuoteFileName(q){var n=new Date();var mm=(n.getMonth()+1<10?'0':'')+(n.getMonth()+1);var dd=(n.getDate()<10?'0':'')+n.getDate();var co=(q.fields.custCo||'Quote').replace(/[^a-zA-Z0-9 ]/g,'').replace(/\s+/g,' ').trim().replace(/\s/g,'-');var desc=q.description?(q.description.replace(/[^a-zA-Z0-9 ]/g,'').replace(/\s+/g,' ').trim().replace(/\s/g,'-').substring(0,50)):'';return q.quoteNum+'-'+q.rev+'-'+co+(desc?'-'+desc:'')+'-'+mm+'-'+dd}
+function getQuoteFileName(q){var n=new Date();var mm=(n.getMonth()+1<10?'0':'')+(n.getMonth()+1);var dd=(n.getDate()<10?'0':'')+n.getDate();var co=(q.fields.custCo||'Quote').replace(/[^a-zA-Z0-9 ]/g,'').replace(/\s+/g,' ').trim().replace(/\s/g,'-');var rawDesc=q.description||q.fields.jobDesc||'';var desc=rawDesc?(rawDesc.replace(/[^a-zA-Z0-9 ]/g,'').replace(/\s+/g,' ').trim().replace(/\s/g,'-').substring(0,50)):'';return q.quoteNum+'-'+q.rev+'-'+co+(desc?'-'+desc:'')+'-'+mm+'-'+dd}
 
 function generateQuotePDF(q){
 if(typeof edPreview==='function') edPreview();

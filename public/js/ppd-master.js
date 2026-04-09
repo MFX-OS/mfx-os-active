@@ -52,10 +52,11 @@
     var PPD = getPPD();
     if(!PPD || typeof fbDb==='undefined' || PPD.masterListenersStarted) return;
     PPD.masterListenersStarted = true;
-    try{ fbDb.collection('ppdEvents').limit(200).onSnapshot(function(s){ PPD.events=s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); }, function(err){ console.warn('ppd-master ppdEvents listener:', err.message); }); }catch(e){}
-    try{ fbDb.collection('prepressQueue').limit(100).onSnapshot(function(s){ PPD.queue=s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); }, function(err){ console.warn('ppd-master prepressQueue listener:', err.message); }); }catch(e){}
-    try{ fbDb.collection('exceptionOverrides').limit(100).onSnapshot(function(s){ PPD.overrides=s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); }, function(err){ console.warn('ppd-master exceptionOverrides listener:', err.message); }); }catch(e){}
-    try{ fbDb.collection('controlConfigs').doc('ppd').onSnapshot(function(doc){ if(doc.exists){ PPD.controlConfig = Object.assign({}, MASTER_DEFAULTS, doc.data()||{}); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); } }, function(err){ console.warn('ppd-master controlConfigs listener:', err.message); }); }catch(e){}
+    var reg=typeof mfxRegisterListener==='function'?mfxRegisterListener:function(){};
+    try{ reg('ppdEvents',fbDb.collection('ppdEvents').limit(200).onSnapshot(function(s){ PPD.events=s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); }, function(err){ console.warn('ppd-master ppdEvents listener:', err.message); })); }catch(e){}
+    try{ reg('prepressQueue',fbDb.collection('prepressQueue').limit(100).onSnapshot(function(s){ PPD.queue=s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); }, function(err){ console.warn('ppd-master prepressQueue listener:', err.message); })); }catch(e){}
+    try{ reg('exceptionOverrides',fbDb.collection('exceptionOverrides').limit(100).onSnapshot(function(s){ PPD.overrides=s.docs.map(function(d){ var x=d.data()||{}; x.id=d.id; return x; }); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); }, function(err){ console.warn('ppd-master exceptionOverrides listener:', err.message); })); }catch(e){}
+    try{ reg('controlConfigs',fbDb.collection('controlConfigs').doc('ppd').onSnapshot(function(doc){ if(doc.exists){ PPD.controlConfig = Object.assign({}, MASTER_DEFAULTS, doc.data()||{}); if(window.S&&window.S.view==='ppd'&&PPD.tab==='control') setTimeout(injectControlView,0); } }, function(err){ console.warn('ppd-master controlConfigs listener:', err.message); })); }catch(e){}
   }
 
   function registerCounts(PPD){

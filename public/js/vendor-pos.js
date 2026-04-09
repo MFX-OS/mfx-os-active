@@ -63,34 +63,35 @@ var _vpoReady=false;
 // ─── FIRESTORE LISTENERS ─────────────────────────────────────────
 
 function startVPOListeners(){
-  fbDb.collection('vendorPOs').orderBy('createdAt','desc').onSnapshot(function(s){
+  var reg=typeof mfxRegisterListener==='function'?mfxRegisterListener:function(){};
+  reg('vendorPOs',fbDb.collection('vendorPOs').orderBy('createdAt','desc').onSnapshot(function(s){
     _vpoCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
     _vpoReady=true;
     if(S&&S.view==='vendorpos')renderVendorPOs();
     vpUpdateApprovalBadge();
-  },function(e){console.warn('vendorPOs:',e.message)});
+  },function(e){console.warn('vendorPOs:',e.message)}));
 
-  fbDb.collection('vendors').orderBy('name').onSnapshot(function(s){
+  reg('vendors',fbDb.collection('vendors').orderBy('name').onSnapshot(function(s){
     _vendorCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
     if(S&&S.view==='vendorpos'&&VP.tab==='vendors')renderVendorPOs();
-  },function(e){console.warn('vendors:',e.message)});
+  },function(e){console.warn('vendors:',e.message)}));
 
-  fbDb.collection('materials').orderBy('name').onSnapshot(function(s){
+  reg('materials',fbDb.collection('materials').orderBy('name').onSnapshot(function(s){
     _materialCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
     if(S&&S.view==='vendorpos'&&VP.tab==='materials')renderVendorPOs();
-  },function(e){console.warn('materials:',e.message)});
+  },function(e){console.warn('materials:',e.message)}));
 
-  fbDb.collection('vendorComms').orderBy('at','desc').onSnapshot(function(s){
+  reg('vendorComms',fbDb.collection('vendorComms').orderBy('at','desc').onSnapshot(function(s){
     _commCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
-  },function(e){console.warn('vendorComms:',e.message)});
+  },function(e){console.warn('vendorComms:',e.message)}));
 
-  fbDb.collection('materialLots').orderBy('receivedAt','desc').onSnapshot(function(s){
+  reg('materialLots',fbDb.collection('materialLots').orderBy('receivedAt','desc').onSnapshot(function(s){
     _lotCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
-  },function(e){console.warn('materialLots:',e.message)});
+  },function(e){console.warn('materialLots:',e.message)}));
 
-  fbDb.collection('vendorInvoices').orderBy('createdAt','desc').onSnapshot(function(s){
+  reg('vendorInvoices',fbDb.collection('vendorInvoices').orderBy('createdAt','desc').onSnapshot(function(s){
     _invoiceCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
-  },function(e){console.warn('vendorInvoices:',e.message)});
+  },function(e){console.warn('vendorInvoices:',e.message)}));
 }
 
 // ─── DATA ────────────────────────────────────────────────────────
