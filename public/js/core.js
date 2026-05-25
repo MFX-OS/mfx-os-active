@@ -999,6 +999,25 @@ function addSpecItem(type,item){
     return false;
   });
 }
+// Upsert: replace existing entry with matching id, or add if none exists.
+// Used by the edit-material flow so SKUs already in the overlay get updated
+// in place instead of duplicated via arrayUnion. Returns the new array length.
+window.upsertSpecItem=function(type,item){
+  if(typeof fbDb==='undefined'){console.warn('upsertSpecItem: no fbDb');return Promise.resolve(false);}
+  const id=typeof item==='object'?item.id:item;
+  const overlay=(_specOverlay[type]||[]).slice();
+  const filtered=overlay.filter(function(x){return(typeof x==='object'?x.id:x)!==id;});
+  filtered.push(item);
+  return fbDb.collection('materialsCatalog').doc(type).set({
+    items:filtered,
+    updatedAt:new Date().toISOString(),
+    updatedBy:(typeof getUserName==='function'?getUserName():'unknown')
+  },{merge:true}).then(function(){return true;}).catch(function(e){
+    console.error('upsertSpecItem('+type+'):',e);
+    if(typeof toast==='function')toast('Save failed — check connection','err');
+    return false;
+  });
+};
 function removeUserSpecItem(type,idx){
   const base={dies:SPEC_DIES,films:SPEC_FILMS,labels:SPEC_LABELS,varnishes:SPEC_VARNISHES}[type]||[];
   const realIdx=idx-base.length;
@@ -1112,10 +1131,12 @@ window._submitNewSpec=function(type){
     if(mkRaw!=='' && !isNaN(parseFloat(mkRaw))) item.mk=parseFloat(mkRaw);
     if(notes) item.notes=notes;
   }
-  Promise.resolve(addSpecItem(type,item)).then(function(ok){
+  // Use upsert so re-saving an existing SKU replaces in place (edit flow);
+  // first-time adds work the same way since the filter step is a no-op.
+  Promise.resolve(window.upsertSpecItem?upsertSpecItem(type,item):addSpecItem(type,item)).then(function(ok){
     if(ok){
-      if(typeof toast==='function')toast('Added — now available in dropdown','ok');
-      // Rebuild combobox datalists so the new spec shows immediately
+      if(typeof toast==='function')toast('Saved — material details updated','ok');
+      // Rebuild combobox datalists so the change shows immediately
       if(typeof buildMS==='function'){
         if(type==='labels')buildMS('ed-fs', (typeof S!=='undefined' && getQ(S.editId))?getQ(S.editId).fields.faceStock:undefined);
         if(type==='films')buildMS('ed-lam', (typeof S!=='undefined' && getQ(S.editId))?getQ(S.editId).fields.lamination:undefined);
@@ -1123,7 +1144,13 @@ window._submitNewSpec=function(type){
       if(type==='varnishes' && typeof buildVarnishSelect==='function'){
         buildVarnishSelect((typeof S!=='undefined' && getQ(S.editId))?getQ(S.editId).fields.coating:undefined);
       }
-      showSpecManager(type);
+      // Refresh inline detail card if the editor is open
+      if(typeof renderMatDetail==='function'){
+        if(type==='labels')renderMatDetail('faceStock');
+        if(type==='films')renderMatDetail('lamination');
+        if(type==='varnishes')renderMatDetail('coating');
+      }
+      closeModal();
     } else {
       if(btn){btn.disabled=false;btn.textContent='Save';}
     }

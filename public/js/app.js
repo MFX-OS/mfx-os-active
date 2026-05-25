@@ -2527,18 +2527,13 @@ function buildMS(id,def){
   // Seed the input with the current value
   if(def!=null)input.value=def;
 }
-// Lookup helper — find a MATS entry by SKU. Used by edMat after user picks from
-// the datalist or types in a SKU. Falls back to user-added entries from
-// materialsCatalog (normalized into MATS shape) so the MSI/markup pricing
-// auto-fill works for user-added stocks too.
+// Lookup helper — find a material by SKU.
+// Priority order: user-added (materialsCatalog) WINS over built-in MATS, so
+// staff edits/overrides take effect immediately on the next render or pricing
+// auto-fill. Falls back to MATS if no user-added entry exists for the SKU.
 function _findMatBySku(sku){
   if(!sku)return null;
-  if(MATS&&MATS.length){
-    var hit=MATS.find(function(m){return m.s===sku;});
-    if(hit)return hit;
-  }
-  // Fall back to user-added — check labels and films (faceStock + lamination
-  // are the only fields that drive pricing auto-fill via edMat).
+  // Check user-added first — staff overrides should win
   if(typeof getSpecList==='function'){
     var types=['labels','films','varnishes'];
     for(var i=0;i<types.length;i++){
@@ -2549,6 +2544,11 @@ function _findMatBySku(sku){
         return { s:u.id, d:u.desc||'', v:u.vendor||'', m:u.msi, mk:u.mk, _userAdded:true };
       }
     }
+  }
+  // Fall back to built-in MATS catalog
+  if(MATS&&MATS.length){
+    var hit=MATS.find(function(m){return m.s===sku;});
+    if(hit)return hit;
   }
   return null;
 }
@@ -2595,6 +2595,9 @@ function edMat(field,fromChange){
 // Render the inline detail card under a material combobox. Always visible when
 // a material is picked (whether from MATS catalog, materialsCatalog/{type}, or
 // user-typed custom). Falls back to a "no metadata" hint for custom strings.
+//
+// Lookup order: user-added override wins over built-in MATS so staff edits
+// take effect immediately.
 function renderMatDetail(field){
   const slot=$('detail-'+field);if(!slot)return;
   const inputId=field==='faceStock'?'ed-fs':(field==='lamination'?'ed-lam':(field==='coating'?'ed-coat':null));
@@ -2602,12 +2605,18 @@ function renderMatDetail(field){
   const input=$(inputId);if(!input){slot.innerHTML='';return;}
   const val=(input.value||'').trim();
   if(!val||val==='NA'||val==='CUSTOM'){slot.innerHTML='';return;}
-  // Lookup order: MATS chunk (rich), then materialsCatalog (user-added, partial).
-  const mat=_findMatBySku(val);
+  // User-added override wins over the built-in MATS catalog.
   const userSpec=(typeof _findUserSpec==='function')?_findUserSpec(field, val):null;
+  const mat=userSpec ? null : _findMatBySku(val);
   if(!mat && !userSpec){
-    // Custom typed-in value — no metadata available
-    slot.innerHTML='<div class="mat-detail-row"><span class="mat-detail-tag mat-detail-tag-custom">Custom</span><span class="mat-detail-empty">No catalog entry — pricing fields above must be set manually</span></div>';
+    // Custom typed-in value — no catalog entry. Offer to save it.
+    slot.innerHTML=
+      '<div class="mat-detail-card mat-detail-card-custom">'
+      +'<div class="mat-detail-head">'
+      +'<span class="mat-detail-tag mat-detail-tag-custom">Custom</span>'
+      +'<span class="mat-detail-empty">No catalog entry — set pricing manually or save this as a new material</span>'
+      +'<button class="mat-detail-btn" onclick="openAddMatFromInput(\''+field+'\')" title="Save '+esc(val)+' to the materials catalog">+ Save to catalog</button>'
+      +'</div></div>';
     return;
   }
   const src=mat||userSpec;
@@ -2616,21 +2625,81 @@ function renderMatDetail(field){
   const vendor=esc(src.v||src.vendor||'');
   const msi=src.m!=null?parseFloat(src.m):(src.msi!=null?parseFloat(src.msi):null);
   const mk=src.mk!=null?parseFloat(src.mk):null;
-  const srcTag=mat?'Catalog':'User-added';
-  const srcTagClass=mat?'mat-detail-tag-catalog':'mat-detail-tag-user';
-  let h='<div class="mat-detail-row">';
+  const isUser=!!userSpec;
+  const srcTag=isUser?'User-added':'Catalog';
+  const srcTagClass=isUser?'mat-detail-tag-user':'mat-detail-tag-catalog';
+  let h='<div class="mat-detail-card">';
+  // Header row: source tag + description + edit button
+  h+='<div class="mat-detail-head">';
   h+='<span class="mat-detail-tag '+srcTagClass+'">'+srcTag+'</span>';
   if(desc)h+='<span class="mat-detail-desc">'+desc+'</span>';
+  h+='<button class="mat-detail-btn" onclick="openEditMatDetails(\''+field+'\')" title="Edit details for '+sku+'">✏ Edit</button>';
   h+='</div>';
-  h+='<div class="mat-detail-row">';
-  if(vendor)h+='<span class="mat-detail-meta"><span class="mat-detail-label">Vendor</span>'+vendor+'</span>';
-  if(msi!=null && !isNaN(msi))h+='<span class="mat-detail-meta"><span class="mat-detail-label">MSI</span>$'+msi.toFixed(3)+'</span>';
-  if(mk!=null && !isNaN(mk))h+='<span class="mat-detail-meta"><span class="mat-detail-label">Markup</span>$'+mk.toFixed(3)+'</span>';
-  if(src.notes)h+='<span class="mat-detail-meta" title="'+esc(src.notes)+'"><span class="mat-detail-label">Notes</span>'+(esc(src.notes).length>40?esc(src.notes).slice(0,40)+'…':esc(src.notes))+'</span>';
+  // Meta row: labeled pills (each pill has its own border so visual gap is obvious)
+  const pills=[];
+  if(vendor)pills.push('<span class="mat-pill"><span class="mat-pill-label">Vendor</span><span class="mat-pill-val">'+vendor+'</span></span>');
+  if(msi!=null && !isNaN(msi))pills.push('<span class="mat-pill"><span class="mat-pill-label">MSI</span><span class="mat-pill-val">$'+msi.toFixed(3)+'</span></span>');
+  if(mk!=null && !isNaN(mk))pills.push('<span class="mat-pill"><span class="mat-pill-label">Markup</span><span class="mat-pill-val">$'+mk.toFixed(3)+'</span></span>');
+  if(src.notes){
+    const n=esc(src.notes);
+    pills.push('<span class="mat-pill" title="'+n+'"><span class="mat-pill-label">Notes</span><span class="mat-pill-val">'+(n.length>40?n.slice(0,40)+'…':n)+'</span></span>');
+  }
+  if(pills.length)h+='<div class="mat-detail-pills">'+pills.join('')+'</div>';
   h+='</div>';
   slot.innerHTML=h;
 }
 window.renderMatDetail=renderMatDetail;
+
+// Helper — open the add-material modal with the currently-typed SKU pre-filled.
+// Wired from the "+ Save to catalog" button in the custom-value card.
+function openAddMatFromInput(field){
+  const inputId=field==='faceStock'?'ed-fs':(field==='lamination'?'ed-lam':(field==='coating'?'ed-coat':null));
+  const input=inputId?$(inputId):null;
+  const val=(input&&input.value||'').trim();
+  const type=field==='faceStock'?'labels':(field==='lamination'?'films':(field==='coating'?'varnishes':'labels'));
+  // Open the add form, then pre-fill the SKU after it renders
+  addNewSpec(type);
+  setTimeout(function(){var el=$('nspec-id');if(el){el.value=val;var descEl=$('nspec-desc');if(descEl)descEl.focus();}},60);
+}
+window.openAddMatFromInput=openAddMatFromInput;
+
+// Open the edit-material modal pre-filled with the current material's metadata.
+// For user-added specs: updates the existing materialsCatalog entry.
+// For built-in MATS: creates a user-override (same SKU) that wins in lookups.
+function openEditMatDetails(field){
+  const inputId=field==='faceStock'?'ed-fs':(field==='lamination'?'ed-lam':(field==='coating'?'ed-coat':null));
+  const input=inputId?$(inputId):null;
+  const val=(input&&input.value||'').trim();
+  if(!val)return;
+  const userSpec=(typeof _findUserSpec==='function')?_findUserSpec(field, val):null;
+  const mat=_findMatBySku(val);
+  const src=userSpec||mat;
+  if(!src){if(typeof toast==='function')toast('No material data to edit','err');return;}
+  const type=field==='faceStock'?'labels':(field==='lamination'?'films':(field==='coating'?'varnishes':'labels'));
+  // Open the form (renders the modal HTML), then prefill values + flip into 'edit' mode
+  addNewSpec(type);
+  setTimeout(function(){
+    var idEl=$('nspec-id');if(idEl){idEl.value=val;idEl.readOnly=true;idEl.style.opacity='0.7';idEl.title='SKU cannot be changed — delete and re-create if needed';}
+    var descEl=$('nspec-desc');if(descEl)descEl.value=src.d||src.desc||'';
+    var vEl=$('nspec-vendor');if(vEl)vEl.value=src.v||src.vendor||'';
+    var msiEl=$('nspec-msi');if(msiEl)msiEl.value=src.m!=null?src.m:(src.msi!=null?src.msi:'');
+    var mkEl=$('nspec-mk');if(mkEl)mkEl.value=src.mk!=null?src.mk:'';
+    var nEl=$('nspec-notes');if(nEl)nEl.value=src.notes||'';
+    // Update the modal title to indicate edit mode
+    var title=document.querySelector('#modalContent .modal-title');
+    if(title)title.textContent=(userSpec?'Edit ':'Override ')+(type==='films'?'Film':(type==='labels'?'Label Stock':'Varnish'))+': '+val;
+    // If we're overriding a built-in, surface a small hint
+    if(!userSpec && mat){
+      var hint=document.createElement('div');
+      hint.style.cssText='font-size:10px;color:var(--or);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:6px 8px;margin-bottom:8px';
+      hint.textContent='⚠ This is a built-in catalog material. Saving creates a staff override that will win over the built-in entry going forward.';
+      var firstFg=document.querySelector('#modalContent .fg');
+      if(firstFg && firstFg.parentNode)firstFg.parentNode.insertBefore(hint, firstFg);
+    }
+    if(descEl)descEl.focus();
+  },60);
+}
+window.openEditMatDetails=openEditMatDetails;
 
 
 function emailQuote(){var q=getQ(S.editId);if(!q)return;
