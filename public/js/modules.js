@@ -1619,26 +1619,124 @@ raw+='--'+boundary+'\r\nContent-Type: text/html; charset="UTF-8"\r\n\r\n'+htmlBo
 raw+='--'+boundary+'\r\nContent-Type: application/pdf; name="'+pdf.filename+'"\r\nContent-Disposition: attachment; filename="'+pdf.filename+'"\r\nContent-Transfer-Encoding: base64\r\n\r\n'+pdf.base64+'\r\n';
 raw+='--'+boundary+'--';
 var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-console.log('[Gmail send] To:', ov.to, '| Cc:', ov.cc||'(none)', '| Bcc:', ov.bcc||'(none)', '| From:', ov.from||'(default)');
-fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({raw:encoded})}).then(function(r){
-  return r.json().then(function(data){
-    return {ok:r.ok, status:r.status, data:data};
-  });
-}).then(function(resp){
-window._mfxSending=false;
-console.log('[Gmail send] response:', resp);
-if(resp.ok && resp.data && resp.data.id){
-toast('Sent! ✓ Check Sent folder to confirm BCC delivery to team@ + quotes@','ok');window._lastSentTo=ov.to;
-if(q){setQStatus(q.id,'sent');q=getQ(S.editId);if(q){q.sentAt=q.sentAt||new Date().toISOString();if(!q.workflow)q.workflow={};q.workflow.emailSent=true;q.workflow.registryUpdated=true;if(!q.internalNotes)q.internalNotes=[];q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+ov.to+(ov.bcc?' (BCC: '+ov.bcc+')':'')+' with PDF attached',by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});logQuoteEvent(q,'email','Emailed to '+ov.to);upsertRegistryRow(q.id,'Emailed to '+ov.to);var all=DB.quotes();DB.saveQ(all,q.id);MFX.emit('quote.sent',{quote:q,pdf:pdf,token:token,to:ov.to,cc:ov.cc||'',bcc:ov.bcc||'',from:ov.from||''});// Archive the EXTERNAL (client-facing) PDF that matches what the client just received in email.
-setTimeout(function(){if(typeof saveQuoteToDrive==='function')saveQuoteToDrive('external')},500)}}
-renderSendPane();if(typeof renderWorkflow==='function')renderWorkflow()}
-else{
-// Gmail API errored. Surface the full error so it isn't silently lost.
-var errMsg=(resp.data&&resp.data.error&&resp.data.error.message)||resp.data&&resp.data.error||('HTTP '+resp.status);
-console.error('[Gmail send] FAILED', resp);
-toast('Email failed: '+errMsg+' — see browser console','err');
+// Dual-send strategy: send the client email and the internal notification as
+// TWO separate Gmail API calls. Eliminates any chance of Gmail silently
+// dropping the BCC. Each send has its own visible success/failure toast and
+// shows up independently in the user's Sent folder.
+//
+// Helper — build a complete MIME multipart raw payload with the same PDF
+// attachment but configurable headers (so we can reuse it for both sends).
+function _buildSendRaw(opts){
+  // opts: {to, cc, subject, bodyHtml, pdfFilename, pdfBase64, from}
+  var b='mfx'+Date.now()+Math.random().toString(36).slice(2,8);
+  var r='Content-Type: multipart/mixed; boundary="'+b+'"\r\nMIME-Version: 1.0\r\n';
+  r+='To: '+opts.to+'\r\n';
+  if(opts.from)r+='From: '+opts.from+'\r\n';
+  if(opts.cc)r+='Cc: '+opts.cc+'\r\n';
+  r+='Subject: '+opts.subject+'\r\n\r\n';
+  r+='--'+b+'\r\nContent-Type: text/html; charset="UTF-8"\r\n\r\n'+opts.bodyHtml+'\r\n';
+  r+='--'+b+'\r\nContent-Type: application/pdf; name="'+opts.pdfFilename+'"\r\nContent-Disposition: attachment; filename="'+opts.pdfFilename+'"\r\nContent-Transfer-Encoding: base64\r\n\r\n'+opts.pdfBase64+'\r\n';
+  r+='--'+b+'--';
+  return btoa(unescape(encodeURIComponent(r))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-}).catch(function(e){window._mfxSending=false;console.error('[Gmail send] network error:',e);toast('Send failed: '+e.message,'err')})
+function _gmailSend(rawEncoded, token, label){
+  // Returns a Promise resolving to {ok, status, data, label}
+  console.log('[Gmail send] '+label+' — POST to API');
+  return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({raw:rawEncoded})
+  }).then(function(r){
+    return r.json().then(function(data){
+      var result={ok:r.ok, status:r.status, data:data, label:label};
+      if(!r.ok || !(data && data.id)){
+        console.error('[Gmail send] '+label+' FAILED', result);
+      } else {
+        console.log('[Gmail send] '+label+' OK — message id', data.id);
+      }
+      return result;
+    });
+  });
+}
+
+// SEND #1 — client email
+var clientRaw=_buildSendRaw({
+  to:ov.to,
+  cc:ov.cc||'',
+  subject:ov.subject,
+  bodyHtml:htmlBody,
+  pdfFilename:pdf.filename,
+  pdfBase64:pdf.base64,
+  from:ov.from||''
+});
+console.log('[Gmail send] To client:', ov.to, '| signed-in as:', firebase.auth().currentUser&&firebase.auth().currentUser.email);
+
+_gmailSend(clientRaw, token, 'client').then(function(clientResp){
+  window._mfxSending=false;
+  if(!(clientResp.ok && clientResp.data && clientResp.data.id)){
+    var em=(clientResp.data&&clientResp.data.error&&clientResp.data.error.message)||('HTTP '+clientResp.status);
+    toast('Email to client failed: '+em+' — see browser console','err');
+    return;
+  }
+  // Client send succeeded — update quote + registry
+  toast('Email sent to '+ov.to+' ✓','ok');
+  window._lastSentTo=ov.to;
+  if(q){
+    setQStatus(q.id,'sent');
+    q=getQ(S.editId);
+    if(q){
+      q.sentAt=q.sentAt||new Date().toISOString();
+      if(!q.workflow)q.workflow={};
+      q.workflow.emailSent=true;
+      q.workflow.registryUpdated=true;
+      if(!q.internalNotes)q.internalNotes=[];
+      q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+ov.to+' with PDF attached',by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});
+      logQuoteEvent(q,'email','Emailed to '+ov.to);
+      upsertRegistryRow(q.id,'Emailed to '+ov.to);
+      var all=DB.quotes();DB.saveQ(all,q.id);
+      MFX.emit('quote.sent',{quote:q,pdf:pdf,token:token,to:ov.to,cc:ov.cc||'',bcc:ov.bcc||'',from:ov.from||''});
+      // Archive the EXTERNAL (client-facing) PDF that matches what the client just received in email.
+      setTimeout(function(){if(typeof saveQuoteToDrive==='function')saveQuoteToDrive('external')},500);
+    }
+  }
+  renderSendPane();
+  if(typeof renderWorkflow==='function')renderWorkflow();
+  // SEND #2 — internal team notification (only if bcc was requested)
+  // No BCC field used; team@ goes in To, quotes@ goes in Cc — both visible,
+  // both guaranteed delivery, both show up in the Sent folder as their own row.
+  if(ov.bcc){
+    var internalSubject='[INTERNAL COPY] '+ov.subject+' — sent to '+ov.to;
+    var internalIntro='<div style="padding:14px 18px;background:#f59e0b;color:#000;font-weight:700;font-size:13px;font-family:Arial,sans-serif">FYI — INTERNAL COPY · Original sent to '+esc(ov.to)+' by '+esc(getUserName())+' at '+new Date().toLocaleString()+'</div>';
+    var internalRaw=_buildSendRaw({
+      to:'team@microflexfilm.com',
+      cc:'quotes@microflexfilm.com',
+      subject:internalSubject,
+      bodyHtml:internalIntro+htmlBody,
+      pdfFilename:pdf.filename,
+      pdfBase64:pdf.base64,
+      from:ov.from||''
+    });
+    _gmailSend(internalRaw, token, 'internal').then(function(intResp){
+      if(intResp.ok && intResp.data && intResp.data.id){
+        toast('Internal copy sent to team@ + quotes@ ✓','ok');
+        if(q && q.internalNotes){
+          q.internalNotes.push({id:'n'+Date.now(),text:'📧 Internal copy sent to team@ + quotes@',by:'System',at:new Date().toISOString(),mentions:[],replies:[]});
+          DB.saveQ(DB.quotes(),q.id);
+        }
+      } else {
+        var em2=(intResp.data&&intResp.data.error&&intResp.data.error.message)||('HTTP '+intResp.status);
+        toast('Internal copy FAILED: '+em2+' — client email was sent OK, but team@/quotes@ did not receive a copy. See console.','err');
+      }
+    }).catch(function(e){
+      console.error('[Gmail send] internal network error:',e);
+      toast('Internal copy network error: '+e.message,'err');
+    });
+  }
+}).catch(function(e){
+  window._mfxSending=false;
+  console.error('[Gmail send] client network error:',e);
+  toast('Send failed: '+e.message,'err');
+})
 }).catch(function(e){window._mfxSending=false;toast('Token error','err')})}).catch(function(e){window._mfxSending=false;toast('PDF error: '+e.message,'err')})
 },200);
 window._sendOverride=null;
