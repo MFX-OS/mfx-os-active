@@ -2660,20 +2660,33 @@ function matSuggestFilter(field){
     sug.classList.add('open');
     return;
   }
+  // Inline styles — same pattern as renderMatDetail. CSS classes were being
+  // clobbered somewhere, causing items to render with no spacing/separation.
+  const S_ITEM='position:relative;display:flex;align-items:center;gap:12px;padding:9px 12px 9px 24px;cursor:pointer;font-size:11px;color:var(--tx);line-height:1.3;border-bottom:1px solid rgba(255,255,255,.04);transition:background .1s';
+  const S_DOT_BASE='position:absolute;left:9px;top:50%;width:6px;height:6px;border-radius:50%;transform:translateY(-50%)';
+  const S_DOT_CAT=S_DOT_BASE+';background:#00b8d4;box-shadow:0 0 6px rgba(0,229,255,.6)';
+  const S_DOT_USER=S_DOT_BASE+';background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.6)';
+  const S_LABEL='flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden';
+  const S_SKU='font-weight:700;color:var(--tx);white-space:nowrap;flex-shrink:0';
+  const S_DESC='color:var(--tx3);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0';
+  const S_META='display:flex;align-items:center;gap:10px;flex-shrink:0;font-size:10px;font-variant-numeric:tabular-nums';
+  const S_MSI='color:var(--ac);font-weight:700';
+  const S_MK='color:var(--tx2)';
+  const S_VENDOR='color:var(--tx2);font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,.04);border:1px solid var(--bdr)';
   let h='';
   let idx=0;
   top.forEach(function(m){
     const it=m.it;
     const metaParts=[];
-    if(it.msi!=null && !isNaN(it.msi))metaParts.push('<span class="mat-combo-msi" title="MSI cost">$'+parseFloat(it.msi).toFixed(3)+'</span>');
-    if(it.mk!=null && !isNaN(it.mk))metaParts.push('<span class="mat-combo-mk" title="Markup MSI">$'+parseFloat(it.mk).toFixed(3)+' mk</span>');
-    if(it.vendor)metaParts.push('<span class="mat-combo-vendor" title="Vendor">'+esc(it.vendor)+'</span>');
-    const meta=metaParts.length?'<span class="mat-combo-meta">'+metaParts.join('')+'</span>':'';
-    const desc=it.desc?'<span class="mat-combo-itemdesc">'+_highlightMatch(it.desc, val)+'</span>':'';
-    const srcDot=it.source==='user'?'<span class="mat-suggest-srcdot mat-suggest-srcdot-user" title="User-added"></span>':'<span class="mat-suggest-srcdot mat-suggest-srcdot-catalog" title="Catalog"></span>';
-    h+='<div class="mat-combo-item mat-suggest-item" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onmousedown="event.preventDefault();matSuggestPick(\''+field+'\',\''+esc(it.sku).replace(/'/g,"\\'")+'\')">'
+    if(it.msi!=null && !isNaN(it.msi))metaParts.push('<span style="'+S_MSI+'" title="MSI cost">$'+parseFloat(it.msi).toFixed(3)+'</span>');
+    if(it.mk!=null && !isNaN(it.mk))metaParts.push('<span style="'+S_MK+'" title="Markup MSI">$'+parseFloat(it.mk).toFixed(3)+' mk</span>');
+    if(it.vendor)metaParts.push('<span style="'+S_VENDOR+'" title="Vendor">'+esc(it.vendor)+'</span>');
+    const meta=metaParts.length?'<span style="'+S_META+'">'+metaParts.join('')+'</span>':'';
+    const desc=it.desc?'<span style="'+S_DESC+'">'+_highlightMatch(it.desc, val)+'</span>':'';
+    const srcDot='<span style="'+(it.source==='user'?S_DOT_USER:S_DOT_CAT)+'" title="'+(it.source==='user'?'User-added':'Catalog')+'"></span>';
+    h+='<div class="mat-suggest-item" style="'+S_ITEM+'" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onmousedown="event.preventDefault();matSuggestPick(\''+field+'\',\''+esc(it.sku).replace(/'/g,"\\'")+'\')">'
       +srcDot
-      +'<span class="mat-combo-itemlabel"><span class="mat-combo-sku">'+_highlightMatch(it.sku, val)+'</span>'+desc+'</span>'
+      +'<span style="'+S_LABEL+'"><span style="'+S_SKU+'">'+_highlightMatch(it.sku, val)+'</span>'+desc+'</span>'
       +meta
       +'</div>';
     idx++;
@@ -2774,28 +2787,42 @@ function _renderMatPickerList(field, filterText){
     list.innerHTML='<div class="mat-picker-empty">No matches.<br>'+custom+'</div>';
     return;
   }
+  // Inline styles — same approach as the as-you-type suggester for layout consistency.
+  const M_GROUP='position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg3);border-bottom:1px solid var(--bdr);z-index:1';
+  const M_TAG_BASE='font-size:9px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:4px;text-transform:uppercase';
+  const M_TAG_USER=M_TAG_BASE+';background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25)';
+  const M_TAG_CATALOG=M_TAG_BASE+';background:rgba(0,229,255,.12);color:#00b8d4;border:1px solid rgba(0,229,255,.25)';
+  const M_TAG_OTHER=M_TAG_BASE+';background:rgba(255,255,255,.06);color:var(--tx2);border:1px solid var(--bdr)';
+  const M_COUNT='font-size:9px;color:var(--tx3);font-variant-numeric:tabular-nums';
+  const M_ITEM='display:flex;align-items:center;gap:12px;padding:8px 12px;cursor:pointer;font-size:11px;color:var(--tx);line-height:1.3;border-bottom:1px solid rgba(255,255,255,.04);transition:background .1s';
+  const M_LABEL='flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden';
+  const M_SKU='font-weight:700;color:var(--tx);white-space:nowrap;flex-shrink:0';
+  const M_DESC='color:var(--tx3);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0';
+  const M_META='display:flex;align-items:center;gap:10px;flex-shrink:0;font-size:10px;font-variant-numeric:tabular-nums';
+  const M_MSI='color:var(--ac);font-weight:700';
+  const M_MK='color:var(--tx2)';
+  const M_VENDOR='color:var(--tx2);font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,.04);border:1px solid var(--bdr)';
+  const M_ROWACT='display:inline-flex;gap:4px;flex-shrink:0;margin-left:6px;opacity:.6';
+  const M_ROWBTN='background:transparent;border:1px solid var(--bdr);color:var(--tx2);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center';
   let h='';
   let idx=0;
   visibleGroups.forEach(function(g){
-    const tagCls=g==='User-added'?'mat-combo-grouptag-user':(g==='Other'?'mat-combo-grouptag-other':'mat-combo-grouptag-catalog');
-    h+='<div class="mat-combo-group"><span class="mat-combo-grouptag '+tagCls+'">'+esc(g)+'</span><span class="mat-combo-groupcount">'+grouped[g].length+'</span></div>';
+    const tagStyle=g==='User-added'?M_TAG_USER:(g==='Other'?M_TAG_OTHER:M_TAG_CATALOG);
+    h+='<div style="'+M_GROUP+'"><span style="'+tagStyle+'">'+esc(g)+'</span><span style="'+M_COUNT+'">'+grouped[g].length+'</span></div>';
     grouped[g].forEach(function(it){
       const metaParts=[];
-      if(it.msi!=null && !isNaN(it.msi))metaParts.push('<span class="mat-combo-msi" title="MSI cost">$'+parseFloat(it.msi).toFixed(3)+'</span>');
-      if(it.mk!=null && !isNaN(it.mk))metaParts.push('<span class="mat-combo-mk" title="Markup MSI">$'+parseFloat(it.mk).toFixed(3)+' mk</span>');
-      if(it.vendor)metaParts.push('<span class="mat-combo-vendor" title="Vendor">'+esc(it.vendor)+'</span>');
-      const meta=metaParts.length?'<span class="mat-combo-meta">'+metaParts.join('')+'</span>':'';
-      const desc=it.desc?'<span class="mat-combo-itemdesc">'+esc(it.desc)+'</span>':'';
-      // Per-row actions — Edit (always) + Delete (only for user-added, since
-      // built-in catalog entries can't be removed). Use event.stopPropagation
-      // so clicking these doesn't also trigger the row's pick handler.
+      if(it.msi!=null && !isNaN(it.msi))metaParts.push('<span style="'+M_MSI+'" title="MSI cost">$'+parseFloat(it.msi).toFixed(3)+'</span>');
+      if(it.mk!=null && !isNaN(it.mk))metaParts.push('<span style="'+M_MK+'" title="Markup MSI">$'+parseFloat(it.mk).toFixed(3)+' mk</span>');
+      if(it.vendor)metaParts.push('<span style="'+M_VENDOR+'" title="Vendor">'+esc(it.vendor)+'</span>');
+      const meta=metaParts.length?'<span style="'+M_META+'">'+metaParts.join('')+'</span>':'';
+      const desc=it.desc?'<span style="'+M_DESC+'">'+esc(it.desc)+'</span>':'';
       const skuEsc=esc(it.sku).replace(/'/g,"\\'");
-      const rowActions='<span class="mat-combo-rowact">'
-        +'<button class="mat-combo-rowbtn" title="Edit details" onclick="event.stopPropagation();matPickerEditRow(\''+field+'\',\''+skuEsc+'\')">✏</button>'
-        +(it.source==='user'?'<button class="mat-combo-rowbtn mat-combo-rowbtn-danger" title="Delete from catalog" onclick="event.stopPropagation();matPickerDeleteRow(\''+field+'\',\''+skuEsc+'\')">🗑</button>':'')
+      const rowActions='<span style="'+M_ROWACT+'">'
+        +'<button style="'+M_ROWBTN+'" title="Edit details" onclick="event.stopPropagation();matPickerEditRow(\''+field+'\',\''+skuEsc+'\')">✏</button>'
+        +(it.source==='user'?'<button style="'+M_ROWBTN+'" title="Delete from catalog" onclick="event.stopPropagation();matPickerDeleteRow(\''+field+'\',\''+skuEsc+'\')">🗑</button>':'')
         +'</span>';
-      h+='<div class="mat-combo-item" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onclick="matPickerPick(\''+field+'\',\''+skuEsc+'\')">'
-        +'<span class="mat-combo-itemlabel"><span class="mat-combo-sku">'+esc(it.sku)+'</span>'+desc+'</span>'
+      h+='<div class="mat-combo-item" style="'+M_ITEM+'" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onclick="matPickerPick(\''+field+'\',\''+skuEsc+'\')">'
+        +'<span style="'+M_LABEL+'"><span style="'+M_SKU+'">'+esc(it.sku)+'</span>'+desc+'</span>'
         +meta
         +rowActions
         +'</div>';
@@ -2985,10 +3012,10 @@ function edMat(field,fromChange){
   asave();
 }
 
-// Render the "Selected Material" panel — clean 2-column grid layout that
-// mirrors the die-spec panel (Tab Specs). Replaces the previous flex card
-// which had reliability issues with flex gap rendering "User-added60# White…"
-// as concatenated text without visual separation.
+// Render the "Selected Material" panel — uses inline styles for the grid
+// layout exactly like dieSpecGrid does (see selectDie()), because CSS class
+// rules were being overridden somewhere in the editor's deep DOM tree and
+// rendering the panel as a vertical stack instead of a 2-column grid.
 //
 // Two modes:
 //   - view (default) — read-only grid + action buttons (Edit / Browse / Profile)
@@ -3003,19 +3030,37 @@ function renderMatDetail(field, mode){
   const input=$(inputId);if(!input){slot.innerHTML='';return;}
   const val=(input.value||'').trim();
   if(!val||val==='NA'||val==='CUSTOM'){slot.innerHTML='';return;}
+  // Style constants — kept inline so they always win over any global CSS reset
+  const S_PANEL='margin-top:10px;background:var(--srf);border:1px solid var(--bdr);border-radius:8px;overflow:hidden';
+  const S_HEAD='display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-bottom:1px solid var(--bdr)';
+  const S_TAG_BASE='display:inline-block;font-size:9px;font-weight:800;letter-spacing:1.2px;padding:3px 8px;border-radius:4px;flex-shrink:0';
+  const S_TAG_CAT=S_TAG_BASE+';background:rgba(0,229,255,.12);color:#00b8d4;border:1px solid rgba(0,229,255,.25)';
+  const S_TAG_USER=S_TAG_BASE+';background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25)';
+  const S_TAG_CUSTOM=S_TAG_BASE+';background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25)';
+  const S_TITLE='font-weight:700;color:var(--tx);font-size:12px;flex:1;min-width:0';
+  const S_GRID='display:grid;grid-template-columns:1fr 1fr;gap:0';
+  const S_ROW='display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px;border-bottom:1px solid var(--bdr);font-size:11px;min-width:0';
+  const S_ROW_FULL=S_ROW+';grid-column:1 / -1';
+  const S_LABEL='font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--tx3);flex-shrink:0';
+  const S_VAL='color:var(--tx);text-align:right;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  const S_VAL_NUM=S_VAL+';font-variant-numeric:tabular-nums;color:var(--ac)';
+  const S_INPUT='width:100%;padding:5px 8px;font-size:11px;background:var(--bg);border:1px solid var(--bdr);border-radius:4px;color:var(--tx);text-align:right;font-variant-numeric:tabular-nums';
+  const S_ACTIONS='display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;background:var(--bg);border-top:1px solid var(--bdr)';
+  const S_BLANK='color:var(--tx3);font-style:italic';
+  const S_LOCKTAG='font-size:8px;color:var(--tx3);background:rgba(255,255,255,.04);border:1px solid var(--bdr);border-radius:3px;padding:1px 5px;margin-left:6px;letter-spacing:.5px;text-transform:uppercase';
   // User-added override wins over the built-in MATS catalog.
   const userSpec=(typeof _findUserSpec==='function')?_findUserSpec(field, val):null;
   const mat=userSpec ? null : _findMatBySku(val);
   if(!mat && !userSpec){
     // Custom value with no catalog entry — invite the user to save it.
     slot.innerHTML=
-      '<div class="mat-spec-panel mat-spec-custom">'
-      +'<div class="mat-spec-head">'
-      +'<span class="mat-spec-source mat-spec-source-custom">CUSTOM</span>'
-      +'<span class="mat-spec-title">'+esc(val)+'</span>'
+      '<div style="'+S_PANEL+';background:rgba(245,158,11,.05);border-color:rgba(245,158,11,.4)">'
+      +'<div style="'+S_HEAD+'">'
+      +'<span style="'+S_TAG_CUSTOM+'">CUSTOM</span>'
+      +'<span style="'+S_TITLE+'">'+esc(val)+'</span>'
       +'<button class="btn btn-pr btn-sm" onclick="openAddMatFromInput(\''+field+'\')">+ Save to catalog</button>'
       +'</div>'
-      +'<div class="mat-spec-empty">No catalog entry. Set pricing fields manually above, or save as a new material to share with the team.</div>'
+      +'<div style="padding:14px 12px;text-align:center;font-size:11px;color:var(--tx3);line-height:1.5">No catalog entry. Set pricing fields manually above, or save as a new material to share with the team.</div>'
       +'</div>';
     return;
   }
@@ -3028,25 +3073,25 @@ function renderMatDetail(field, mode){
   const mk=src.mk!=null?parseFloat(src.mk):null;
   const notes=src.notes||'';
   const sourceLabel=isUser?'USER-ADDED':'CATALOG';
-  const sourceClass=isUser?'mat-spec-source-user':'mat-spec-source-catalog';
-  // EDIT MODE — fields are inputs, footer has Save/Cancel
+  const sourceStyle=isUser?S_TAG_USER:S_TAG_CAT;
+  // EDIT MODE
   if(mode==='edit'){
     slot.innerHTML=
-      '<div class="mat-spec-panel mat-spec-edit-mode">'
-      +'<div class="mat-spec-head">'
-      +'<span class="mat-spec-source '+sourceClass+'">'+(isUser?'EDIT':'OVERRIDE')+'</span>'
-      +'<span class="mat-spec-title">'+esc(sku)+'</span>'
-      +(isUser?'':'<span class="mat-spec-hint" title="Saving creates a staff override that wins over the built-in catalog entry">Editing a built-in catalog entry creates an override</span>')
+      '<div style="'+S_PANEL+';background:rgba(0,229,255,.04);border-color:rgba(0,229,255,.4);box-shadow:0 0 0 3px rgba(0,229,255,.08)">'
+      +'<div style="'+S_HEAD+'">'
+      +'<span style="'+sourceStyle+'">'+(isUser?'EDIT':'OVERRIDE')+'</span>'
+      +'<span style="'+S_TITLE+'">'+esc(sku)+'</span>'
+      +(isUser?'':'<span style="font-size:9px;color:var(--or);font-style:italic;padding:3px 7px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:4px;flex-shrink:0" title="Saving creates a staff override that wins over the built-in catalog entry">Editing a built-in catalog entry creates an override</span>')
       +'</div>'
-      +'<div class="mat-spec-grid">'
-      +'<div class="mat-spec-row"><div class="mat-spec-label">SKU</div><div class="mat-spec-val mat-spec-val-locked">'+esc(sku)+' <span class="mat-spec-locktag">read-only</span></div></div>'
-      +'<div class="mat-spec-row"><div class="mat-spec-label">Vendor</div><div class="mat-spec-val"><input type="text" id="mse-vendor-'+field+'" value="'+esc(vendor)+'" placeholder="e.g. Avery"></div></div>'
-      +'<div class="mat-spec-row mat-spec-row-full"><div class="mat-spec-label">Description</div><div class="mat-spec-val"><input type="text" id="mse-desc-'+field+'" value="'+esc(desc)+'" placeholder="e.g. 60# White Estate Label"></div></div>'
-      +'<div class="mat-spec-row"><div class="mat-spec-label">MSI cost</div><div class="mat-spec-val"><input type="number" step="0.001" min="0" id="mse-msi-'+field+'" value="'+(msi!=null?msi:'')+'" placeholder="0.345"></div></div>'
-      +'<div class="mat-spec-row"><div class="mat-spec-label">Markup MSI</div><div class="mat-spec-val"><input type="number" step="0.001" min="0" id="mse-mk-'+field+'" value="'+(mk!=null?mk:'')+'" placeholder="0.420"></div></div>'
-      +'<div class="mat-spec-row mat-spec-row-full"><div class="mat-spec-label">Notes</div><div class="mat-spec-val"><input type="text" id="mse-notes-'+field+'" value="'+esc(notes)+'" placeholder="Internal notes"></div></div>'
+      +'<div style="'+S_GRID+'">'
+      +'<div style="'+S_ROW+'"><div style="'+S_LABEL+'">SKU</div><div style="'+S_VAL+';color:var(--tx2);font-family:var(--mono,monospace)">'+esc(sku)+' <span style="'+S_LOCKTAG+'">read-only</span></div></div>'
+      +'<div style="'+S_ROW+'"><div style="'+S_LABEL+'">Vendor</div><div style="'+S_VAL+'"><input type="text" id="mse-vendor-'+field+'" value="'+esc(vendor)+'" placeholder="e.g. Avery" style="'+S_INPUT+'"></div></div>'
+      +'<div style="'+S_ROW_FULL+'"><div style="'+S_LABEL+'">Description</div><div style="'+S_VAL+'"><input type="text" id="mse-desc-'+field+'" value="'+esc(desc)+'" placeholder="e.g. 60# White Estate Label" style="'+S_INPUT+'"></div></div>'
+      +'<div style="'+S_ROW+'"><div style="'+S_LABEL+'">MSI cost</div><div style="'+S_VAL+'"><input type="number" step="0.001" min="0" id="mse-msi-'+field+'" value="'+(msi!=null?msi:'')+'" placeholder="0.345" style="'+S_INPUT+'"></div></div>'
+      +'<div style="'+S_ROW+'"><div style="'+S_LABEL+'">Markup MSI</div><div style="'+S_VAL+'"><input type="number" step="0.001" min="0" id="mse-mk-'+field+'" value="'+(mk!=null?mk:'')+'" placeholder="0.420" style="'+S_INPUT+'"></div></div>'
+      +'<div style="'+S_ROW_FULL+'"><div style="'+S_LABEL+'">Notes</div><div style="'+S_VAL+'"><input type="text" id="mse-notes-'+field+'" value="'+esc(notes)+'" placeholder="Internal notes" style="'+S_INPUT+'"></div></div>'
       +'</div>'
-      +'<div class="mat-spec-actions">'
+      +'<div style="'+S_ACTIONS+'">'
       +'<button class="btn btn-pr btn-sm" onclick="saveMatDetailEdit(\''+field+'\')">💾 Save</button>'
       +'<button class="btn btn-ghost btn-sm" onclick="renderMatDetail(\''+field+'\')">Cancel</button>'
       +'</div>'
@@ -3054,20 +3099,20 @@ function renderMatDetail(field, mode){
     setTimeout(function(){var f=$('mse-vendor-'+field);if(f)f.focus();},20);
     return;
   }
-  // VIEW MODE — clean grid + actions row
-  let h='<div class="mat-spec-panel">';
-  h+='<div class="mat-spec-head">';
-  h+='<span class="mat-spec-source '+sourceClass+'">'+sourceLabel+'</span>';
-  h+='<span class="mat-spec-title">'+esc(sku)+(desc?' <span class="mat-spec-subtitle">'+esc(desc)+'</span>':'')+'</span>';
+  // VIEW MODE
+  let h='<div style="'+S_PANEL+'">';
+  h+='<div style="'+S_HEAD+'">';
+  h+='<span style="'+sourceStyle+'">'+sourceLabel+'</span>';
+  h+='<span style="'+S_TITLE+'">'+esc(sku)+(desc?' <span style="font-weight:400;color:var(--tx2);font-size:11px;margin-left:4px">'+esc(desc)+'</span>':'')+'</span>';
   h+='</div>';
-  h+='<div class="mat-spec-grid">';
-  h+='<div class="mat-spec-row"><div class="mat-spec-label">Vendor</div><div class="mat-spec-val">'+(vendor?esc(vendor):'<span class="mat-spec-blank">—</span>')+'</div></div>';
-  h+='<div class="mat-spec-row"><div class="mat-spec-label">Source</div><div class="mat-spec-val">'+(isUser?'Staff-managed':'Built-in catalog')+'</div></div>';
-  h+='<div class="mat-spec-row"><div class="mat-spec-label">MSI cost</div><div class="mat-spec-val mat-spec-val-num">'+(msi!=null&&!isNaN(msi)?'<strong>$'+msi.toFixed(3)+'</strong>':'<span class="mat-spec-blank">—</span>')+'</div></div>';
-  h+='<div class="mat-spec-row"><div class="mat-spec-label">Markup MSI</div><div class="mat-spec-val mat-spec-val-num">'+(mk!=null&&!isNaN(mk)?'<strong>$'+mk.toFixed(3)+'</strong>':'<span class="mat-spec-blank">—</span>')+'</div></div>';
-  if(notes)h+='<div class="mat-spec-row mat-spec-row-full"><div class="mat-spec-label">Notes</div><div class="mat-spec-val">'+esc(notes)+'</div></div>';
+  h+='<div style="'+S_GRID+'">';
+  h+='<div style="'+S_ROW+'"><div style="'+S_LABEL+'">Vendor</div><div style="'+S_VAL+'">'+(vendor?esc(vendor):'<span style="'+S_BLANK+'">—</span>')+'</div></div>';
+  h+='<div style="'+S_ROW+'"><div style="'+S_LABEL+'">Source</div><div style="'+S_VAL+'">'+(isUser?'Staff-managed':'Built-in catalog')+'</div></div>';
+  h+='<div style="'+S_ROW+'"><div style="'+S_LABEL+'">MSI cost</div><div style="'+S_VAL_NUM+'">'+(msi!=null&&!isNaN(msi)?'<strong>$'+msi.toFixed(3)+'</strong>':'<span style="'+S_BLANK+'">—</span>')+'</div></div>';
+  h+='<div style="'+S_ROW+'"><div style="'+S_LABEL+'">Markup MSI</div><div style="'+S_VAL_NUM+'">'+(mk!=null&&!isNaN(mk)?'<strong>$'+mk.toFixed(3)+'</strong>':'<span style="'+S_BLANK+'">—</span>')+'</div></div>';
+  if(notes)h+='<div style="'+S_ROW_FULL+'"><div style="'+S_LABEL+'">Notes</div><div style="'+S_VAL+';white-space:normal">'+esc(notes)+'</div></div>';
   h+='</div>';
-  h+='<div class="mat-spec-actions">';
+  h+='<div style="'+S_ACTIONS+'">';
   h+='<button class="btn btn-ghost btn-sm" onclick="renderMatDetail(\''+field+'\',\'edit\')">✏ Edit details</button>';
   h+='<button class="btn btn-ghost btn-sm" onclick="openMatPicker(\''+field+'\')">🔍 Browse list</button>';
   h+='<button class="btn btn-ghost btn-sm" onclick="openMatProfile(\''+esc(sku).replace(/'/g,"\\'")+'\')" title="View usage history + add notes">📊 Profile</button>';
