@@ -694,12 +694,135 @@ input:focus,select:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 
   background:rgba(255,255,255,.04);
   border:1px solid var(--bdr);
 }
+/* Row-level Edit / Delete buttons inside the Browse modal */
+.mat-combo-rowact{
+  display:inline-flex;gap:4px;flex-shrink:0;margin-left:6px;
+  opacity:0;transition:opacity .12s;
+}
+.mat-combo-item:hover .mat-combo-rowact,
+.mat-combo-item.hl .mat-combo-rowact{opacity:1}
+.mat-combo-rowbtn{
+  background:transparent;
+  border:1px solid var(--bdr);
+  color:var(--tx2);
+  width:24px;height:24px;
+  border-radius:4px;
+  cursor:pointer;
+  font-size:11px;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.mat-combo-rowbtn:hover{background:var(--ac);color:#000;border-color:var(--ac)}
+.mat-combo-rowbtn-danger:hover{background:#ef4444;color:#fff;border-color:#ef4444}
 .mat-combo-empty{
   padding:14px 12px;
   font-size:10px;color:var(--tx3);font-style:italic;text-align:center;
 }
 
-/* Inline material detail card — appears under the combobox when a material is picked.
+/* ─── Selected material spec panel (die-spec-style grid) ─────────────────
+   Replaces the previous flex card whose gap rendering was inconsistent
+   (label/value pairs were running together as concatenated text).
+   View mode shows a clean 2-column grid; edit mode swaps values for inputs. */
+.mat-spec-panel{
+  margin-top:10px;
+  background:var(--srf);
+  border:1px solid var(--bdr);
+  border-radius:8px;
+  overflow:hidden;
+}
+.mat-spec-custom{
+  background:rgba(245,158,11,.05);
+  border-color:rgba(245,158,11,.4);
+}
+.mat-spec-edit-mode{
+  background:rgba(0,229,255,.04);
+  border-color:rgba(0,229,255,.4);
+  box-shadow:0 0 0 3px rgba(0,229,255,.08);
+}
+.mat-spec-head{
+  display:flex;align-items:center;flex-wrap:wrap;
+  gap:10px;
+  padding:10px 12px;
+  background:var(--bg3);
+  border-bottom:1px solid var(--bdr);
+}
+.mat-spec-source{
+  font-size:9px;font-weight:800;letter-spacing:1.2px;
+  padding:3px 8px;border-radius:4px;
+  flex-shrink:0;
+}
+.mat-spec-source-catalog{background:rgba(0,229,255,.12);color:#00b8d4;border:1px solid rgba(0,229,255,.25)}
+.mat-spec-source-user{background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25)}
+.mat-spec-source-custom{background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25)}
+.mat-spec-title{
+  font-weight:700;color:var(--tx);font-size:12px;
+  flex:1;min-width:0;
+}
+.mat-spec-subtitle{
+  font-weight:400;color:var(--tx2);font-size:11px;margin-left:4px;
+}
+.mat-spec-hint{
+  font-size:9px;color:var(--or);font-style:italic;
+  padding:3px 7px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:4px;
+  flex-shrink:0;
+}
+.mat-spec-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0;
+  padding:0;
+}
+.mat-spec-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;
+  gap:8px;
+  border-bottom:1px solid var(--bdr);
+  font-size:11px;
+}
+.mat-spec-row-full{grid-column:1 / -1}
+.mat-spec-row:nth-last-child(1),.mat-spec-row:nth-last-child(2){border-bottom:none}
+.mat-spec-row-full:nth-last-child(2){border-bottom:1px solid var(--bdr)}
+.mat-spec-label{
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--tx3);
+  flex-shrink:0;
+}
+.mat-spec-val{
+  color:var(--tx);text-align:right;
+  font-weight:500;
+  flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.mat-spec-val-num{font-variant-numeric:tabular-nums;color:var(--ac)}
+.mat-spec-val-locked{color:var(--tx2);font-family:var(--mono,monospace)}
+.mat-spec-locktag{
+  font-size:8px;color:var(--tx3);
+  background:rgba(255,255,255,.04);border:1px solid var(--bdr);
+  border-radius:3px;padding:1px 5px;margin-left:6px;letter-spacing:.5px;text-transform:uppercase;
+}
+.mat-spec-val input{
+  width:100%;
+  padding:5px 8px;font-size:11px;
+  background:var(--bg);border:1px solid var(--bdr);border-radius:4px;
+  color:var(--tx);
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.mat-spec-val input:focus{border-color:var(--ac);outline:none;box-shadow:0 0 0 2px rgba(0,229,255,.15)}
+.mat-spec-blank{color:var(--tx3);font-style:italic}
+.mat-spec-empty{
+  padding:14px 12px;text-align:center;
+  font-size:11px;color:var(--tx3);line-height:1.5;
+}
+.mat-spec-actions{
+  display:flex;flex-wrap:wrap;gap:6px;
+  padding:8px 12px;
+  background:var(--bg);
+  border-top:1px solid var(--bdr);
+}
+.mat-spec-saving{padding:16px 12px;text-align:center;font-size:11px;color:var(--tx3);font-style:italic}
+
+/* Inline material detail card — DEPRECATED — left for compat with stale bundles.
    Layout: header row (source tag + description + edit button) above a pills row
    (vendor, MSI, markup, notes). Pills have their own borders so visual separation
    is guaranteed even if flex gap renders inconsistently. */

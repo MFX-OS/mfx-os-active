@@ -1357,10 +1357,10 @@ return h})()}
 
 <div class="epane ${S.etab===2?'active':''}" id="ep-mats">
 <div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🧱</span><span class="ttl">Materials</span><span class="arr">▾</span></div><div class="scard-b open">
-<div class="fg"><label>Face Stock <button class="btn btn-ghost btn-xs" onclick="showSpecManager('labels')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=faceStock]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker mat-suggest-wrap"><input data-field="faceStock" id="ed-fs" autocomplete="off" placeholder="Type a SKU, name, or vendor — or click Browse →" oninput="matSuggestFilter('faceStock')" onkeydown="matSuggestKey(event,'faceStock')" onblur="matSuggestBlur('faceStock')" onchange="edMat('faceStock',true)"><button type="button" class="mat-picker-btn" onclick="openMatPicker('faceStock')">🔍 Browse</button><div class="mat-suggest" id="sug-faceStock" role="listbox"></div></div><span class="mat-msi" id="msi-faceStock"></span><div class="mat-detail" id="detail-faceStock"></div></div></div>
-<div class="fg"><label>Lamination <button class="btn btn-ghost btn-xs" onclick="showSpecManager('films')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=lamination]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker mat-suggest-wrap"><input data-field="lamination" id="ed-lam" autocomplete="off" placeholder="Type a SKU, name, or vendor — or click Browse →" oninput="matSuggestFilter('lamination')" onkeydown="matSuggestKey(event,'lamination')" onblur="matSuggestBlur('lamination')" onchange="edMat('lamination')"><button type="button" class="mat-picker-btn" onclick="openMatPicker('lamination')">🔍 Browse</button><div class="mat-suggest" id="sug-lamination" role="listbox"></div></div><span class="mat-msi" id="msi-lamination"></span><div class="mat-detail" id="detail-lamination"></div></div></div>
+<div class="fg"><label>Face Stock</label><div class="mat-wrap"><div class="mat-picker mat-suggest-wrap"><input data-field="faceStock" id="ed-fs" autocomplete="off" placeholder="Type a SKU, name, or vendor — or click Browse →" oninput="matSuggestFilter('faceStock')" onkeydown="matSuggestKey(event,'faceStock')" onblur="matSuggestBlur('faceStock')" onchange="edMat('faceStock',true)"><button type="button" class="mat-picker-btn" onclick="openMatPicker('faceStock')">🔍 Browse</button><div class="mat-suggest" id="sug-faceStock" role="listbox"></div></div><span class="mat-msi" id="msi-faceStock"></span><div class="mat-detail" id="detail-faceStock"></div></div></div>
+<div class="fg"><label>Lamination</label><div class="mat-wrap"><div class="mat-picker mat-suggest-wrap"><input data-field="lamination" id="ed-lam" autocomplete="off" placeholder="Type a SKU, name, or vendor — or click Browse →" oninput="matSuggestFilter('lamination')" onkeydown="matSuggestKey(event,'lamination')" onblur="matSuggestBlur('lamination')" onchange="edMat('lamination')"><button type="button" class="mat-picker-btn" onclick="openMatPicker('lamination')">🔍 Browse</button><div class="mat-suggest" id="sug-lamination" role="listbox"></div></div><span class="mat-msi" id="msi-lamination"></span><div class="mat-detail" id="detail-lamination"></div></div></div>
 <div class="row2"><div class="fg"><label>Liner</label><input data-field="liner" list="ed-liner-dl" autocomplete="off" placeholder="Type to search…" value="${f.liner||''}" oninput="asave()"><datalist id="ed-liner-dl">${['NA','40# Liner','40# CK Liner','50# Liner','Kraft Liner','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div><div class="fg"><label>Adhesive</label><input data-field="adhesive" list="ed-adh-dl" autocomplete="off" placeholder="Type to search…" value="${f.adhesive||''}" oninput="asave()"><datalist id="ed-adh-dl">${['NA','C2500','S100R Permanent','AT20 All-Temp','751 Permanent','531 Removable','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
-<div class="row2"><div class="fg"><label>Coating / Varnish <button class="btn btn-ghost btn-xs" onclick="showSpecManager('varnishes')" style="float:right;font-size:9px">⚙ Manage</button></label><div class="mat-picker mat-suggest-wrap"><input data-field="coating" id="ed-coat" autocomplete="off" placeholder="Type a name, or click Browse →" oninput="matSuggestFilter('coating')" onkeydown="matSuggestKey(event,'coating')" onblur="matSuggestBlur('coating')" onchange="renderMatDetail('coating');asave()"><button type="button" class="mat-picker-btn" onclick="openMatPicker('coating')">🔍 Browse</button><div class="mat-suggest" id="sug-coating" role="listbox"></div></div><div class="mat-detail" id="detail-coating"></div></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
+<div class="row2"><div class="fg"><label>Coating / Varnish</label><div class="mat-picker mat-suggest-wrap"><input data-field="coating" id="ed-coat" autocomplete="off" placeholder="Type a name, or click Browse →" oninput="matSuggestFilter('coating')" onkeydown="matSuggestKey(event,'coating')" onblur="matSuggestBlur('coating')" onchange="renderMatDetail('coating');asave()"><button type="button" class="mat-picker-btn" onclick="openMatPicker('coating')">🔍 Browse</button><div class="mat-suggest" id="sug-coating" role="listbox"></div></div><div class="mat-detail" id="detail-coating"></div></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
 <div class="fg"><label>Notes <span style="font-weight:400;color:var(--tx3)">(custom per quote)</span></label><textarea data-field="notes" placeholder="Add any job-specific notes here..." oninput="asave()">${f.notes}</textarea></div>
 <div class="fg"><label>Custom Note for PDF <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label><textarea data-field="customNote" placeholder="Customer requested expedited delivery..." oninput="asave()">${f.customNote||''}</textarea></div>
 <div class="fg"><label>Note Tags <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label>
@@ -2786,9 +2786,18 @@ function _renderMatPickerList(field, filterText){
       if(it.vendor)metaParts.push('<span class="mat-combo-vendor" title="Vendor">'+esc(it.vendor)+'</span>');
       const meta=metaParts.length?'<span class="mat-combo-meta">'+metaParts.join('')+'</span>':'';
       const desc=it.desc?'<span class="mat-combo-itemdesc">'+esc(it.desc)+'</span>':'';
-      h+='<div class="mat-combo-item" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onclick="matPickerPick(\''+field+'\',\''+esc(it.sku).replace(/'/g,"\\'")+'\')">'
+      // Per-row actions — Edit (always) + Delete (only for user-added, since
+      // built-in catalog entries can't be removed). Use event.stopPropagation
+      // so clicking these doesn't also trigger the row's pick handler.
+      const skuEsc=esc(it.sku).replace(/'/g,"\\'");
+      const rowActions='<span class="mat-combo-rowact">'
+        +'<button class="mat-combo-rowbtn" title="Edit details" onclick="event.stopPropagation();matPickerEditRow(\''+field+'\',\''+skuEsc+'\')">✏</button>'
+        +(it.source==='user'?'<button class="mat-combo-rowbtn mat-combo-rowbtn-danger" title="Delete from catalog" onclick="event.stopPropagation();matPickerDeleteRow(\''+field+'\',\''+skuEsc+'\')">🗑</button>':'')
+        +'</span>';
+      h+='<div class="mat-combo-item" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onclick="matPickerPick(\''+field+'\',\''+skuEsc+'\')">'
         +'<span class="mat-combo-itemlabel"><span class="mat-combo-sku">'+esc(it.sku)+'</span>'+desc+'</span>'
         +meta
+        +rowActions
         +'</div>';
       idx++;
     });
@@ -2819,6 +2828,45 @@ window.matPickerPick=function(field, sku){
     renderMatDetail(field);
     if(typeof asave==='function')asave();
   }
+};
+// Row Edit — sets the field to this SKU, closes the modal, opens inline edit
+// on the detail panel so the user edits in-place rather than in another modal.
+window.matPickerEditRow=function(field, sku){
+  const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
+  const input=$(conf.inputId);if(!input)return;
+  input.value=sku;
+  closeModal();
+  if(field==='faceStock'||field==='lamination')edMat(field, field==='faceStock');
+  // Open inline edit mode on the detail panel
+  setTimeout(function(){renderMatDetail(field,'edit');},80);
+};
+// Row Delete — only available for user-added entries. Confirms once, then
+// writes the filtered array back to materialsCatalog/{type}. Avoids the
+// existing deleteSpec helper because it auto-reopens the spec manager modal,
+// which would clobber our Browse modal.
+window.matPickerDeleteRow=function(field, sku){
+  const type=field==='faceStock'?'labels':(field==='lamination'?'films':(field==='coating'?'varnishes':null));
+  if(!type)return;
+  if(!confirm('Delete "'+sku+'" from the materials catalog?\n\nThis removes it for all teammates. Existing quotes that reference this SKU keep their stored value but the dropdown won’t list it anymore.'))return;
+  if(typeof fbDb==='undefined')return;
+  const overlay=((window._specOverlay&&window._specOverlay[type])||[]).slice();
+  const filtered=overlay.filter(function(x){return(typeof x==='object'?x.id:x)!==sku;});
+  fbDb.collection('materialsCatalog').doc(type).set({
+    items:filtered,
+    updatedAt:new Date().toISOString(),
+    updatedBy:(typeof getUserName==='function'?getUserName():'unknown')
+  },{merge:true}).then(function(){
+    // Apply locally so the next render sees the change without waiting for the listener
+    if(window._specOverlay)window._specOverlay[type]=filtered;
+    if(typeof toast==='function')toast('Deleted "'+sku+'"','ok');
+    // Refresh modal list. Also clear the editor input if it was pointing at the deleted SKU.
+    const conf=_MAT_COMBO_FIELDS[field];const input=conf?$(conf.inputId):null;
+    if(input && input.value===sku){input.value='';renderMatDetail(field);}
+    filterMatPicker(field);
+  }).catch(function(e){
+    console.error('matPickerDeleteRow:',e);
+    if(typeof toast==='function')toast('Delete failed: '+(e.message||'check permissions'),'err');
+  });
 };
 window.matPickerPickCustom=function(field, value){
   const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
@@ -2937,13 +2985,18 @@ function edMat(field,fromChange){
   asave();
 }
 
-// Render the inline detail card under a material combobox. Always visible when
-// a material is picked (whether from MATS catalog, materialsCatalog/{type}, or
-// user-typed custom). Falls back to a "no metadata" hint for custom strings.
+// Render the "Selected Material" panel — clean 2-column grid layout that
+// mirrors the die-spec panel (Tab Specs). Replaces the previous flex card
+// which had reliability issues with flex gap rendering "User-added60# White…"
+// as concatenated text without visual separation.
+//
+// Two modes:
+//   - view (default) — read-only grid + action buttons (Edit / Browse / Profile)
+//   - edit — fields are inputs; Save commits to materialsCatalog and re-renders
 //
 // Lookup order: user-added override wins over built-in MATS so staff edits
 // take effect immediately.
-function renderMatDetail(field){
+function renderMatDetail(field, mode){
   const slot=$('detail-'+field);if(!slot)return;
   const inputId=field==='faceStock'?'ed-fs':(field==='lamination'?'ed-lam':(field==='coating'?'ed-coat':null));
   if(!inputId){slot.innerHTML='';return;}
@@ -2954,46 +3007,110 @@ function renderMatDetail(field){
   const userSpec=(typeof _findUserSpec==='function')?_findUserSpec(field, val):null;
   const mat=userSpec ? null : _findMatBySku(val);
   if(!mat && !userSpec){
-    // Custom typed-in value — no catalog entry. Offer to save it.
+    // Custom value with no catalog entry — invite the user to save it.
     slot.innerHTML=
-      '<div class="mat-detail-card mat-detail-card-custom">'
-      +'<div class="mat-detail-head">'
-      +'<span class="mat-detail-tag mat-detail-tag-custom">Custom</span>'
-      +'<span class="mat-detail-empty">No catalog entry — set pricing manually or save this as a new material</span>'
-      +'<button class="mat-detail-btn" onclick="openAddMatFromInput(\''+field+'\')" title="Save '+esc(val)+' to the materials catalog">+ Save to catalog</button>'
-      +'</div></div>';
+      '<div class="mat-spec-panel mat-spec-custom">'
+      +'<div class="mat-spec-head">'
+      +'<span class="mat-spec-source mat-spec-source-custom">CUSTOM</span>'
+      +'<span class="mat-spec-title">'+esc(val)+'</span>'
+      +'<button class="btn btn-pr btn-sm" onclick="openAddMatFromInput(\''+field+'\')">+ Save to catalog</button>'
+      +'</div>'
+      +'<div class="mat-spec-empty">No catalog entry. Set pricing fields manually above, or save as a new material to share with the team.</div>'
+      +'</div>';
     return;
   }
   const src=mat||userSpec;
-  const sku=esc(src.s||src.id||val);
-  const desc=esc(src.d||src.desc||'');
-  const vendor=esc(src.v||src.vendor||'');
+  const isUser=!!userSpec;
+  const sku=src.s||src.id||val;
+  const desc=src.d||src.desc||'';
+  const vendor=src.v||src.vendor||'';
   const msi=src.m!=null?parseFloat(src.m):(src.msi!=null?parseFloat(src.msi):null);
   const mk=src.mk!=null?parseFloat(src.mk):null;
-  const isUser=!!userSpec;
-  const srcTag=isUser?'User-added':'Catalog';
-  const srcTagClass=isUser?'mat-detail-tag-user':'mat-detail-tag-catalog';
-  let h='<div class="mat-detail-card">';
-  // Header row: source tag + description + edit button
-  h+='<div class="mat-detail-head">';
-  h+='<span class="mat-detail-tag '+srcTagClass+'">'+srcTag+'</span>';
-  if(desc)h+='<span class="mat-detail-desc">'+desc+'</span>';
-  h+='<button class="mat-detail-btn" onclick="openEditMatDetails(\''+field+'\')" title="Edit details for '+sku+'">✏ Edit</button>';
-  h+='</div>';
-  // Meta row: labeled pills (each pill has its own border so visual gap is obvious)
-  const pills=[];
-  if(vendor)pills.push('<span class="mat-pill"><span class="mat-pill-label">Vendor</span><span class="mat-pill-val">'+vendor+'</span></span>');
-  if(msi!=null && !isNaN(msi))pills.push('<span class="mat-pill"><span class="mat-pill-label">MSI</span><span class="mat-pill-val">$'+msi.toFixed(3)+'</span></span>');
-  if(mk!=null && !isNaN(mk))pills.push('<span class="mat-pill"><span class="mat-pill-label">Markup</span><span class="mat-pill-val">$'+mk.toFixed(3)+'</span></span>');
-  if(src.notes){
-    const n=esc(src.notes);
-    pills.push('<span class="mat-pill" title="'+n+'"><span class="mat-pill-label">Notes</span><span class="mat-pill-val">'+(n.length>40?n.slice(0,40)+'…':n)+'</span></span>');
+  const notes=src.notes||'';
+  const sourceLabel=isUser?'USER-ADDED':'CATALOG';
+  const sourceClass=isUser?'mat-spec-source-user':'mat-spec-source-catalog';
+  // EDIT MODE — fields are inputs, footer has Save/Cancel
+  if(mode==='edit'){
+    slot.innerHTML=
+      '<div class="mat-spec-panel mat-spec-edit-mode">'
+      +'<div class="mat-spec-head">'
+      +'<span class="mat-spec-source '+sourceClass+'">'+(isUser?'EDIT':'OVERRIDE')+'</span>'
+      +'<span class="mat-spec-title">'+esc(sku)+'</span>'
+      +(isUser?'':'<span class="mat-spec-hint" title="Saving creates a staff override that wins over the built-in catalog entry">Editing a built-in catalog entry creates an override</span>')
+      +'</div>'
+      +'<div class="mat-spec-grid">'
+      +'<div class="mat-spec-row"><div class="mat-spec-label">SKU</div><div class="mat-spec-val mat-spec-val-locked">'+esc(sku)+' <span class="mat-spec-locktag">read-only</span></div></div>'
+      +'<div class="mat-spec-row"><div class="mat-spec-label">Vendor</div><div class="mat-spec-val"><input type="text" id="mse-vendor-'+field+'" value="'+esc(vendor)+'" placeholder="e.g. Avery"></div></div>'
+      +'<div class="mat-spec-row mat-spec-row-full"><div class="mat-spec-label">Description</div><div class="mat-spec-val"><input type="text" id="mse-desc-'+field+'" value="'+esc(desc)+'" placeholder="e.g. 60# White Estate Label"></div></div>'
+      +'<div class="mat-spec-row"><div class="mat-spec-label">MSI cost</div><div class="mat-spec-val"><input type="number" step="0.001" min="0" id="mse-msi-'+field+'" value="'+(msi!=null?msi:'')+'" placeholder="0.345"></div></div>'
+      +'<div class="mat-spec-row"><div class="mat-spec-label">Markup MSI</div><div class="mat-spec-val"><input type="number" step="0.001" min="0" id="mse-mk-'+field+'" value="'+(mk!=null?mk:'')+'" placeholder="0.420"></div></div>'
+      +'<div class="mat-spec-row mat-spec-row-full"><div class="mat-spec-label">Notes</div><div class="mat-spec-val"><input type="text" id="mse-notes-'+field+'" value="'+esc(notes)+'" placeholder="Internal notes"></div></div>'
+      +'</div>'
+      +'<div class="mat-spec-actions">'
+      +'<button class="btn btn-pr btn-sm" onclick="saveMatDetailEdit(\''+field+'\')">💾 Save</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="renderMatDetail(\''+field+'\')">Cancel</button>'
+      +'</div>'
+      +'</div>';
+    setTimeout(function(){var f=$('mse-vendor-'+field);if(f)f.focus();},20);
+    return;
   }
-  if(pills.length)h+='<div class="mat-detail-pills">'+pills.join('')+'</div>';
+  // VIEW MODE — clean grid + actions row
+  let h='<div class="mat-spec-panel">';
+  h+='<div class="mat-spec-head">';
+  h+='<span class="mat-spec-source '+sourceClass+'">'+sourceLabel+'</span>';
+  h+='<span class="mat-spec-title">'+esc(sku)+(desc?' <span class="mat-spec-subtitle">'+esc(desc)+'</span>':'')+'</span>';
+  h+='</div>';
+  h+='<div class="mat-spec-grid">';
+  h+='<div class="mat-spec-row"><div class="mat-spec-label">Vendor</div><div class="mat-spec-val">'+(vendor?esc(vendor):'<span class="mat-spec-blank">—</span>')+'</div></div>';
+  h+='<div class="mat-spec-row"><div class="mat-spec-label">Source</div><div class="mat-spec-val">'+(isUser?'Staff-managed':'Built-in catalog')+'</div></div>';
+  h+='<div class="mat-spec-row"><div class="mat-spec-label">MSI cost</div><div class="mat-spec-val mat-spec-val-num">'+(msi!=null&&!isNaN(msi)?'<strong>$'+msi.toFixed(3)+'</strong>':'<span class="mat-spec-blank">—</span>')+'</div></div>';
+  h+='<div class="mat-spec-row"><div class="mat-spec-label">Markup MSI</div><div class="mat-spec-val mat-spec-val-num">'+(mk!=null&&!isNaN(mk)?'<strong>$'+mk.toFixed(3)+'</strong>':'<span class="mat-spec-blank">—</span>')+'</div></div>';
+  if(notes)h+='<div class="mat-spec-row mat-spec-row-full"><div class="mat-spec-label">Notes</div><div class="mat-spec-val">'+esc(notes)+'</div></div>';
+  h+='</div>';
+  h+='<div class="mat-spec-actions">';
+  h+='<button class="btn btn-ghost btn-sm" onclick="renderMatDetail(\''+field+'\',\'edit\')">✏ Edit details</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="openMatPicker(\''+field+'\')">🔍 Browse list</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="openMatProfile(\''+esc(sku).replace(/'/g,"\\'")+'\')" title="View usage history + add notes">📊 Profile</button>';
+  h+='</div>';
   h+='</div>';
   slot.innerHTML=h;
 }
 window.renderMatDetail=renderMatDetail;
+
+// Save the inline edit — gathers field values, calls upsertSpecItem, re-renders
+// in view mode. SKU isn't editable (changing it = delete + re-create).
+window.saveMatDetailEdit=function(field){
+  const inputId=field==='faceStock'?'ed-fs':(field==='lamination'?'ed-lam':(field==='coating'?'ed-coat':null));
+  const input=$(inputId);if(!input){if(typeof toast==='function')toast('No material loaded','err');return;}
+  const sku=(input.value||'').trim();if(!sku){if(typeof toast==='function')toast('No SKU','err');return;}
+  const type=field==='faceStock'?'labels':(field==='lamination'?'films':(field==='coating'?'varnishes':null));
+  if(!type){if(typeof toast==='function')toast('Unknown field type','err');return;}
+  const v=function(id){var el=$(id);return el?(''+el.value).trim():'';};
+  const vendor=v('mse-vendor-'+field);
+  const desc=v('mse-desc-'+field);
+  const msiRaw=v('mse-msi-'+field);
+  const mkRaw=v('mse-mk-'+field);
+  const notes=v('mse-notes-'+field);
+  const userName=typeof getUserName==='function'?getUserName():'unknown';
+  const item={id:sku, desc:desc||'', createdBy:userName, updatedAt:new Date().toISOString()};
+  if(vendor)item.vendor=vendor;
+  if(msiRaw!=='' && !isNaN(parseFloat(msiRaw)))item.msi=parseFloat(msiRaw);
+  if(mkRaw!=='' && !isNaN(parseFloat(mkRaw)))item.mk=parseFloat(mkRaw);
+  if(notes)item.notes=notes;
+  const slot=$('detail-'+field);
+  if(slot){slot.innerHTML='<div class="mat-spec-panel"><div class="mat-spec-saving">Saving…</div></div>';}
+  Promise.resolve(window.upsertSpecItem?upsertSpecItem(type, item):(typeof addSpecItem==='function'?addSpecItem(type,item):null)).then(function(ok){
+    if(ok){
+      if(typeof toast==='function')toast('Saved — material details updated','ok');
+      // Pricing auto-fill from the updated MSI if this is faceStock
+      if(field==='faceStock' && typeof edMat==='function')edMat('faceStock', true);
+      renderMatDetail(field);
+    } else {
+      if(typeof toast==='function')toast('Save failed','err');
+      renderMatDetail(field);
+    }
+  });
+};
 
 // Helper — open the add-material modal with the currently-typed SKU pre-filled.
 // Wired from the "+ Save to catalog" button in the custom-value card.
