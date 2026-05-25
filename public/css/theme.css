@@ -539,46 +539,47 @@ input:focus,select:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 
 .mat-wrap{background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:8px;margin-bottom:6px}
 .mat-msi{font-variant-numeric:tabular-nums;color:var(--ac);font-weight:600}
 
-/* ─── Custom material combobox ─────────────────────────────────────────────
-   Wraps the search <input> + dropdown. Replaces native <datalist> which has
-   no vendor grouping and inconsistent open/close behavior across browsers.
+/* ─── Material picker — input bar + Browse button → opens modal ──────────
+   Replaces the inline combobox dropdown. User explicitly wanted the list
+   hidden completely; picking now happens through a modal (die-select pattern).
 */
-.mat-combo{position:relative;width:100%}
-.mat-combo input{
-  width:100%;padding-right:24px;
+.mat-picker{
+  display:flex;align-items:stretch;gap:6px;
+  width:100%;
 }
-.mat-combo-arrow{
-  position:absolute;right:4px;top:50%;transform:translateY(-50%);
-  font-size:11px;color:var(--tx3);
-  background:transparent;border:none;
-  width:24px;height:24px;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;
-  border-radius:4px;
-  transition:transform .15s,color .15s,background .15s;
-}
-.mat-combo-arrow:hover{background:rgba(0,229,255,.12);color:var(--ac)}
-.mat-combo:focus-within .mat-combo-arrow{color:var(--ac)}
-.mat-combo:has(.mat-combo-dropdown.open) .mat-combo-arrow{transform:translateY(-50%) rotate(180deg)}
-.mat-combo-dropdown{
-  position:absolute;
-  top:calc(100% + 2px);left:0;right:0;
-  z-index:50;
-  max-height:280px;overflow-y:auto;
-  background:var(--bg2);
+.mat-picker input{flex:1;min-width:0}
+.mat-picker-btn{
+  flex-shrink:0;
+  font-size:10px;font-weight:700;
+  padding:0 12px;
+  background:var(--bg);
+  color:var(--ac);
   border:1px solid var(--bdr);
-  border-radius:8px;
-  box-shadow:0 8px 24px rgba(0,0,0,.5);
-  display:none;
+  border-radius:6px;
+  cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s;
+  white-space:nowrap;
 }
-.mat-combo-dropdown.open{display:block}
-.mat-combo-group{
+.mat-picker-btn:hover{background:var(--ac);color:#000;border-color:var(--ac)}
+
+/* Modal picker list — reuses .mat-combo-* item styles inside #matPickerList */
+#matPickerList .mat-combo-group{
   position:sticky;top:0;
   display:flex;align-items:center;justify-content:space-between;
   padding:6px 10px;
   background:var(--bg3);
   border-bottom:1px solid var(--bdr);
   z-index:1;
+}
+.mat-picker-empty{
+  padding:24px 12px;text-align:center;
+  font-size:11px;color:var(--tx3);
+}
+.mat-combo-group{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 10px;
+  background:var(--bg3);
+  border-bottom:1px solid var(--bdr);
 }
 .mat-combo-grouptag{
   font-size:9px;font-weight:800;letter-spacing:1px;

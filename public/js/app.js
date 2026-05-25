@@ -1357,10 +1357,10 @@ return h})()}
 
 <div class="epane ${S.etab===2?'active':''}" id="ep-mats">
 <div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🧱</span><span class="ttl">Materials</span><span class="arr">▾</span></div><div class="scard-b open">
-<div class="fg"><label>Face Stock <button class="btn btn-ghost btn-xs" onclick="showSpecManager('labels')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=faceStock]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-combo" data-mat-field="faceStock"><input data-field="faceStock" id="ed-fs" autocomplete="off" placeholder="Click to browse · type to filter" onfocus="matComboOpen('faceStock')" onkeydown="matComboKey(event,'faceStock')" oninput="matComboFilter('faceStock')" onchange="edMat('faceStock',true)"><button type="button" class="mat-combo-arrow" tabindex="-1" onmousedown="event.preventDefault();" onclick="matComboToggle(event)" aria-label="Toggle dropdown">▾</button><div class="mat-combo-dropdown" id="dl-faceStock" role="listbox"></div></div><span class="mat-msi" id="msi-faceStock"></span><div class="mat-detail" id="detail-faceStock"></div></div></div>
-<div class="fg"><label>Lamination <button class="btn btn-ghost btn-xs" onclick="showSpecManager('films')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=lamination]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-combo" data-mat-field="lamination"><input data-field="lamination" id="ed-lam" autocomplete="off" placeholder="Click to browse · type to filter" onfocus="matComboOpen('lamination')" onkeydown="matComboKey(event,'lamination')" oninput="matComboFilter('lamination')" onchange="edMat('lamination')"><button type="button" class="mat-combo-arrow" tabindex="-1" onmousedown="event.preventDefault();" onclick="matComboToggle(event)" aria-label="Toggle dropdown">▾</button><div class="mat-combo-dropdown" id="dl-lamination" role="listbox"></div></div><span class="mat-msi" id="msi-lamination"></span><div class="mat-detail" id="detail-lamination"></div></div></div>
+<div class="fg"><label>Face Stock <button class="btn btn-ghost btn-xs" onclick="showSpecManager('labels')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=faceStock]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker"><input data-field="faceStock" id="ed-fs" autocomplete="off" placeholder="Type a SKU or click Browse →" oninput="renderMatDetail('faceStock');asave()" onchange="edMat('faceStock',true)"><button type="button" class="mat-picker-btn" onclick="openMatPicker('faceStock')">🔍 Browse</button></div><span class="mat-msi" id="msi-faceStock"></span><div class="mat-detail" id="detail-faceStock"></div></div></div>
+<div class="fg"><label>Lamination <button class="btn btn-ghost btn-xs" onclick="showSpecManager('films')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=lamination]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker"><input data-field="lamination" id="ed-lam" autocomplete="off" placeholder="Type a SKU or click Browse →" oninput="renderMatDetail('lamination');asave()" onchange="edMat('lamination')"><button type="button" class="mat-picker-btn" onclick="openMatPicker('lamination')">🔍 Browse</button></div><span class="mat-msi" id="msi-lamination"></span><div class="mat-detail" id="detail-lamination"></div></div></div>
 <div class="row2"><div class="fg"><label>Liner</label><input data-field="liner" list="ed-liner-dl" autocomplete="off" placeholder="Type to search…" value="${f.liner||''}" oninput="asave()"><datalist id="ed-liner-dl">${['NA','40# Liner','40# CK Liner','50# Liner','Kraft Liner','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div><div class="fg"><label>Adhesive</label><input data-field="adhesive" list="ed-adh-dl" autocomplete="off" placeholder="Type to search…" value="${f.adhesive||''}" oninput="asave()"><datalist id="ed-adh-dl">${['NA','C2500','S100R Permanent','AT20 All-Temp','751 Permanent','531 Removable','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
-<div class="row2"><div class="fg"><label>Coating / Varnish <button class="btn btn-ghost btn-xs" onclick="showSpecManager('varnishes')" style="float:right;font-size:9px">⚙ Manage</button></label><div class="mat-combo" data-mat-field="coating"><input data-field="coating" id="ed-coat" autocomplete="off" placeholder="Click to browse · type to filter" onfocus="matComboOpen('coating')" onkeydown="matComboKey(event,'coating')" oninput="matComboFilter('coating')" onchange="renderMatDetail('coating');asave()"><button type="button" class="mat-combo-arrow" tabindex="-1" onmousedown="event.preventDefault();" onclick="matComboToggle(event)" aria-label="Toggle dropdown">▾</button><div class="mat-combo-dropdown" id="dl-coating" role="listbox"></div></div><div class="mat-detail" id="detail-coating"></div></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
+<div class="row2"><div class="fg"><label>Coating / Varnish <button class="btn btn-ghost btn-xs" onclick="showSpecManager('varnishes')" style="float:right;font-size:9px">⚙ Manage</button></label><div class="mat-picker"><input data-field="coating" id="ed-coat" autocomplete="off" placeholder="Type a name or click Browse →" oninput="renderMatDetail('coating');asave()" onchange="renderMatDetail('coating');asave()"><button type="button" class="mat-picker-btn" onclick="openMatPicker('coating')">🔍 Browse</button></div><div class="mat-detail" id="detail-coating"></div></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
 <div class="fg"><label>Notes <span style="font-weight:400;color:var(--tx3)">(custom per quote)</span></label><textarea data-field="notes" placeholder="Add any job-specific notes here..." oninput="asave()">${f.notes}</textarea></div>
 <div class="fg"><label>Custom Note for PDF <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label><textarea data-field="customNote" placeholder="Customer requested expedited delivery..." oninput="asave()">${f.customNote||''}</textarea></div>
 <div class="fg"><label>Note Tags <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label>
@@ -2088,9 +2088,9 @@ var platesEl = document.querySelector('[data-field="nPlates"]');
 if (platesEl && colors > 0) { platesEl.value = colors; }
 asave()}
 
-// Coating/varnish picker — routes to the custom combobox system.
+// Coating/varnish picker — modal-based now. Just seed the input value.
 function buildVarnishSelect(def){
-  matComboBuild('coating', def);
+  const input=$('ed-coat');if(input && def!=null)input.value=def;
 }
 
 function renderTermsEditor(){const q=getQ(S.editId);if(!q)return;
@@ -2462,17 +2462,17 @@ if(existing){existing.contact=q.fields.custAttn||existing.contact;existing.phone
 else{saveCust({id:'c'+Date.now(),company:q.fields.custCo,contact:q.fields.custAttn||'',phone:q.fields.custPhone||'',email:q.fields.custEmail||'',industry:q.fields.industry||'',address:q.fields.cityState||'',notes:[],zohoId:''})}}
 function viewCustFromQ(){saveQ();const q=getQ(S.editId);if(!q||!q.fields.custCo)return toast('No customer','err');const c=DB.customers().find(x=>x.company.toLowerCase()===q.fields.custCo.toLowerCase());if(c){S.profileId=c.id;openProfile(c.id)}else{toast('Customer not saved yet','err')}}
 // MATERIALS
-// ─── Custom material combobox ───────────────────────────────────────────
-// Replaces the native <input list> + <datalist> combo (which has no vendor
-// grouping and inconsistent open/close behavior across browsers). The HTML
-// scaffolds a wrapper .mat-combo containing the input and a sibling
-// .mat-combo-dropdown that's positioned absolutely below.
+// ─── Material picker — modal (die-select pattern with keyword search) ───
+// User explicitly wanted the inline dropdown gone. This mirrors how die-select
+// works (showSpecManager('dies') → modal list with search → pickDieFromModal)
+// but renders richer rows: SKU + description left-aligned, MSI cost + markup +
+// vendor right-aligned with vendor always last per spec.
 //
 // Field → input id mapping:
-//   faceStock → ed-fs    (data source: MATS where v vendor; type=labels for user-added)
-//   lamination → ed-lam  (data source: MATS;             type=films for user-added)
-//   coating → ed-coat    (data source: SPEC_VARNISHES + user-added varnishes)
-const _MAT_COMBO_FIELDS={faceStock:{inputId:'ed-fs',type:'labels'},lamination:{inputId:'ed-lam',type:'films'},coating:{inputId:'ed-coat',type:'varnishes'}};
+//   faceStock → ed-fs    (data source: MATS + materialsCatalog/labels)
+//   lamination → ed-lam  (data source: MATS + materialsCatalog/films)
+//   coating → ed-coat    (data source: SPEC_VARNISHES + materialsCatalog/varnishes)
+const _MAT_COMBO_FIELDS={faceStock:{inputId:'ed-fs',type:'labels',title:'Face Stock'},lamination:{inputId:'ed-lam',type:'films',title:'Lamination'},coating:{inputId:'ed-coat',type:'varnishes',title:'Coating / Varnish'}};
 function _matComboItems(field){
   // Returns array of {sku, desc, vendor, msi, mk, group, source} ordered for display.
   //   group = 'User-added' | 'Catalog' | 'Other' (coarse sections — vendor goes on the item line, not the header)
@@ -2575,137 +2575,162 @@ function _matComboRender(field, filterText){
   });
   return h;
 }
-function matComboBuild(field, currentValue){
-  const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
-  const dd=$('dl-'+field);if(!dd)return;
-  // Lazy-load mats chunk if needed (only relevant for faceStock/lamination)
+// ─── openMatPicker(field) — modal-based selector with keyword search ──────
+// Opens a modal listing all materials for the given field, with a search box
+// at the top. Each row shows SKU + description (left) and MSI / markup /
+// vendor (right). Click a row → fills the input, closes the modal, triggers
+// edMat (pricing auto-fill) or renderMatDetail (coating).
+function openMatPicker(field){
+  const conf=_MAT_COMBO_FIELDS[field];if(!conf){if(typeof toast==='function')toast('Unknown field','err');return;}
+  // Lazy-load MATS chunk if needed
   if((field==='faceStock'||field==='lamination')&&(!MATS||!MATS.length)&&typeof loadChunk==='function'){
-    loadChunk('mats').then(function(){matComboBuild(field, currentValue)}).catch(function(e){console.warn('mats chunk load:',e&&e.message)});
+    if(typeof toast==='function')toast('Loading materials…','ok');
+    loadChunk('mats').then(function(){openMatPicker(field)}).catch(function(e){console.warn('mats chunk load:',e&&e.message);if(typeof toast==='function')toast('Failed to load materials','err');});
     return;
   }
-  dd.innerHTML=_matComboRender(field, '');
-  const input=$(conf.inputId);
-  if(input && currentValue!=null)input.value=currentValue;
-}
-window.matComboBuild=matComboBuild;
-function matComboOpen(field){
-  const dd=$('dl-'+field);if(!dd)return;
-  // If the dropdown is empty (first focus), build it now
-  if(!dd.innerHTML)matComboBuild(field);
-  dd.classList.add('open');
-  // Highlight the currently-selected item if any
-  const input=$(_MAT_COMBO_FIELDS[field].inputId);
-  const cur=input?input.value:'';
-  if(cur){
-    const item=dd.querySelector('.mat-combo-item[data-sku="'+CSS.escape(cur)+'"]');
-    if(item){_matComboHighlight(dd,item);try{item.scrollIntoView({block:'nearest'})}catch(_){}}
+  const currentValue=($(conf.inputId)||{}).value||'';
+  // Modal HTML
+  let h='<div class="modal-title">Pick '+esc(conf.title)+'</div>';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">'+esc(conf.title)+' currently set to: <strong style="color:var(--tx)">'+(currentValue?esc(currentValue):'(none)')+'</strong></div>';
+  // Search input — sits ABOVE the scrolling list area
+  h+='<input type="text" id="matPickerSearch" placeholder="Type SKU, description, or vendor…" autocomplete="off" oninput="filterMatPicker(\''+field+'\')" onkeydown="matPickerKey(event,\''+field+'\')" style="width:100%;padding:8px 12px;margin-bottom:8px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;background:var(--bg);color:var(--tx)">';
+  // Scrolling list area
+  h+='<div id="matPickerList" style="max-height:55vh;overflow-y:auto;border:1px solid var(--bdr);border-radius:6px"></div>';
+  // Footer
+  h+='<div style="display:flex;gap:8px;margin-top:10px;align-items:center">';
+  h+='<button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancel</button>';
+  if(conf.type==='labels'||conf.type==='films'||conf.type==='varnishes'){
+    h+='<button class="btn btn-ghost btn-sm" onclick="closeModal();addNewSpec(\''+conf.type+'\')" style="margin-left:auto">+ Add new '+(conf.type==='films'?'film':(conf.type==='labels'?'stock':'varnish'))+'</button>';
   }
+  h+='</div>';
+  openModal(h);
+  // Render the list + auto-focus the search input
+  setTimeout(function(){
+    _renderMatPickerList(field,'');
+    var s=$('matPickerSearch');if(s)s.focus();
+  },20);
 }
-window.matComboOpen=matComboOpen;
-function matComboClose(field){
-  const dd=$('dl-'+field);if(!dd)return;
-  dd.classList.remove('open');
-}
-window.matComboClose=matComboClose;
-function matComboFilter(field){
-  const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
-  const input=$(conf.inputId);const dd=$('dl-'+field);
-  if(!input||!dd)return;
-  dd.innerHTML=_matComboRender(field, input.value);
-  if(!dd.classList.contains('open'))dd.classList.add('open');
-  // Auto-highlight first item for keyboard nav
-  const first=dd.querySelector('.mat-combo-item');
-  if(first)_matComboHighlight(dd,first);
-  // Update inline detail card live (typed value may match a custom or partial SKU)
-  if(typeof renderMatDetail==='function')renderMatDetail(field);
-  // Persist the typed value
-  if(typeof asave==='function')asave();
-}
-window.matComboFilter=matComboFilter;
-function _matComboHighlight(dd,item){
-  dd.querySelectorAll('.mat-combo-item.hl').forEach(function(el){el.classList.remove('hl')});
-  if(item)item.classList.add('hl');
-}
-function matComboKey(e,field){
-  const dd=$('dl-'+field);if(!dd)return;
-  const items=Array.from(dd.querySelectorAll('.mat-combo-item'));
-  if(!items.length){
-    if(e.key==='Escape'){matComboClose(field);}
-    return;
-  }
-  const curIdx=items.findIndex(function(el){return el.classList.contains('hl')});
-  if(e.key==='ArrowDown'){
-    e.preventDefault();
-    if(!dd.classList.contains('open'))matComboOpen(field);
-    const next=items[Math.min(curIdx+1,items.length-1)]||items[0];
-    _matComboHighlight(dd,next);
-    try{next.scrollIntoView({block:'nearest'})}catch(_){}
-  } else if(e.key==='ArrowUp'){
-    e.preventDefault();
-    const prev=items[Math.max(curIdx-1,0)]||items[items.length-1];
-    _matComboHighlight(dd,prev);
-    try{prev.scrollIntoView({block:'nearest'})}catch(_){}
-  } else if(e.key==='Enter'){
-    if(dd.classList.contains('open') && curIdx>=0){
-      e.preventDefault();
-      const sku=items[curIdx].getAttribute('data-sku');
-      matComboPick(field,sku);
+window.openMatPicker=openMatPicker;
+
+// Render the filtered list inside the modal's #matPickerList container.
+function _renderMatPickerList(field, filterText){
+  const list=$('matPickerList');if(!list)return;
+  const items=_matComboItems(field);
+  const ft=(filterText||'').toLowerCase().trim();
+  const grouped={};
+  const groupOrder=['User-added','Catalog','Other'];
+  groupOrder.forEach(function(g){grouped[g]=[]});
+  items.forEach(function(it){
+    if(ft){
+      const hay=(it.sku+' '+it.desc+' '+it.vendor).toLowerCase();
+      if(hay.indexOf(ft)===-1)return;
     }
-  } else if(e.key==='Escape'){
-    matComboClose(field);
-  } else if(e.key==='Tab'){
-    matComboClose(field);
+    if(grouped[it.group])grouped[it.group].push(it);
+  });
+  const visibleGroups=groupOrder.filter(function(g){return grouped[g].length>0});
+  if(!visibleGroups.length){
+    // No matches — offer "Use as custom" if user typed something
+    const custom=ft?'<button class="btn btn-pr btn-sm" style="margin-top:10px" onclick="matPickerPickCustom(\''+field+'\',\''+esc(filterText).replace(/'/g,"\\'")+'\')">Use "'+esc(filterText)+'" as custom value</button>':'';
+    list.innerHTML='<div class="mat-picker-empty">No matches.<br>'+custom+'</div>';
+    return;
   }
+  let h='';
+  let idx=0;
+  visibleGroups.forEach(function(g){
+    const tagCls=g==='User-added'?'mat-combo-grouptag-user':(g==='Other'?'mat-combo-grouptag-other':'mat-combo-grouptag-catalog');
+    h+='<div class="mat-combo-group"><span class="mat-combo-grouptag '+tagCls+'">'+esc(g)+'</span><span class="mat-combo-groupcount">'+grouped[g].length+'</span></div>';
+    grouped[g].forEach(function(it){
+      const metaParts=[];
+      if(it.msi!=null && !isNaN(it.msi))metaParts.push('<span class="mat-combo-msi" title="MSI cost">$'+parseFloat(it.msi).toFixed(3)+'</span>');
+      if(it.mk!=null && !isNaN(it.mk))metaParts.push('<span class="mat-combo-mk" title="Markup MSI">$'+parseFloat(it.mk).toFixed(3)+' mk</span>');
+      if(it.vendor)metaParts.push('<span class="mat-combo-vendor" title="Vendor">'+esc(it.vendor)+'</span>');
+      const meta=metaParts.length?'<span class="mat-combo-meta">'+metaParts.join('')+'</span>':'';
+      const desc=it.desc?'<span class="mat-combo-itemdesc">'+esc(it.desc)+'</span>':'';
+      h+='<div class="mat-combo-item" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onclick="matPickerPick(\''+field+'\',\''+esc(it.sku).replace(/'/g,"\\'")+'\')">'
+        +'<span class="mat-combo-itemlabel"><span class="mat-combo-sku">'+esc(it.sku)+'</span>'+desc+'</span>'
+        +meta
+        +'</div>';
+      idx++;
+    });
+  });
+  list.innerHTML=h;
+  // Auto-highlight the first item (or the currently-selected one if visible)
+  const conf=_MAT_COMBO_FIELDS[field];
+  const cur=conf?(($(conf.inputId)||{}).value||''):'';
+  let target=null;
+  if(cur){
+    try{target=list.querySelector('.mat-combo-item[data-sku="'+CSS.escape(cur)+'"]');}catch(_){}
+  }
+  if(!target)target=list.querySelector('.mat-combo-item');
+  if(target){target.classList.add('hl');try{target.scrollIntoView({block:'nearest'})}catch(_){}}
 }
-window.matComboKey=matComboKey;
-function matComboPick(field, sku){
+window.filterMatPicker=function(field){
+  const s=$('matPickerSearch');
+  _renderMatPickerList(field, s?s.value:'');
+};
+window.matPickerPick=function(field, sku){
   const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
   const input=$(conf.inputId);if(!input)return;
   input.value=sku;
-  matComboClose(field);
-  // Trigger the existing onchange behavior: pricing auto-fill for faceStock/lamination,
-  // inline detail card refresh for coating.
+  closeModal();
   if(field==='faceStock'||field==='lamination'){
     edMat(field, field==='faceStock');
   } else {
     renderMatDetail(field);
     if(typeof asave==='function')asave();
   }
-}
-window.matComboPick=matComboPick;
-// Arrow click toggles the dropdown. Used because focusing the input alone
-// can feel undiscoverable — staff are used to clicking the ▾ on a <select>.
-function matComboToggle(e){
-  const arrow=e&&e.currentTarget;if(!arrow)return;
-  const wrap=arrow.closest('.mat-combo');if(!wrap)return;
-  const field=wrap.getAttribute('data-mat-field');if(!field)return;
-  const dd=$('dl-'+field);if(!dd)return;
-  if(dd.classList.contains('open')){
-    matComboClose(field);
+};
+window.matPickerPickCustom=function(field, value){
+  const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
+  const input=$(conf.inputId);if(!input)return;
+  input.value=value;
+  closeModal();
+  if(field==='faceStock'||field==='lamination'){
+    edMat(field, field==='faceStock');
   } else {
-    // Focus the input first (gives keyboard a place to live), then open
-    const input=$(_MAT_COMBO_FIELDS[field].inputId);if(input)input.focus();
-    matComboOpen(field);
+    renderMatDetail(field);
+    if(typeof asave==='function')asave();
   }
-}
-window.matComboToggle=matComboToggle;
-// Click-outside-to-close — single global listener installed once.
-if(!window._matComboOutsideListener){
-  document.addEventListener('mousedown', function(e){
-    document.querySelectorAll('.mat-combo-dropdown.open').forEach(function(dd){
-      const wrap=dd.closest('.mat-combo');
-      if(!wrap)return;
-      if(!wrap.contains(e.target))dd.classList.remove('open');
-    });
-  });
-  window._matComboOutsideListener=true;
-}
+};
+// Keyboard nav inside the search input: ArrowDown/Up → highlight, Enter → pick.
+window.matPickerKey=function(e, field){
+  const list=$('matPickerList');if(!list)return;
+  const items=Array.from(list.querySelectorAll('.mat-combo-item'));
+  if(!items.length){
+    if(e.key==='Enter'){
+      e.preventDefault();
+      const s=$('matPickerSearch');const v=s?s.value.trim():'';
+      if(v)matPickerPickCustom(field, v);
+    }
+    return;
+  }
+  const curIdx=items.findIndex(function(el){return el.classList.contains('hl')});
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    items.forEach(function(el){el.classList.remove('hl')});
+    const next=items[Math.min(curIdx+1, items.length-1)]||items[0];
+    next.classList.add('hl');
+    try{next.scrollIntoView({block:'nearest'})}catch(_){}
+  } else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    items.forEach(function(el){el.classList.remove('hl')});
+    const prev=items[Math.max(curIdx-1, 0)]||items[items.length-1];
+    prev.classList.add('hl');
+    try{prev.scrollIntoView({block:'nearest'})}catch(_){}
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    if(curIdx>=0){
+      const sku=items[curIdx].getAttribute('data-sku');
+      matPickerPick(field, sku);
+    }
+  }
+};
 
-// Compat shim — old buildMS callers still work (initial editor render).
-// Just routes to matComboBuild with the right field mapping.
+// Compat shims — old buildMS / buildVarnishSelect callers don't break.
+// They now just seed the input with the current value; the modal picker
+// handles building the list on demand when opened.
 function buildMS(id,def){
-  const field=id==='ed-fs'?'faceStock':(id==='ed-lam'?'lamination':null);
-  if(field)matComboBuild(field, def);
+  const input=$(id);if(input && def!=null)input.value=def;
 }
 // Lookup helper — find a material by SKU.
 // Priority order: user-added (materialsCatalog) WINS over built-in MATS, so
