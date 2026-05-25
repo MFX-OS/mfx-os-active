@@ -993,15 +993,32 @@ function addSpecItem(type,item){
     items:firebase.firestore.FieldValue.arrayUnion(item),
     updatedAt:new Date().toISOString(),
     updatedBy:(typeof getUserName==='function'?getUserName():'unknown')
-  },{merge:true}).then(function(){return true;}).catch(function(e){
+  },{merge:true}).then(function(){
+    // Apply locally so the re-render right after .then() sees the new entry
+    // without waiting for the snapshot listener round-trip.
+    const id=typeof item==='object'?item.id:item;
+    const overlay=(_specOverlay[type]||[]).slice();
+    if(!overlay.some(function(x){return(typeof x==='object'?x.id:x)===id})){
+      overlay.push(item);
+      _specOverlay[type]=overlay;
+    }
+    return true;
+  }).catch(function(e){
     console.error('addSpecItem('+type+'):',e);
-    if(typeof toast==='function')toast('Save failed — check connection','err');
+    if(typeof toast==='function')toast('Save failed: '+(e.message||'check connection / permissions'),'err');
     return false;
   });
 }
 // Upsert: replace existing entry with matching id, or add if none exists.
 // Used by the edit-material flow so SKUs already in the overlay get updated
-// in place instead of duplicated via arrayUnion. Returns the new array length.
+// in place instead of duplicated via arrayUnion.
+//
+// IMPORTANT: We also write the new array to the local _specOverlay BEFORE
+// resolving the promise. The Firestore snapshot listener will fire later
+// and overwrite this with the server-confirmed value, but the local update
+// means renders triggered immediately after .then() see the new data
+// without waiting for the round-trip. Fixes the "I saved but it didn't
+// show up" bug.
 window.upsertSpecItem=function(type,item){
   if(typeof fbDb==='undefined'){console.warn('upsertSpecItem: no fbDb');return Promise.resolve(false);}
   const id=typeof item==='object'?item.id:item;
@@ -1012,9 +1029,13 @@ window.upsertSpecItem=function(type,item){
     items:filtered,
     updatedAt:new Date().toISOString(),
     updatedBy:(typeof getUserName==='function'?getUserName():'unknown')
-  },{merge:true}).then(function(){return true;}).catch(function(e){
+  },{merge:true}).then(function(){
+    // Apply locally so the immediately-following re-render sees the change
+    _specOverlay[type]=filtered;
+    return true;
+  }).catch(function(e){
     console.error('upsertSpecItem('+type+'):',e);
-    if(typeof toast==='function')toast('Save failed — check connection','err');
+    if(typeof toast==='function')toast('Save failed: '+(e.message||'check connection / permissions'),'err');
     return false;
   });
 };

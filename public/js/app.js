@@ -1357,10 +1357,10 @@ return h})()}
 
 <div class="epane ${S.etab===2?'active':''}" id="ep-mats">
 <div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🧱</span><span class="ttl">Materials</span><span class="arr">▾</span></div><div class="scard-b open">
-<div class="fg"><label>Face Stock <button class="btn btn-ghost btn-xs" onclick="showSpecManager('labels')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=faceStock]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker"><input data-field="faceStock" id="ed-fs" autocomplete="off" placeholder="Type a SKU or click Browse →" oninput="renderMatDetail('faceStock');asave()" onchange="edMat('faceStock',true)"><button type="button" class="mat-picker-btn" onclick="openMatPicker('faceStock')">🔍 Browse</button></div><span class="mat-msi" id="msi-faceStock"></span><div class="mat-detail" id="detail-faceStock"></div></div></div>
-<div class="fg"><label>Lamination <button class="btn btn-ghost btn-xs" onclick="showSpecManager('films')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=lamination]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker"><input data-field="lamination" id="ed-lam" autocomplete="off" placeholder="Type a SKU or click Browse →" oninput="renderMatDetail('lamination');asave()" onchange="edMat('lamination')"><button type="button" class="mat-picker-btn" onclick="openMatPicker('lamination')">🔍 Browse</button></div><span class="mat-msi" id="msi-lamination"></span><div class="mat-detail" id="detail-lamination"></div></div></div>
+<div class="fg"><label>Face Stock <button class="btn btn-ghost btn-xs" onclick="showSpecManager('labels')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=faceStock]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker mat-suggest-wrap"><input data-field="faceStock" id="ed-fs" autocomplete="off" placeholder="Type a SKU, name, or vendor — or click Browse →" oninput="matSuggestFilter('faceStock')" onkeydown="matSuggestKey(event,'faceStock')" onblur="matSuggestBlur('faceStock')" onchange="edMat('faceStock',true)"><button type="button" class="mat-picker-btn" onclick="openMatPicker('faceStock')">🔍 Browse</button><div class="mat-suggest" id="sug-faceStock" role="listbox"></div></div><span class="mat-msi" id="msi-faceStock"></span><div class="mat-detail" id="detail-faceStock"></div></div></div>
+<div class="fg"><label>Lamination <button class="btn btn-ghost btn-xs" onclick="showSpecManager('films')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=lamination]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><div class="mat-picker mat-suggest-wrap"><input data-field="lamination" id="ed-lam" autocomplete="off" placeholder="Type a SKU, name, or vendor — or click Browse →" oninput="matSuggestFilter('lamination')" onkeydown="matSuggestKey(event,'lamination')" onblur="matSuggestBlur('lamination')" onchange="edMat('lamination')"><button type="button" class="mat-picker-btn" onclick="openMatPicker('lamination')">🔍 Browse</button><div class="mat-suggest" id="sug-lamination" role="listbox"></div></div><span class="mat-msi" id="msi-lamination"></span><div class="mat-detail" id="detail-lamination"></div></div></div>
 <div class="row2"><div class="fg"><label>Liner</label><input data-field="liner" list="ed-liner-dl" autocomplete="off" placeholder="Type to search…" value="${f.liner||''}" oninput="asave()"><datalist id="ed-liner-dl">${['NA','40# Liner','40# CK Liner','50# Liner','Kraft Liner','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div><div class="fg"><label>Adhesive</label><input data-field="adhesive" list="ed-adh-dl" autocomplete="off" placeholder="Type to search…" value="${f.adhesive||''}" oninput="asave()"><datalist id="ed-adh-dl">${['NA','C2500','S100R Permanent','AT20 All-Temp','751 Permanent','531 Removable','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
-<div class="row2"><div class="fg"><label>Coating / Varnish <button class="btn btn-ghost btn-xs" onclick="showSpecManager('varnishes')" style="float:right;font-size:9px">⚙ Manage</button></label><div class="mat-picker"><input data-field="coating" id="ed-coat" autocomplete="off" placeholder="Type a name or click Browse →" oninput="renderMatDetail('coating');asave()" onchange="renderMatDetail('coating');asave()"><button type="button" class="mat-picker-btn" onclick="openMatPicker('coating')">🔍 Browse</button></div><div class="mat-detail" id="detail-coating"></div></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
+<div class="row2"><div class="fg"><label>Coating / Varnish <button class="btn btn-ghost btn-xs" onclick="showSpecManager('varnishes')" style="float:right;font-size:9px">⚙ Manage</button></label><div class="mat-picker mat-suggest-wrap"><input data-field="coating" id="ed-coat" autocomplete="off" placeholder="Type a name, or click Browse →" oninput="matSuggestFilter('coating')" onkeydown="matSuggestKey(event,'coating')" onblur="matSuggestBlur('coating')" onchange="renderMatDetail('coating');asave()"><button type="button" class="mat-picker-btn" onclick="openMatPicker('coating')">🔍 Browse</button><div class="mat-suggest" id="sug-coating" role="listbox"></div></div><div class="mat-detail" id="detail-coating"></div></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
 <div class="fg"><label>Notes <span style="font-weight:400;color:var(--tx3)">(custom per quote)</span></label><textarea data-field="notes" placeholder="Add any job-specific notes here..." oninput="asave()">${f.notes}</textarea></div>
 <div class="fg"><label>Custom Note for PDF <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label><textarea data-field="customNote" placeholder="Customer requested expedited delivery..." oninput="asave()">${f.customNote||''}</textarea></div>
 <div class="fg"><label>Note Tags <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label>
@@ -2611,6 +2611,146 @@ function openMatPicker(field){
   },20);
 }
 window.openMatPicker=openMatPicker;
+
+// ─── Inline search-as-you-type suggester ────────────────────────────────
+// Stays hidden until the user has typed something that doesn't already
+// match the current value. Click row → picks. Up/Down/Enter/Escape → keyboard nav.
+// Blur with a small delay so click registers before the dropdown closes.
+function matSuggestFilter(field){
+  const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
+  const input=$(conf.inputId);const sug=$('sug-'+field);
+  if(!input||!sug)return;
+  // Also keep the live save + detail card behavior the input had before
+  if(typeof renderMatDetail==='function')renderMatDetail(field);
+  if(typeof asave==='function')asave();
+  const val=(input.value||'').trim();
+  // Hide when input is empty
+  if(!val){sug.classList.remove('open');sug.innerHTML='';return;}
+  // Lazy-load MATS chunk if needed (faceStock/lamination)
+  if((field==='faceStock'||field==='lamination')&&(!MATS||!MATS.length)&&typeof loadChunk==='function'){
+    sug.innerHTML='<div class="mat-suggest-empty">Loading materials catalog…</div>';
+    sug.classList.add('open');
+    loadChunk('mats').then(function(){matSuggestFilter(field)}).catch(function(){});
+    return;
+  }
+  // Build filtered + ranked list
+  const items=_matComboItems(field);
+  const ft=val.toLowerCase();
+  // Score: exact SKU match > SKU starts-with > description starts-with > vendor starts-with > substring
+  const matches=[];
+  items.forEach(function(it){
+    const sku=(it.sku||'').toLowerCase();
+    const desc=(it.desc||'').toLowerCase();
+    const vendor=(it.vendor||'').toLowerCase();
+    let score=-1;
+    if(sku===ft)score=100;
+    else if(sku.indexOf(ft)===0)score=80;
+    else if(desc.indexOf(ft)===0)score=60;
+    else if(vendor.indexOf(ft)===0)score=50;
+    else if(sku.indexOf(ft)>0)score=40;
+    else if(desc.indexOf(ft)>=0)score=30;
+    else if(vendor.indexOf(ft)>=0)score=20;
+    if(score>=0)matches.push({it:it, score:score});
+  });
+  matches.sort(function(a,b){return b.score-a.score});
+  // Cap to 12 visible suggestions so the dropdown stays compact
+  const top=matches.slice(0,12);
+  if(!top.length){
+    sug.innerHTML='<div class="mat-suggest-empty">No matches for "'+esc(val)+'" — Enter to use as custom, or click Browse for full catalog.</div>';
+    sug.classList.add('open');
+    return;
+  }
+  let h='';
+  let idx=0;
+  top.forEach(function(m){
+    const it=m.it;
+    const metaParts=[];
+    if(it.msi!=null && !isNaN(it.msi))metaParts.push('<span class="mat-combo-msi" title="MSI cost">$'+parseFloat(it.msi).toFixed(3)+'</span>');
+    if(it.mk!=null && !isNaN(it.mk))metaParts.push('<span class="mat-combo-mk" title="Markup MSI">$'+parseFloat(it.mk).toFixed(3)+' mk</span>');
+    if(it.vendor)metaParts.push('<span class="mat-combo-vendor" title="Vendor">'+esc(it.vendor)+'</span>');
+    const meta=metaParts.length?'<span class="mat-combo-meta">'+metaParts.join('')+'</span>':'';
+    const desc=it.desc?'<span class="mat-combo-itemdesc">'+_highlightMatch(it.desc, val)+'</span>':'';
+    const srcDot=it.source==='user'?'<span class="mat-suggest-srcdot mat-suggest-srcdot-user" title="User-added"></span>':'<span class="mat-suggest-srcdot mat-suggest-srcdot-catalog" title="Catalog"></span>';
+    h+='<div class="mat-combo-item mat-suggest-item" role="option" data-idx="'+idx+'" data-sku="'+esc(it.sku)+'" onmousedown="event.preventDefault();matSuggestPick(\''+field+'\',\''+esc(it.sku).replace(/'/g,"\\'")+'\')">'
+      +srcDot
+      +'<span class="mat-combo-itemlabel"><span class="mat-combo-sku">'+_highlightMatch(it.sku, val)+'</span>'+desc+'</span>'
+      +meta
+      +'</div>';
+    idx++;
+  });
+  // Footer hint when more matches exist than we showed
+  if(matches.length>top.length){
+    h+='<div class="mat-suggest-more"><button type="button" onmousedown="event.preventDefault();openMatPicker(\''+field+'\')">Show all '+matches.length+' matches in Browse →</button></div>';
+  }
+  sug.innerHTML=h;
+  sug.classList.add('open');
+  // Auto-highlight first item for Enter-to-pick
+  const first=sug.querySelector('.mat-suggest-item');
+  if(first)first.classList.add('hl');
+}
+window.matSuggestFilter=matSuggestFilter;
+// Bold the matching substring in a label — cheap visual cue showing why
+// each suggestion is in the list.
+function _highlightMatch(text, query){
+  if(!text||!query)return esc(text||'');
+  const idx=text.toLowerCase().indexOf(query.toLowerCase());
+  if(idx<0)return esc(text);
+  return esc(text.slice(0,idx))+'<mark class="mat-suggest-mark">'+esc(text.slice(idx, idx+query.length))+'</mark>'+esc(text.slice(idx+query.length));
+}
+window.matSuggestKey=function(e, field){
+  const sug=$('sug-'+field);if(!sug)return;
+  const items=Array.from(sug.querySelectorAll('.mat-suggest-item'));
+  if(e.key==='Escape'){sug.classList.remove('open');sug.innerHTML='';return;}
+  if(!items.length){
+    if(e.key==='Enter'){
+      // Treat typed value as custom — close dropdown but keep value as-is
+      sug.classList.remove('open');
+      const conf=_MAT_COMBO_FIELDS[field];
+      if(conf && (field==='faceStock'||field==='lamination'))edMat(field, field==='faceStock');
+      else if(typeof renderMatDetail==='function')renderMatDetail(field);
+    }
+    return;
+  }
+  const curIdx=items.findIndex(function(el){return el.classList.contains('hl')});
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    items.forEach(function(el){el.classList.remove('hl')});
+    const next=items[Math.min(curIdx+1, items.length-1)]||items[0];
+    next.classList.add('hl');
+    try{next.scrollIntoView({block:'nearest'})}catch(_){}
+  } else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    items.forEach(function(el){el.classList.remove('hl')});
+    const prev=items[Math.max(curIdx-1, 0)]||items[items.length-1];
+    prev.classList.add('hl');
+    try{prev.scrollIntoView({block:'nearest'})}catch(_){}
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    if(curIdx>=0){
+      const sku=items[curIdx].getAttribute('data-sku');
+      matSuggestPick(field, sku);
+    }
+  }
+};
+window.matSuggestPick=function(field, sku){
+  const conf=_MAT_COMBO_FIELDS[field];if(!conf)return;
+  const input=$(conf.inputId);if(!input)return;
+  input.value=sku;
+  const sug=$('sug-'+field);if(sug){sug.classList.remove('open');sug.innerHTML='';}
+  if(field==='faceStock'||field==='lamination'){
+    edMat(field, field==='faceStock');
+  } else {
+    if(typeof renderMatDetail==='function')renderMatDetail(field);
+    if(typeof asave==='function')asave();
+  }
+};
+window.matSuggestBlur=function(field){
+  // Delay close so item onmousedown / onclick can fire first
+  setTimeout(function(){
+    const sug=$('sug-'+field);if(!sug)return;
+    sug.classList.remove('open');
+  }, 150);
+};
 
 // Render the filtered list inside the modal's #matPickerList container.
 function _renderMatPickerList(field, filterText){

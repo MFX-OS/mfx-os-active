@@ -539,10 +539,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 
 .mat-wrap{background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:8px;margin-bottom:6px}
 .mat-msi{font-variant-numeric:tabular-nums;color:var(--ac);font-weight:600}
 
-/* ─── Material picker — input bar + Browse button → opens modal ──────────
-   Replaces the inline combobox dropdown. User explicitly wanted the list
-   hidden completely; picking now happens through a modal (die-select pattern).
+/* ─── Material picker — input + Browse button + inline suggester ────────
+   Two surfaces for picking a material:
+   1. Browse button → opens full modal picker (showSpecManager pattern)
+   2. As-you-type suggester (mat-suggest) → inline dropdown of top matches
+   When idle (input empty) nothing shows below the input.
 */
+.mat-suggest-wrap{position:relative}
 .mat-picker{
   display:flex;align-items:stretch;gap:6px;
   width:100%;
@@ -561,6 +564,65 @@ input:focus,select:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 
   white-space:nowrap;
 }
 .mat-picker-btn:hover{background:var(--ac);color:#000;border-color:var(--ac)}
+
+/* Inline as-you-type suggester */
+.mat-suggest{
+  position:absolute;
+  top:calc(100% + 4px);left:0;right:0;
+  z-index:60;
+  max-height:340px;overflow-y:auto;
+  background:linear-gradient(180deg, var(--bg2), var(--bg));
+  border:1px solid rgba(0,229,255,.35);
+  border-radius:10px;
+  box-shadow:
+    0 12px 32px rgba(0,0,0,.55),
+    0 0 0 1px rgba(0,229,255,.08);
+  display:none;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  animation:matSuggestIn .18s cubic-bezier(.2,.8,.2,1);
+}
+.mat-suggest.open{display:block}
+@keyframes matSuggestIn{
+  from{opacity:0;transform:translateY(-4px) scale(.985)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.mat-suggest-empty{
+  padding:14px 14px;
+  font-size:11px;color:var(--tx3);font-style:italic;text-align:center;
+  line-height:1.4;
+}
+.mat-suggest-item{
+  position:relative;
+  padding:9px 12px 9px 22px;  /* extra left padding for source dot */
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+.mat-suggest-item:last-child{border-bottom:none}
+.mat-suggest-srcdot{
+  position:absolute;left:8px;top:50%;
+  width:6px;height:6px;border-radius:50%;
+  transform:translateY(-50%);
+}
+.mat-suggest-srcdot-catalog{background:#00b8d4;box-shadow:0 0 6px rgba(0,229,255,.6)}
+.mat-suggest-srcdot-user{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.6)}
+.mat-suggest-mark{
+  background:rgba(0,229,255,.22);
+  color:var(--tx);
+  padding:0 1px;
+  border-radius:2px;
+}
+.mat-suggest-more{
+  padding:8px 12px;
+  text-align:center;
+  border-top:1px solid var(--bdr);
+  background:var(--bg3);
+}
+.mat-suggest-more button{
+  background:none;border:none;
+  color:var(--ac);font-size:10px;font-weight:600;
+  cursor:pointer;padding:4px 8px;border-radius:4px;
+}
+.mat-suggest-more button:hover{background:rgba(0,229,255,.12)}
 
 /* Modal picker list — reuses .mat-combo-* item styles inside #matPickerList */
 #matPickerList .mat-combo-group{
