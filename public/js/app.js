@@ -3233,6 +3233,13 @@ function fillEmailTpl(){var i=parseInt(($('em-tpl')||{}).value||0);var t=window.
 function sendQuoteEmail(){
 var to=($('em-to')||{}).value;var subj=($('em-subj')||{}).value;var body=($('em-body')||{}).value;
 if(!to)return toast('Email required','err');
+// Always BCC the internal distro list and the quotes archive — staff visibility
+// + searchable archive. User-typed Cc/Bcc inputs (em-cc / em-bcc) get appended.
+var cc=(($('em-cc')||{}).value||'').trim();
+var userBcc=(($('em-bcc')||{}).value||'').trim();
+var bccList=['team@microflexfilm.com','quotes@microflexfilm.com'];
+if(userBcc) bccList.push(userBcc);
+var bcc=bccList.join(', ');
 var q=getQ(S.editId);
 toast('Generating PDF for attachment...','ok');
 generateQuotePDF(q).then(function(pdf){
@@ -3240,7 +3247,10 @@ generateQuotePDF(q).then(function(pdf){
 var boundary='mfx_boundary_'+Date.now();
 var htmlBody='<table cellpadding="0" cellspacing="0" width="100%" style="max-width:660px;margin:0 auto;font-family:Arial,sans-serif;background:#060d14"><tr><td style="height:3px;background:#00e5ff;font-size:0">&nbsp;</td></tr><tr><td style="padding:16px 24px;text-align:center;border-bottom:1px solid #0f1d2b"><div style="font-size:24px;font-weight:900;color:#e0f2fe">Microflex</div><div style="width:70px;height:2px;background:#00e5ff;margin:4px auto"></div><div style="font-size:8px;color:#00838f;letter-spacing:4px">FILM CORPORATION</div></td></tr><tr><td style="padding:5px 24px;background:#0a2e3e;text-align:center;font-size:7px;color:#00e5ff;letter-spacing:1px;border-bottom:1px solid #0f1d2b">FLEXIBLE PACKAGING &nbsp;|&nbsp; LABELS &nbsp;|&nbsp; POUCHES &nbsp;|&nbsp; SHRINK SLEEVES</td></tr><tr><td style="padding:16px 24px;font-size:14px;color:#94a3b8;line-height:1.6">'+body.replace(/\n/g,'<br>')+'</td></tr><tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?q='+q.quoteNum+'" style="display:block;text-align:center;padding:14px;border-radius:6px;font-size:14px;font-weight:700;text-decoration:none;background-color:#00e5ff;color:#060d14">Approve Quote &amp; Submit PO</a></td></tr><tr><td style="padding:10px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation &middot; 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 &middot; Quotes@MicroflexFilm.com<br>SQF Certified | Made in USA</td></tr></table>';
 var raw='Content-Type: multipart/mixed; boundary="'+boundary+'"\r\n';
-raw+='To: '+to+'\r\nSubject: '+subj+'\r\nMIME-Version: 1.0\r\n\r\n';
+raw+='To: '+to+'\r\n';
+if(cc)raw+='Cc: '+cc+'\r\n';
+raw+='Bcc: '+bcc+'\r\n';
+raw+='Subject: '+subj+'\r\nMIME-Version: 1.0\r\n\r\n';
 raw+='--'+boundary+'\r\n';
 raw+='Content-Type: text/html; charset=utf-8\r\n\r\n';
 raw+=htmlBody+'\r\n\r\n';
@@ -3255,11 +3265,18 @@ getGoogleToken().then(function(token){if(!token)return toast('Gmail not connecte
 fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{
 method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
 body:JSON.stringify({raw:encoded})
-}).then(function(r){return r.json()}).then(function(data){
-if(data.id){toast('Email sent with PDF!','ok');closeModal();updateRegistry(S.editId,'Emailed');
-if(q){q.sentAt=q.sentAt||new Date().toISOString();if(!q.workflow)q.workflow={};q.workflow.emailSent=true;q.workflow.registryUpdated=true;if(!q.internalNotes)q.internalNotes=[];q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+to+' with PDF attached - '+subj,by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});var all=DB.quotes();DB.saveQ(all,q.id);if(typeof renderWorkflow==='function')renderWorkflow()}}
-else{toast('Email error','err')}
-}).catch(function(e){toast('Error: '+e.message,'err')})}
+}).then(function(r){
+  return r.json().then(function(data){return {ok:r.ok, status:r.status, data:data};});
+}).then(function(resp){
+if(resp.ok && resp.data && resp.data.id){
+  toast('Email sent ✓ BCC: team@ + quotes@ — verify in Sent folder','ok');closeModal();updateRegistry(S.editId,'Emailed');
+  if(q){q.sentAt=q.sentAt||new Date().toISOString();if(!q.workflow)q.workflow={};q.workflow.emailSent=true;q.workflow.registryUpdated=true;if(!q.internalNotes)q.internalNotes=[];q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+to+' (BCC: '+bcc+') with PDF attached - '+subj,by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});var all=DB.quotes();DB.saveQ(all,q.id);if(typeof renderWorkflow==='function')renderWorkflow()}
+} else {
+  var errMsg=(resp.data&&resp.data.error&&resp.data.error.message)||('HTTP '+resp.status);
+  console.error('[sendQuoteEmail] FAILED', resp);
+  toast('Email failed: '+errMsg+' — see browser console','err');
+}
+}).catch(function(e){console.error('[sendQuoteEmail] network error:',e);toast('Error: '+e.message,'err')})}
 )}).catch(function(e){toast('PDF error: '+e,'err')})}
 
 function sendAndSaveToDrive(){

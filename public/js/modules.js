@@ -1619,14 +1619,26 @@ raw+='--'+boundary+'\r\nContent-Type: text/html; charset="UTF-8"\r\n\r\n'+htmlBo
 raw+='--'+boundary+'\r\nContent-Type: application/pdf; name="'+pdf.filename+'"\r\nContent-Disposition: attachment; filename="'+pdf.filename+'"\r\nContent-Transfer-Encoding: base64\r\n\r\n'+pdf.base64+'\r\n';
 raw+='--'+boundary+'--';
 var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({raw:encoded})}).then(function(r){return r.json()}).then(function(data){
+console.log('[Gmail send] To:', ov.to, '| Cc:', ov.cc||'(none)', '| Bcc:', ov.bcc||'(none)', '| From:', ov.from||'(default)');
+fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({raw:encoded})}).then(function(r){
+  return r.json().then(function(data){
+    return {ok:r.ok, status:r.status, data:data};
+  });
+}).then(function(resp){
 window._mfxSending=false;
-if(data.id){toast('Sent to '+ov.to+'!','ok');window._lastSentTo=ov.to;
-if(q){setQStatus(q.id,'sent');q=getQ(S.editId);if(q){q.sentAt=q.sentAt||new Date().toISOString();if(!q.workflow)q.workflow={};q.workflow.emailSent=true;q.workflow.registryUpdated=true;if(!q.internalNotes)q.internalNotes=[];q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+ov.to+' with PDF attached',by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});logQuoteEvent(q,'email','Emailed to '+ov.to);upsertRegistryRow(q.id,'Emailed to '+ov.to);var all=DB.quotes();DB.saveQ(all,q.id);MFX.emit('quote.sent',{quote:q,pdf:pdf,token:token,to:ov.to,cc:ov.cc||'',bcc:ov.bcc||'',from:ov.from||''});// Archive the EXTERNAL (client-facing) PDF that matches what the client just received in email.
+console.log('[Gmail send] response:', resp);
+if(resp.ok && resp.data && resp.data.id){
+toast('Sent! ✓ Check Sent folder to confirm BCC delivery to team@ + quotes@','ok');window._lastSentTo=ov.to;
+if(q){setQStatus(q.id,'sent');q=getQ(S.editId);if(q){q.sentAt=q.sentAt||new Date().toISOString();if(!q.workflow)q.workflow={};q.workflow.emailSent=true;q.workflow.registryUpdated=true;if(!q.internalNotes)q.internalNotes=[];q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+ov.to+(ov.bcc?' (BCC: '+ov.bcc+')':'')+' with PDF attached',by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});logQuoteEvent(q,'email','Emailed to '+ov.to);upsertRegistryRow(q.id,'Emailed to '+ov.to);var all=DB.quotes();DB.saveQ(all,q.id);MFX.emit('quote.sent',{quote:q,pdf:pdf,token:token,to:ov.to,cc:ov.cc||'',bcc:ov.bcc||'',from:ov.from||''});// Archive the EXTERNAL (client-facing) PDF that matches what the client just received in email.
 setTimeout(function(){if(typeof saveQuoteToDrive==='function')saveQuoteToDrive('external')},500)}}
 renderSendPane();if(typeof renderWorkflow==='function')renderWorkflow()}
-else{toast('Email error: '+(data.error&&data.error.message||'Unknown'),'err')}
-}).catch(function(e){window._mfxSending=false;toast('Send failed: '+e.message,'err')})
+else{
+// Gmail API errored. Surface the full error so it isn't silently lost.
+var errMsg=(resp.data&&resp.data.error&&resp.data.error.message)||resp.data&&resp.data.error||('HTTP '+resp.status);
+console.error('[Gmail send] FAILED', resp);
+toast('Email failed: '+errMsg+' — see browser console','err');
+}
+}).catch(function(e){window._mfxSending=false;console.error('[Gmail send] network error:',e);toast('Send failed: '+e.message,'err')})
 }).catch(function(e){window._mfxSending=false;toast('Token error','err')})}).catch(function(e){window._mfxSending=false;toast('PDF error: '+e.message,'err')})
 },200);
 window._sendOverride=null;
