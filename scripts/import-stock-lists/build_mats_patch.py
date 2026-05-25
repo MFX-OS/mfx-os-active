@@ -21,9 +21,14 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
-CORE_PATH = os.path.join(PROJECT_ROOT, 'public', 'js', 'core.js')
+# PERF-15 (2026-05-24): MATS literal moved from core.js to mats-data.js as part
+# of the lazy-chunk split. Script now targets mats-data.js's `var data = [...]`.
+CORE_PATH = os.path.join(PROJECT_ROOT, 'public', 'js', 'mats-data.js')
 NEW_JSON = os.path.join(HERE, 'new_mats.json')
 BACKUP_DIR = os.path.join(HERE, 'backups')
+# The mats-data.js literal is declared as `var data = [` rather than the old
+# `const MATS = [`. Override the regex used by main() below.
+MATS_LITERAL_REGEX = r'var\s+data\s*=\s*\['
 
 
 def fmt_entry(e):
@@ -66,9 +71,9 @@ def main():
     with open(CORE_PATH, 'r', encoding='utf-8') as f:
         src = f.read()
 
-    m = re.search(r'const\s+MATS\s*=\s*\[', src)
+    m = re.search(MATS_LITERAL_REGEX, src)
     if not m:
-        sys.exit('FATAL: could not find `const MATS=[` in core.js')
+        sys.exit(f'FATAL: could not find materials literal matching {MATS_LITERAL_REGEX!r} in {CORE_PATH}')
     literal_start = m.end() - 1  # the '['
     # Walk to matching ']'
     depth = 0
@@ -126,13 +131,14 @@ def main():
     new_src = src[:literal_start] + new_literal + src[literal_end + 1:]
 
     ts = datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')
-    backup_path = os.path.join(BACKUP_DIR, f'core.js.before-mats-import-{ts}.bak')
+    backup_name = os.path.basename(CORE_PATH) + f'.before-mats-import-{ts}.bak'
+    backup_path = os.path.join(BACKUP_DIR, backup_name)
     shutil.copy2(CORE_PATH, backup_path)
     print(f'Backup: {backup_path}')
 
     with open(CORE_PATH, 'w', encoding='utf-8') as f:
         f.write(new_src)
-    print(f'core.js: {len(src):,} -> {len(new_src):,} bytes (+{len(new_src)-len(src):,})')
+    print(f'{os.path.basename(CORE_PATH)}: {len(src):,} -> {len(new_src):,} bytes (+{len(new_src)-len(src):,})')
     print('Done.')
 
 
