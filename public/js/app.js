@@ -36,8 +36,11 @@ goView(v);
 window._navLocked=false;
 updateNavArrows()}
 
-function markDirty(){window._viewDirty=true;var si=$('saveIndicator');if(si){si.style.display='block';si.textContent='● unsaved'}}
-function markClean(){window._viewDirty=false;var si=$('saveIndicator');if(si)si.style.display='none'}
+// Route through unified save-state helper (defined in core.js) so the indicator
+// doesn't fight DB.saveQ's 'saving/saved' transitions. dirty == user has
+// unsaved keystrokes; clean == flushed.
+function markDirty(){window._viewDirty=true;if(window.setSaveState)window.setSaveState('dirty');}
+function markClean(){window._viewDirty=false;if(window.setSaveState)window.setSaveState('idle');}
 window.markDirty=markDirty;window.markClean=markClean;
 
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
@@ -2163,8 +2166,16 @@ function savePOFields(qid){
   q.poInstructions=v('po-instructions');q.poRequiredDate=v('po-reqDate');
   q.fields.payTerms=v('po-terms');
   q.updatedAt=new Date().toISOString();
-  // Auto-set status to won if PO entered
-  if(q.poNumber&&q.status==='sent'){q.status='won';toast('Status → Won (PO received)','ok')}
+  // Auto-set status to won if PO entered — confirm first, this triggers SO auto-creation downstream
+  if(q.poNumber&&q.status==='sent'){
+    var totalStr=q.poSelectedTotal?(' for $'+Number(q.poSelectedTotal).toLocaleString()):'';
+    if(!confirm('Mark quote '+q.quoteNum+' as WON'+totalStr+'?\n\nThis will:\n  • Promote status: Sent → Won\n  • Auto-create a Sales Order from the PO data\n  • Notify the team\n\nThis cannot be undone from the UI.')){
+      // User declined the promotion — still save PO fields, just don't flip status
+      DB.saveQ(all,qid);toast('PO data saved (status unchanged)','ok');renderEditor();
+      return;
+    }
+    q.status='won';toast('Status → Won (PO received)','ok');
+  }
   DB.saveQ(all,qid);toast('PO data saved','ok');renderEditor();
 }
 function togglePPCheck(qid,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};if(!q.prePress.checklist)q.prePress.checklist={};q.prePress.checklist[key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid)}
@@ -2181,12 +2192,76 @@ window.updateArtStatus=updateArtStatus;window.saveArtNotes=saveArtNotes;
 window.initPortalMsgListener=initPortalMsgListener;window.sendInlinePortalMsg=sendInlinePortalMsg;
 window.savePOFields=savePOFields;window.poFieldChange=poFieldChange;
 
+// ─── Inline field error helpers ────────────────────────────────────────────
+// Adds red border + helper text under a field. Use clearFieldErrors() before
+// re-validating, and call fieldError(domId, msg) per failure. Use jumpToTab()
+// so the user is shown the tab containing the first failing field.
+window.fieldError = function(domId, msg){
+  var el = document.querySelector('[data-field="'+domId+'"]') || document.getElementById(domId);
+  if(!el) return false;
+  el.classList.add('mfx-field-error');
+  el.setAttribute('aria-invalid','true');
+  // Insert error span right after the field (or replace if one already exists)
+  var existing = el.parentElement && el.parentElement.querySelector('.mfx-field-error-msg');
+  if(existing) existing.textContent = msg;
+  else {
+    var span = document.createElement('div');
+    span.className = 'mfx-field-error-msg';
+    span.textContent = msg;
+    span.setAttribute('role','alert');
+    if(el.parentElement) el.parentElement.appendChild(span);
+  }
+  // Auto-clear when the user starts fixing it
+  if(!el._mfxErrorCleaner){
+    el._mfxErrorCleaner = function(){ window.clearFieldError(domId); };
+    el.addEventListener('input', el._mfxErrorCleaner, {once:true});
+    el.addEventListener('change', el._mfxErrorCleaner, {once:true});
+  }
+  return true;
+};
+window.clearFieldError = function(domId){
+  var el = document.querySelector('[data-field="'+domId+'"]') || document.getElementById(domId);
+  if(!el) return;
+  el.classList.remove('mfx-field-error');
+  el.removeAttribute('aria-invalid');
+  var existing = el.parentElement && el.parentElement.querySelector('.mfx-field-error-msg');
+  if(existing) existing.remove();
+};
+window.clearFieldErrors = function(){
+  document.querySelectorAll('.mfx-field-error').forEach(function(el){
+    el.classList.remove('mfx-field-error');
+    el.removeAttribute('aria-invalid');
+  });
+  document.querySelectorAll('.mfx-field-error-msg').forEach(function(el){ el.remove(); });
+};
+
 function _validateQuoteForSubmit(q){
-if(!q.fields.custCo || !q.fields.custCo.trim()) { toast('Customer company is required','err'); return false; }
-if(!q.fields.estimator || !q.fields.estimator.trim()) { toast('Estimator is required','err'); return false; }
-if(!q.qtys || q.qtys.length === 0) { toast('Add at least one quantity','err'); return false; }
-if(!q.fields.sA && !q.fields.sar) { toast('Product dimensions required','err'); return false; }
-return true;}
+  window.clearFieldErrors();
+  var failures = [];
+  // tab index per field — switch the user to the first failing tab
+  if(!q.fields.custCo || !q.fields.custCo.trim()) { failures.push({id:'custCo', tab:0, msg:'Customer company is required'}); }
+  if(!q.fields.estimator || !q.fields.estimator.trim()) { failures.push({id:'estimator', tab:0, msg:'Estimator is required'}); }
+  if(!q.fields.sA && !q.fields.sar) { failures.push({id:'sA', tab:1, msg:'Size Across or Size Around required'}); }
+  if(!q.qtys || q.qtys.length === 0) { failures.push({id:null, tab:4, msg:'Add at least one quantity in the Matrix tab'}); }
+  if(failures.length === 0) return true;
+  // Switch to the tab containing the first failing field
+  if(typeof S !== 'undefined' && typeof renderEditor === 'function' && failures[0].tab !== undefined && S.etab !== failures[0].tab){
+    S.etab = failures[0].tab;
+    renderEditor();
+    // Apply errors after re-render so the DOM exists
+    setTimeout(function(){ failures.forEach(function(f){ if(f.id) window.fieldError(f.id, f.msg); else toast(f.msg, 'err'); }); _focusFirstError(); }, 100);
+  } else {
+    failures.forEach(function(f){ if(f.id) window.fieldError(f.id, f.msg); else toast(f.msg, 'err'); });
+    _focusFirstError();
+  }
+  // One short toast as a top-level cue
+  toast(failures.length + (failures.length>1?' fields need attention':' field needs attention'), 'err');
+  return false;
+}
+function _focusFirstError(){
+  var first = document.querySelector('.mfx-field-error');
+  if(first){ try{ first.focus(); first.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){} }
+}
 function submitForApproval(qid){
   // APPROVAL REMOVAL (2026-05-24): internal CEO approval gate removed at
   // user request. Kept as compat shim so any leftover caller (gamification
@@ -2196,6 +2271,7 @@ function submitForApproval(qid){
 }
 function markReadyDirect(qid){const all=DB.quotes();const q=all.find(x=>x.id===qid);if(!q)return;
 if(!_validateQuoteForSubmit(q))return;
+if(!confirm('Mark quote '+q.quoteNum+' as READY?\n\nThis notifies the team and opens the Send tab. Status is reversible from the editor but the team notification cannot be undone.'))return;
 q.status='ready';q.approvedBy=getUserName();q.approvedAt=new Date().toISOString();q.updatedAt=new Date().toISOString();if(typeof bakePricing==='function')bakePricing(q);logQuoteEvent(q,'status','Marked ready (skipped approval)');DB.saveQ(all,qid);DB.logActivity('quote.ready',q.quoteNum+' marked ready by '+getUserName());toast('Quote is Ready!','ok');notifyTeam('✅ '+q.quoteNum+' ready — '+getUserName());if(S.view==='editor'){S.etab=6;renderEditor();setTimeout(renderSendPane,100)}else{renderQuotes()}}
 function quickApprove(qid){const all=DB.quotes();const q=all.find(x=>x.id===qid);if(!q)return;
 q.status='ready';q.approvedBy=getUserName();q.approvedAt=new Date().toISOString();q.updatedAt=new Date().toISOString();

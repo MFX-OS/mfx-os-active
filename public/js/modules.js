@@ -387,7 +387,7 @@ pg.innerHTML=
 // ═══ FOOTER ═══
 +'<div style="padding:5px 24px;background:#f5f7f9;display:flex;justify-content:space-between;align-items:center"><div style="font-size:7px;color:#7a8a98;font-weight:600"><b style="color:#0a2e3e;font-weight:800">'+clientCode+'</b><br>'+(f.custCo||'')+'</div><div style="text-align:center;flex:1"><div style="font-family:Outfit,sans-serif;font-size:9px"><b style="font-weight:900;color:#0a2e3e">Microflex</b> <span style="font-weight:200;color:#5a7888">Film Corporation</span></div><div style="font-size:5px;color:#94a3b0">4130 Garner Rd · Riverside, CA 92501 · (909) 360-9066 · MicroflexFilm.com</div></div><div style="font-size:7px;color:#7a8a98;font-weight:600;text-align:right"><b style="color:#0a2e3e;font-weight:800">'+q.quoteNum+'</b><br>Rev '+q.rev+'</div></div>'}
 
-let _st=null;function asave(){clearTimeout(_st);_st=setTimeout(()=>{saveQ();edCalcAll()},300)}
+let _st=null;function asave(){if(window.setSaveState)window.setSaveState('dirty');clearTimeout(_st);_st=setTimeout(()=>{saveQ();edCalcAll()},300)}
 function doPrint(){saveQ();const q=getQ(S.editId);if(!q||!q.fields.estimator){toast('Estimator required','err');return}S.etab=5;renderEditor();
 const orient=$('printOrientation')?$('printOrientation').value:'landscape';
 document.body.className='print-'+orient;
@@ -442,11 +442,14 @@ ${approved.slice(0,10).map(q=>`<div style="padding:6px 0;border-bottom:1px solid
 <div style="font-size:11px;color:var(--tx2);line-height:2">Total: <strong>${all.length}</strong> · Draft: <strong>${all.filter(q=>q.status==='draft').length}</strong> · Pending: <strong>${pending.length}</strong> · Sent: <strong>${all.filter(q=>q.status==='sent').length}</strong> · Won: <strong>${all.filter(q=>q.status==='won').length}</strong> · Lost: <strong>${all.filter(q=>q.status==='lost').length}</strong></div>
 </div></div>`}
 
-function ceoAction(qid,action){
+function ceoAction(qid,action,btnEl){
 if(!window.MFX_API||navigator.onLine===false){return toast('Approval requires server connection — go online and retry','err')}
+// Capture click event target as fallback so onclick="ceoAction(...)" without an explicit
+// button arg still gets the spinner.
+var btn = btnEl || (window.event && window.event.target);
 var ceoNote = action==='approve' ? prompt('Approval notes (optional):') : prompt('Rejection reason:');
 if(ceoNote === null && action==='reject') return;
-window.MFX_API.postJSON('/api/ceoApprove',{docId:qid,collection:'quotes',action:action,note:ceoNote||''}).then(function(res){
+window.MFX_API.postJSON('/api/ceoApprove',{docId:qid,collection:'quotes',action:action,note:ceoNote||''}, btn).then(function(res){
   if(res.success){
     toast(action==='approve'?'Approved → Ready!':'Rejected','ok');
     DB.logActivity('ceo.'+action,(DB.quotes().find(function(q){return q.id===qid})||{}).quoteNum+' '+action+' by server');

@@ -367,6 +367,9 @@ function approveSO(soId){
   }
 
   var so=getSO(soId);if(!so)return;
+  var totalStr=so.total?(' for $'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})):'';
+  if(!confirm('Approve Sales Order '+so.soNum+totalStr+'?\n\nClient: '+(so.company||'?')+'\nPO#: '+(so.poNumber||'—')+'\n\nApproved SOs become eligible to send. This action is logged with your name.'))return;
+
   so.status='approved';
   so.approvedBy=getUserName();
   so.approvedAt=new Date().toISOString();

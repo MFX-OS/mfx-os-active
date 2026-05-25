@@ -471,16 +471,44 @@ window.getMFXAuthHeaders=function(){
 // Dependencies: getMFXAuthHeaders, window.GTOKEN, fetch API
 // ═══════════════════════════════════════════════════════════════
 
+// ─── Network button loading state helper ────────────────────────────────
+// Disables a button + adds spinner class for the duration of an async op.
+// Safe to call without a button (no-op); button may be a DOM element or id.
+window.withButtonLoading = function(btn, promiseFactory){
+  var el = (typeof btn === 'string') ? document.getElementById(btn) : btn;
+  if(el && el.tagName){
+    el.disabled = true;
+    el.classList.add('mfx-btn-loading');
+    el.setAttribute('aria-busy','true');
+  }
+  var clear = function(){
+    if(el && el.tagName){
+      el.disabled = false;
+      el.classList.remove('mfx-btn-loading');
+      el.removeAttribute('aria-busy');
+    }
+  };
+  var p;
+  try { p = promiseFactory(); } catch(e){ clear(); return Promise.reject(e); }
+  if(!p || typeof p.then !== 'function'){ clear(); return Promise.resolve(p); }
+  return p.then(function(v){ clear(); return v; }, function(e){ clear(); throw e; });
+};
+
 window.MFX_API={
-  postJSON:function(url,body){
-    return window.getMFXAuthHeaders().then(function(headers){
-      return fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body||{})});
-    }).then(function(r){
-      return r.json().catch(function(){ return {}; }).then(function(data){
-        if(!r.ok) throw new Error(data.error||('Request failed: '+r.status));
-        return data;
+  // postJSON(url, body, btnEl?) — if btnEl is passed, button is disabled with
+  // spinner during the request (cleared on settle).
+  postJSON:function(url,body,btnEl){
+    var doFetch = function(){
+      return window.getMFXAuthHeaders().then(function(headers){
+        return fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body||{})});
+      }).then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(data){
+          if(!r.ok) throw new Error(data.error||('Request failed: '+r.status));
+          return data;
+        });
       });
-    });
+    };
+    return btnEl ? window.withButtonLoading(btnEl, doFetch) : doFetch();
   }
 };
 window.requestServerNumber=function(kind,fallbackFactory){
@@ -529,27 +557,55 @@ function showUserMenu(){openModal('<div class="modal-title">'+getUserName()+'</d
 
 const _cache={quotes:null,customers:null,templates:null};let _ready=false;
 
+// ─── Unified save state indicator ──────────────────────────────────────────
+// One source of truth for the top-bar save chip. Replaces ad-hoc writes from
+// DB.saveQ / markDirty / markClean that used to fight each other.
+// States: 'dirty' | 'saving' | 'saved' | 'error' | 'idle'
+window.setSaveState = function(state, msg){
+  var si = document.getElementById('saveIndicator');
+  if(!si) return;
+  clearTimeout(window._saveStateTimer);
+  switch(state){
+    case 'dirty':
+      si.style.display='block'; si.textContent=msg||'● Unsaved'; si.style.color='var(--or)'; break;
+    case 'saving':
+      si.style.display='block'; si.textContent=msg||'Saving…'; si.style.color='var(--tx3)'; break;
+    case 'saved':
+      si.style.display='block'; si.textContent=msg||'✓ Saved'; si.style.color='var(--gn)';
+      window._saveStateTimer=setTimeout(function(){ si.style.display='none'; }, 2000); break;
+    case 'error':
+      si.style.display='block'; si.textContent=msg||'⚠ Save failed'; si.style.color='var(--rd)'; break;
+    case 'idle':
+    default:
+      si.style.display='none'; break;
+  }
+};
+
 const DB={
 quotes(){return _cache.quotes||[]},
 customers(){return _cache.customers||[]},
 templates(){return _cache.templates||[]},
-saveQ(quotes,changedId){var si=document.getElementById('saveIndicator');if(si){si.textContent='Saving...';si.style.display='block';si.style.color='var(--tx3)'}
+saveQ(quotes,changedId){window.setSaveState('saving');
 var toSave=changedId?quotes.filter(function(q){return q.id===changedId}):quotes;
-toSave.forEach(q=>{q.updatedBy=getUserName();q.updatedById=getUserId();q.updatedAt=new Date().toISOString();if(!q.createdBy){q.createdBy=getUserName();q.createdById=getUserId()}firestoreRetry(function(){ return fbDb.collection('quotes').doc(q.id).set(q,{merge:true}); }).catch(function(e){ console.error('saveQ:',e); if(typeof toast==='function') toast('Save failed — check connection','err'); if(si){si.textContent='Save failed';si.style.color='var(--rd)'} })});_cache.quotes=quotes;setTimeout(function(){if(si){si.textContent='Saved';si.style.color='var(--gn)';setTimeout(function(){si.style.display='none'},2000)}},500)},
+var anyFailed=false;
+var settled=0;var total=toSave.length;
+toSave.forEach(q=>{q.updatedBy=getUserName();q.updatedById=getUserId();q.updatedAt=new Date().toISOString();if(!q.createdBy){q.createdBy=getUserName();q.createdById=getUserId()}firestoreRetry(function(){ return fbDb.collection('quotes').doc(q.id).set(q,{merge:true}); }).then(function(){ settled++; if(settled===total && !anyFailed) window.setSaveState('saved'); }).catch(function(e){ console.error('saveQ:',e); anyFailed=true; settled++; if(typeof toast==='function') toast('Save failed — check connection','err'); window.setSaveState('error'); })});_cache.quotes=quotes;},
 saveC(cs,changedId){
   // DATA-14 fix (2026-05-24): if caller passes changedId, write only that
   // doc. Concurrent users editing different customers no longer overwrite
   // each other. Legacy mode (no changedId) batch-writes everything as
   // before. Recommended: callers should always pass the changed customer's
   // id when known.
+  window.setSaveState('saving');
   if(changedId){
     var changed = cs.find(function(x){return x.id === changedId;});
     if(changed){
       firestoreRetry(function(){
         return fbDb.collection('customers').doc(changed.id).set(changed, {merge:true});
-      }).catch(function(e){ console.error('saveC('+changedId+'):',e); if(typeof toast==='function') toast('Save failed — check connection','err'); });
+      }).then(function(){ window.setSaveState('saved'); }).catch(function(e){ console.error('saveC('+changedId+'):',e); if(typeof toast==='function') toast('Save failed — check connection','err'); window.setSaveState('error'); });
     } else {
       console.warn('saveC: changedId '+changedId+' not found in cs array — falling back to batch');
+      window.setSaveState('idle');
     }
     _cache.customers = cs;
     return;
@@ -557,12 +613,12 @@ saveC(cs,changedId){
   // Legacy: write the whole list (kept for callers that don't know which one changed)
   const b = fbDb.batch();
   cs.forEach(function(c){ b.set(fbDb.collection('customers').doc(c.id), c); });
-  firestoreRetry(function(){ return b.commit(); }).catch(function(e){ console.error('saveC batch:',e); if(typeof toast==='function') toast('Save failed — check connection','err'); });
+  firestoreRetry(function(){ return b.commit(); }).then(function(){ window.setSaveState('saved'); }).catch(function(e){ console.error('saveC batch:',e); if(typeof toast==='function') toast('Save failed — check connection','err'); window.setSaveState('error'); });
   _cache.customers = cs;
 },
-saveT(ts){const b=fbDb.batch();ts.forEach(t=>b.set(fbDb.collection('quoteTemplates').doc(t.id),t));firestoreRetry(function(){ return b.commit(); }).catch(function(e){ console.error('saveT:',e); if(typeof toast==='function') toast('Save failed — check connection','err'); });_cache.templates=ts},
+saveT(ts){window.setSaveState('saving');const b=fbDb.batch();ts.forEach(t=>b.set(fbDb.collection('quoteTemplates').doc(t.id),t));firestoreRetry(function(){ return b.commit(); }).then(function(){ window.setSaveState('saved'); }).catch(function(e){ console.error('saveT:',e); if(typeof toast==='function') toast('Save failed — check connection','err'); window.setSaveState('error'); });_cache.templates=ts},
 logActivity(action,detail){fbDb.collection('activity').add({action:action,detail:detail,user:getUserName(),userId:getUserId(),timestamp:new Date().toISOString(),source:'client'}).catch(e=>console.error('log:',e))},
-delDoc(col,id){if(window.MFXAudit)window.MFXAudit.delete(col,id);firestoreRetry(function(){ return fbDb.collection(col).doc(id).delete(); }).catch(function(e){ console.error('delDoc:',e); if(typeof toast==='function') toast('Save failed — check connection','err'); })}
+delDoc(col,id){if(window.MFXAudit)window.MFXAudit.delete(col,id);window.setSaveState('saving');firestoreRetry(function(){ return fbDb.collection(col).doc(id).delete(); }).then(function(){ window.setSaveState('saved','✓ Deleted'); }).catch(function(e){ console.error('delDoc:',e); if(typeof toast==='function') toast('Save failed — check connection','err'); window.setSaveState('error'); })}
 };
 
 // PERF-01/02/03 fix (2026-05-24): Bounded listeners.

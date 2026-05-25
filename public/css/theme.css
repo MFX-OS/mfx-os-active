@@ -1102,3 +1102,46 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
   .ic-compact-msg div[style*="max-width:78%"]{max-width:88%!important}
   .ic-mobile-menu-btn{display:inline!important}
 }
+
+/* ─── Inline field validation errors ───────────────────────────────────── */
+.mfx-field-error{
+  border:1.5px solid var(--rd) !important;
+  background:rgba(239,68,68,.06) !important;
+  box-shadow:0 0 0 3px rgba(239,68,68,.12) !important;
+  transition:border-color .15s, box-shadow .15s, background .15s;
+}
+.mfx-field-error-msg{
+  font-size:10px;
+  font-weight:600;
+  color:var(--rd);
+  margin-top:3px;
+  display:flex;
+  align-items:center;
+  gap:4px;
+  line-height:1.3;
+}
+.mfx-field-error-msg::before{
+  content:"⚠";
+  font-size:11px;
+}
+
+/* ─── Button loading state (paired with MFX_API.postJSON button param) ─── */
+.mfx-btn-loading{
+  position:relative;
+  pointer-events:none;
+  opacity:.75;
+  cursor:wait !important;
+}
+.mfx-btn-loading::after{
+  content:"";
+  position:absolute;
+  right:8px;
+  top:50%;
+  margin-top:-7px;
+  width:14px;
+  height:14px;
+  border:2px solid currentColor;
+  border-right-color:transparent;
+  border-radius:50%;
+  animation:mfx-spin .6s linear infinite;
+}

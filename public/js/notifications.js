@@ -1577,6 +1577,93 @@
   }
 
   // ============================================================================
+  // AUTO-CREATED DOCS — surface SO + JT creations triggered by quote→won / SO→sent
+  // The flow is: quote PO entered → status=won → server creates SO → SO sent → server creates JT.
+  // Without these notifications the user sees "saved" and then has no idea an SO/JT was created.
+  // Guard: only fire for very recent creations (last 60s) so we don't spam on cold start.
+  // ============================================================================
+  function listenToAutoCreatedSO() {
+    if (!window.fbDb || typeof window.fbDb.collection !== 'function') return;
+    const currentUserName = typeof getUserName === 'function' ? getUserName() : '';
+    let _soInitialLoad = true;
+    try {
+      return window.fbDb.collection('salesOrders').orderBy('createdAt','desc').limit(50).onSnapshot(snap => {
+        if (_soInitialLoad) { _soInitialLoad = false; return; }
+        snap.docChanges().forEach(change => {
+          if (change.type !== 'added') return;
+          const so = change.doc.data();
+          const createdAt = so.createdAt ? new Date(so.createdAt).getTime() : 0;
+          // Skip stale entries (older than 60s) — server backfills don't deserve a notification
+          if (!createdAt || (Date.now() - createdAt) > 60000) return;
+          // Only notify if the current user owns the source quote or created the SO
+          const relevant = (so.createdBy === currentUserName) ||
+                           (so.estimator === currentUserName) ||
+                           (so.salesRep === currentUserName);
+          if (!relevant) return;
+          const total = so.total ? ' · $' + Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2}) : '';
+          addNotification({
+            type: 'orders',
+            title: '📦 Sales Order created: ' + (so.soNum || so.id),
+            body: 'From quote ' + (so.quoteNum || '—') + total,
+            icon: '📦',
+            sourceView: 'orders',
+            sourceId: change.doc.id,
+            from: 'System',
+            priority: 'normal'
+          });
+          showFlash({
+            type: 'orders',
+            title: 'SO created: ' + (so.soNum || so.id),
+            body: 'From quote ' + (so.quoteNum || '—'),
+            icon: '📦',
+            sourceView: 'orders'
+          });
+        });
+      }, err => console.log('AutoCreatedSO listener error:', err.code));
+    } catch(e) { console.log('AutoCreatedSO setup error:', e.message); }
+  }
+
+  function listenToAutoCreatedJT() {
+    if (!window.fbDb || typeof window.fbDb.collection !== 'function') return;
+    const currentUserName = typeof getUserName === 'function' ? getUserName() : '';
+    let _jtAutoInitialLoad = true;
+    try {
+      return window.fbDb.collection('jobTickets').orderBy('createdAt','desc').limit(50).onSnapshot(snap => {
+        if (_jtAutoInitialLoad) { _jtAutoInitialLoad = false; return; }
+        snap.docChanges().forEach(change => {
+          if (change.type !== 'added') return;
+          const jt = change.doc.data();
+          const createdAt = jt.createdAt ? new Date(jt.createdAt).getTime() : 0;
+          if (!createdAt || (Date.now() - createdAt) > 60000) return;
+          const relevant = (jt.createdBy === currentUserName) ||
+                           (jt.estimator === currentUserName) ||
+                           (jt.salesRep === currentUserName) ||
+                           (jt.assignedTo === currentUserName);
+          if (!relevant) return;
+          const ticketNum = jt.ticketNumber || jt.ticketId || jt.id || change.doc.id;
+          addNotification({
+            type: 'jobs',
+            title: '🎫 Job Ticket created: ' + ticketNum,
+            body: 'From SO ' + (jt.soNum || jt.salesOrderNum || '—') + ' · Stage: ' + (jt.stage || jt.workflowStatus || 'Intake'),
+            icon: '🎫',
+            sourceView: 'jobtracker',
+            sourceId: change.doc.id,
+            from: 'System',
+            priority: 'normal'
+          });
+          showFlash({
+            type: 'jobs',
+            title: 'JT created: ' + ticketNum,
+            body: 'From SO ' + (jt.soNum || '—'),
+            icon: '🎫',
+            sourceView: 'jobtracker'
+          });
+        });
+      }, err => console.log('AutoCreatedJT listener error:', err.code));
+    } catch(e) { console.log('AutoCreatedJT setup error:', e.message); }
+  }
+
+  // ============================================================================
   // MFX EVENT BUS — quote.status listener
   // ============================================================================
   function listenToQuoteStatusEvents() {
@@ -2054,7 +2141,9 @@
       listenToOwnedTaskUpdates,
       listenToOwnedJobUpdates,
       listenToQuoteStatusEvents,
-      listenToPortalActivity
+      listenToPortalActivity,
+      listenToAutoCreatedSO,
+      listenToAutoCreatedJT
     ];
     _notifListeners.forEach(function(fn, i) {
       var unsub = fn();
