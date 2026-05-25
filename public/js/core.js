@@ -1067,9 +1067,70 @@ h+=`<button class="btn btn-ghost btn-sm" onclick="closeModal()" style="margin-le
 openModal(h)}
 function addNewDie(){const id=prompt('Die # (e.g. AG1999):');if(!id)return;const shape=prompt('Shape:')||'';const sA=prompt('Size Across:')||'';const sAr=prompt('Size Around:')||'';
 Promise.resolve(addSpecItem('dies',{id:id.trim(),shape,blankSize:'',cutTo:'',sA,sAr,repeat:'',nA:'',nAr:'',gapAr:'',gapA:'',cRad:'',gearTooth:'',notes:'User added by '+(typeof getUserName==='function'?getUserName():'unknown'),createdAt:new Date().toISOString()})).then(function(ok){if(ok){toast('Die added','ok');showSpecManager('dies')}})}
-function addNewSpec(type){const id=prompt('Spec ID:');if(!id)return;const desc=prompt('Description:')||'';
-Promise.resolve(addSpecItem(type,{id:id.trim(),desc,createdAt:new Date().toISOString(),createdBy:(typeof getUserName==='function'?getUserName():'unknown')})).then(function(ok){if(ok){toast('Added','ok');showSpecManager(type)}})}
-function addNewVarnish(){const v=prompt('Varnish name:');if(!v)return;Promise.resolve(addSpecItem('varnishes',v.trim())).then(function(ok){if(ok){toast('Varnish added','ok');showSpecManager('varnishes')}})}
+// Open a proper modal form for adding a new material spec (label stock / film /
+// varnish). Replaces the old chained-prompt() flow. Captures SKU, description,
+// vendor, MSI cost, markup MSI, and notes — these get persisted to
+// materialsCatalog/{type} and also feed the combobox dropdown going forward.
+function addNewSpec(type){
+  const isVarn=(type==='varnishes');
+  const typeLabel=type==='films'?'Film':(type==='labels'?'Label Stock':(isVarn?'Varnish':type));
+  const userName=typeof getUserName==='function'?getUserName():'unknown';
+  let h='<div class="modal-title">Add '+typeLabel+'</div>';
+  h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:10px">Will be added to the materials catalog and available in the combobox.</div>';
+  h+='<div class="fg"><label>SKU / ID <span class="req">*</span></label><input id="nspec-id" placeholder="e.g. 539SHP" autocomplete="off"></div>';
+  h+='<div class="fg"><label>Description '+(isVarn?'<span style="font-weight:400;color:var(--tx3)">(optional)</span>':'<span class="req">*</span>')+'</label><input id="nspec-desc" placeholder="e.g. White Semi-Gloss Paper, 60lb" autocomplete="off"></div>';
+  h+='<div class="row2"><div class="fg"><label>Vendor</label><input id="nspec-vendor" placeholder="e.g. Spinnaker" autocomplete="off"></div><div class="fg"><label>MSI cost <span style="font-weight:400;color:var(--tx3)">($)</span></label><input id="nspec-msi" type="number" step="0.001" min="0" placeholder="0.129"></div></div>';
+  h+='<div class="row2"><div class="fg"><label>Markup MSI <span style="font-weight:400;color:var(--tx3)">(optional)</span></label><input id="nspec-mk" type="number" step="0.001" min="0" placeholder="0.155"></div><div class="fg"><label>Notes</label><input id="nspec-notes" placeholder="Internal notes (optional)" autocomplete="off"></div></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-pr btn-sm" id="nspec-save" onclick="_submitNewSpec(\''+type+'\')">Save</button><button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancel</button></div>';
+  openModal(h);
+  // Autofocus the SKU field
+  setTimeout(function(){var el=$('nspec-id');if(el)el.focus();},50);
+}
+window._submitNewSpec=function(type){
+  const idEl=$('nspec-id');const descEl=$('nspec-desc');
+  const id=(idEl?idEl.value:'').trim();
+  const desc=(descEl?descEl.value:'').trim();
+  if(!id){if(typeof toast==='function')toast('SKU is required','err');if(idEl)idEl.focus();return;}
+  const isVarn=(type==='varnishes');
+  if(!isVarn && !desc){if(typeof toast==='function')toast('Description is required','err');if(descEl)descEl.focus();return;}
+  const vendor=(($('nspec-vendor')||{}).value||'').trim();
+  const msiRaw=(($('nspec-msi')||{}).value||'').trim();
+  const mkRaw=(($('nspec-mk')||{}).value||'').trim();
+  const notes=(($('nspec-notes')||{}).value||'').trim();
+  const userName=typeof getUserName==='function'?getUserName():'unknown';
+  // Disable button while in flight
+  const btn=$('nspec-save');if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  // Varnish items are still strings in the old shape — preserve compatibility.
+  // Object items for label/film carry full metadata.
+  let item;
+  if(isVarn && !vendor && !msiRaw && !mkRaw && !notes && !desc){
+    item=id; // legacy string shape preserved
+  } else {
+    item={id:id, desc:desc||'', createdAt:new Date().toISOString(), createdBy:userName};
+    if(vendor) item.vendor=vendor;
+    if(msiRaw!=='' && !isNaN(parseFloat(msiRaw))) item.msi=parseFloat(msiRaw);
+    if(mkRaw!=='' && !isNaN(parseFloat(mkRaw))) item.mk=parseFloat(mkRaw);
+    if(notes) item.notes=notes;
+  }
+  Promise.resolve(addSpecItem(type,item)).then(function(ok){
+    if(ok){
+      if(typeof toast==='function')toast('Added — now available in dropdown','ok');
+      // Rebuild combobox datalists so the new spec shows immediately
+      if(typeof buildMS==='function'){
+        if(type==='labels')buildMS('ed-fs', (typeof S!=='undefined' && getQ(S.editId))?getQ(S.editId).fields.faceStock:undefined);
+        if(type==='films')buildMS('ed-lam', (typeof S!=='undefined' && getQ(S.editId))?getQ(S.editId).fields.lamination:undefined);
+      }
+      if(type==='varnishes' && typeof buildVarnishSelect==='function'){
+        buildVarnishSelect((typeof S!=='undefined' && getQ(S.editId))?getQ(S.editId).fields.coating:undefined);
+      }
+      showSpecManager(type);
+    } else {
+      if(btn){btn.disabled=false;btn.textContent='Save';}
+    }
+  });
+};
+// Compat shim — addNewVarnish was a separate function. Route to the new form.
+function addNewVarnish(){ addNewSpec('varnishes'); }
 function filterSpecList(){const q=($('specSearchInput')||{}).value||'';const rows=document.querySelectorAll('.spec-row');const ql=q.toLowerCase();rows.forEach(r=>{const s=r.getAttribute('data-search')||'';r.style.display=ql===''||s.includes(ql)?'flex':'none'})}
 
 function pickDieFromModal(dieId){closeModal();
