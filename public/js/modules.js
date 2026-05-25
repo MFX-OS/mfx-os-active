@@ -1010,25 +1010,60 @@ _moduleInterval4 = setInterval(updateDashClock,1000);
 
 
 // ═══════ GOOGLE API HELPERS ═══════
-function getGoogleToken(){return new Promise(function(resolve){
+function getGoogleToken(forceFresh){return new Promise(function(resolve){
 var user=fbAuth.currentUser;if(!user)return resolve(null);
-var exp=parseInt(sessionStorage.getItem('mfx_gtoken_exp')||'0');
-if(window.GTOKEN&&Date.now()<exp){resolve(window.GTOKEN);return}
-// Token missing or expired — clear stale and try sessionStorage
-window.GTOKEN=null;sessionStorage.removeItem('mfx_gtoken');
-// Force reauth to get fresh OAuth token
+if(!forceFresh){
+  var exp=parseInt(sessionStorage.getItem('mfx_gtoken_exp')||'0');
+  if(window.GTOKEN&&Date.now()<exp){resolve(window.GTOKEN);return}
+}
+// Token missing/expired OR caller demanded a fresh one — clear stale, force re-OAuth.
+// (forceFresh=true bypasses the session cache. Used by email sends so a stale
+// token from a previous session that's missing gmail.send scope doesn't
+// silently fail. The OAuth popup also lets the user re-pick the right Google
+// account if they have multiple signed in.)
+window.GTOKEN=null;sessionStorage.removeItem('mfx_gtoken');sessionStorage.removeItem('mfx_gtoken_exp');
 var provider=new firebase.auth.GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/calendar.events');
 provider.addScope('https://www.googleapis.com/auth/gmail.send');
 provider.addScope('https://www.googleapis.com/auth/drive');
 provider.addScope('https://www.googleapis.com/auth/spreadsheets');
 provider.addScope('https://www.googleapis.com/auth/tasks');
-console.log('Reauthing for Google token...');
+// Prompt 'consent' makes Google show the consent screen every time so the
+// user can SEE what scopes are being granted. Default would skip the
+// consent screen on subsequent calls.
+provider.setCustomParameters({prompt:forceFresh?'consent':'select_account'});
+console.log('[Gmail auth] reauth requested, forceFresh='+!!forceFresh);
 user.reauthenticateWithPopup(provider).then(function(result){
 var cred=result.credential||firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-if(cred&&cred.accessToken){window.GTOKEN=cred.accessToken;sessionStorage.setItem('mfx_gtoken',cred.accessToken);sessionStorage.setItem('mfx_gtoken_exp',String(Date.now()+3500000));console.log('✅ Got token via reauth');resolve(window.GTOKEN)}
-else{console.log('❌ Still no token');resolve(null)}
-}).catch(function(e){console.log('Reauth failed:',e.message);resolve(null)})})}
+if(cred&&cred.accessToken){
+  window.GTOKEN=cred.accessToken;
+  sessionStorage.setItem('mfx_gtoken',cred.accessToken);
+  sessionStorage.setItem('mfx_gtoken_exp',String(Date.now()+3500000));
+  console.log('[Gmail auth] ✅ got fresh token for', result.user&&result.user.email);
+  resolve(window.GTOKEN);
+} else {
+  console.log('[Gmail auth] ❌ no access token in credential');
+  resolve(null);
+}
+}).catch(function(e){console.error('[Gmail auth] reauth failed:',e.message);resolve(null)})})}
+// Diagnostic helper — clears the cached token and forces a fresh OAuth.
+// Surface this via a "Re-authorize Gmail" button so users can self-recover
+// without needing developer help.
+window.reauthorizeGmail=function(){
+  console.log('[Gmail auth] manual reauth requested');
+  window.GTOKEN=null;
+  sessionStorage.removeItem('mfx_gtoken');
+  sessionStorage.removeItem('mfx_gtoken_exp');
+  if(typeof toast==='function')toast('Re-authorizing Gmail — pick your Google account in the popup…','ok');
+  return getGoogleToken(true).then(function(t){
+    if(t){
+      if(typeof toast==='function')toast('✓ Gmail re-authorized — try Send again','ok');
+    } else {
+      if(typeof toast==='function')toast('Re-auth cancelled or failed','err');
+    }
+    return t;
+  });
+};
 
 function createCalendarEvent(title,description,startDate,startTime,durationMins){
 if(!MFX_SHARED_CALENDAR){console.warn('Calendar ID not configured');return}
@@ -1542,6 +1577,14 @@ h+='<button onclick="sendQuoteToMe()" style="width:100%;padding:14px;font-size:1
 // Send to Customer
 h+='<button onclick="sendQuoteToCustomer()" style="width:100%;padding:14px;font-size:13px;font-weight:700;background:var(--ac);color:#000;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"'+(emailValid?'':' disabled title="Enter a valid customer email first"')+(!emailValid?' style="width:100%;padding:14px;font-size:13px;font-weight:700;background:var(--bg3);color:var(--tx3);border:1px solid var(--bdr);border-radius:10px;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:8px;opacity:.5"':'')+'><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send to Customer'+(emailValid?' ('+esc(custEmail)+')':'')+'</button>';
 
+// Re-authorize Gmail — recovery path when sends are silently failing
+// (stale OAuth token, wrong Google account, missing gmail.send scope).
+h+='<div style="margin-top:10px;padding:8px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:8px;display:flex;align-items:center;gap:10px;font-size:10px;color:var(--tx3)">'
+  +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+  +'<span style="flex:1">Emails not arriving? Re-authorize Gmail to refresh your send permission. You may need to pick the correct Google account.</span>'
+  +'<button onclick="reauthorizeGmail()" style="padding:6px 10px;font-size:10px;font-weight:700;background:var(--bg2);color:var(--ac);border:1px solid var(--ac);border-radius:6px;cursor:pointer;white-space:nowrap">Re-authorize Gmail</button>'
+  +'</div>';
+
 h+='</div>';
 
 // Communication log
@@ -1596,9 +1639,15 @@ var ov=window._sendOverride;if(!ov||!ov.to)return;
 var _prevMode=window._quotePreviewMode;window._quotePreviewMode='external';
 if(typeof edPreview==='function')edPreview();
 window._quotePreviewMode=_prevMode;
-window._mfxSending=true;toast('Generating PDF & sending to '+ov.to+'...','ok');
+window._mfxSending=true;toast('Generating PDF & re-authorizing Gmail (popup may appear)…','ok');
 setTimeout(function(){
-generateQuotePDF(q).then(function(pdf){getGoogleToken().then(function(token){if(!token){window._mfxSending=false;return toast('Sign out & back in','err')}
+// forceFresh=true — bypass the session-cached token. This is the fix for the
+// "worked yesterday but not today, Sent folder empty" symptom. A token cached
+// from a previous session can be missing the gmail.send scope while still
+// being accepted by the Drive API, so file saves work but email is silently
+// dropped. Forcing a fresh OAuth grants all current scopes and lets the user
+// re-pick the right Google account if they have multiple signed in.
+generateQuotePDF(q).then(function(pdf){getGoogleToken(true).then(function(token){if(!token){window._mfxSending=false;return toast('Gmail auth cancelled — click Re-authorize Gmail to retry','err')}
 var boundary='mfx'+Date.now();
 var qn=q.quoteNum||'';var portalLink='https://os.microflexfilm.com/portal?id='+q.id+'&q='+qn;
 var htmlBody='<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#060d14;border-radius:8px;overflow:hidden">'

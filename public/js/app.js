@@ -3261,7 +3261,8 @@ raw+='Content-Transfer-Encoding: base64\r\n\r\n';
 raw+=pdf.base64+'\r\n';
 raw+='--'+boundary+'--';
 var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-getGoogleToken().then(function(token){if(!token)return toast('Gmail not connected','err');
+// forceFresh=true — see the same note in modules.js _doSendWithOverride.
+getGoogleToken(true).then(function(token){if(!token)return toast('Gmail auth cancelled — click Re-authorize Gmail to retry','err');
 fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{
 method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
 body:JSON.stringify({raw:encoded})
