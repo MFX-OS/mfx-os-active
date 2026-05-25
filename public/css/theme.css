@@ -548,11 +548,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 
   width:100%;padding-right:24px;
 }
 .mat-combo-arrow{
-  position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  font-size:10px;color:var(--tx3);pointer-events:none;
-  transition:transform .15s;
+  position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  font-size:11px;color:var(--tx3);
+  background:transparent;border:none;
+  width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  border-radius:4px;
+  transition:transform .15s,color .15s,background .15s;
 }
-.mat-combo:focus-within .mat-combo-arrow{transform:translateY(-50%) rotate(180deg);color:var(--ac)}
+.mat-combo-arrow:hover{background:rgba(0,229,255,.12);color:var(--ac)}
+.mat-combo:focus-within .mat-combo-arrow{color:var(--ac)}
+.mat-combo:has(.mat-combo-dropdown.open) .mat-combo-arrow{transform:translateY(-50%) rotate(180deg)}
 .mat-combo-dropdown{
   position:absolute;
   top:calc(100% + 2px);left:0;right:0;
@@ -579,9 +586,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 
 }
 .mat-combo-grouptag-catalog{background:rgba(0,229,255,.12);color:#00b8d4;border:1px solid rgba(0,229,255,.25)}
 .mat-combo-grouptag-user{background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25)}
+.mat-combo-grouptag-other{background:rgba(255,255,255,.06);color:var(--tx2);border:1px solid var(--bdr)}
 .mat-combo-groupcount{font-size:9px;color:var(--tx3);font-variant-numeric:tabular-nums}
 .mat-combo-item{
-  padding:6px 12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:7px 12px;
   cursor:pointer;
   font-size:11px;
   color:var(--tx);
@@ -591,7 +602,35 @@ input:focus,select:focus,textarea:focus{border-color:var(--ac);box-shadow:0 0 0 
 }
 .mat-combo-item:hover,.mat-combo-item.hl{background:rgba(0,229,255,.12);color:var(--tx)}
 .mat-combo-item:last-child{border-bottom:none}
-.mat-combo-itemdesc{color:var(--tx3);font-weight:400}
+.mat-combo-itemlabel{
+  flex:1;min-width:0;
+  display:flex;align-items:baseline;gap:8px;
+  overflow:hidden;
+}
+.mat-combo-sku{
+  font-weight:700;color:var(--tx);
+  white-space:nowrap;flex-shrink:0;
+}
+.mat-combo-itemdesc{
+  color:var(--tx3);font-weight:400;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  flex:1;min-width:0;
+}
+.mat-combo-meta{
+  display:flex;align-items:center;gap:8px;
+  flex-shrink:0;
+  font-size:10px;
+  font-variant-numeric:tabular-nums;
+}
+.mat-combo-msi{color:var(--ac);font-weight:700}
+.mat-combo-mk{color:var(--tx2)}
+.mat-combo-vendor{
+  color:var(--tx2);
+  font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  padding:2px 6px;border-radius:3px;
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--bdr);
+}
 .mat-combo-empty{
   padding:14px 12px;
   font-size:10px;color:var(--tx3);font-style:italic;text-align:center;
