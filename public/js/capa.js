@@ -339,9 +339,9 @@
 
       var html = '<div class="capa-grid">';
       html += openNCRs.map(function(n){
-        return '<div class="capa-card" onclick="window.MFX_CAPA.showNCRDetail(\'' + n.id + '\')">' +
-          '<div class="capa-card-id">NCR-' + (n.ncrNumber||'0001') + '</div>' +
-          '<div style="font-weight:700;color:var(--tx);margin:8px 0">' + (n.title||'Untitled') + '</div>' +
+        return '<div class="capa-card" onclick="window.MFX_CAPA.showNCRDetail(\'' + esc(n.id) + '\')">' +
+          '<div class="capa-card-id">NCR-' + esc(n.ncrNumber||'0001') + '</div>' +
+          '<div style="font-weight:700;color:var(--tx);margin:8px 0">' + esc(n.title||'Untitled') + '</div>' +
           '<span class="capa-badge severity-' + (n.severity||'minor').toLowerCase() + '">' + (n.severity||'Minor') + '</span>' +
           '<span class="capa-badge" style="background:' + (STAGES[n.stage]||'#999') + '22;color:' + (STAGES[n.stage]||'#999') + '">' + (n.stage||'Reported') + '</span>' +
           '<div style="font-size:11px;color:var(--tx2);margin-top:12px">Days Open: ' + (n.daysOpen||0) + '</div>' +
@@ -368,24 +368,24 @@
 
       var html = '<div style="position:relative">' +
         '<button class="close-btn" onclick="window.MFX_CAPA.closeDetailModal()">×</button>' +
-        '<h2 style="margin-top:0;color:var(--ac)">NCR-' + (n.ncrNumber||'0001') + ': ' + (n.title||'') + '</h2>' +
+        '<h2 style="margin-top:0;color:var(--ac)">NCR-' + esc(n.ncrNumber||'0001') + ': ' + esc(n.title||'') + '</h2>' +
         '<div style="display:flex;gap:12px;margin-bottom:16px">' +
-        '<span class="capa-badge severity-' + (n.severity||'minor').toLowerCase() + '">' + (n.severity||'Minor') + '</span>' +
-        '<span class="capa-badge" style="background:' + (STAGES[n.stage]||'#999') + '22;color:' + (STAGES[n.stage]||'#999') + '">' + (n.stage||'Reported') + '</span>' +
+        '<span class="capa-badge severity-' + esc((n.severity||'minor').toLowerCase()) + '">' + esc(n.severity||'Minor') + '</span>' +
+        '<span class="capa-badge" style="background:' + (STAGES[n.stage]||'#999') + '22;color:' + (STAGES[n.stage]||'#999') + '">' + esc(n.stage||'Reported') + '</span>' +
         '</div>' +
         '<div class="detail-section">' +
         '<h3>Issue Details</h3>' +
-        '<p><strong>Source:</strong> ' + (n.source||'N/A') + '</p>' +
-        '<p><strong>Category:</strong> ' + (n.category||'N/A') + '</p>' +
+        '<p><strong>Source:</strong> ' + esc(n.source||'N/A') + '</p>' +
+        '<p><strong>Category:</strong> ' + esc(n.category||'N/A') + '</p>' +
         '<p><strong>Description:</strong></p>' +
-        '<p style="white-space:pre-wrap">' + (n.description||'') + '</p>' +
+        '<p style="white-space:pre-wrap">' + esc(n.description||'') + '</p>' +
         '<p><strong>Immediate Action:</strong></p>' +
-        '<p style="white-space:pre-wrap">' + (n.immediateAction||'') + '</p>' +
+        '<p style="white-space:pre-wrap">' + esc(n.immediateAction||'') + '</p>' +
         '</div>' +
         '<div class="detail-section">' +
         '<h3>Assignments</h3>' +
-        '<p><strong>Assigned To:</strong> ' + (n.assignedTo||'Unassigned') + '</p>' +
-        '<p><strong>Department:</strong> ' + (n.department||'N/A') + '</p>' +
+        '<p><strong>Assigned To:</strong> ' + esc(n.assignedTo||'Unassigned') + '</p>' +
+        '<p><strong>Department:</strong> ' + esc(n.department||'N/A') + '</p>' +
         '</div>' +
         '<div class="detail-section">' +
         '<h3>Dates</h3>' +

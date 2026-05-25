@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════════
-// MFX OS — Build Script
-// Concatenates, minifies, and content-hashes all JS modules
+// MFX OS — Build Script (PERF-09 fix: 3-bundle split)
+// Concatenates, minifies, and content-hashes JS modules into 3 chunks:
+//   mfx-core.<hash>.js  — core, always loaded
+//   mfx-chat.<hash>.js  — chat + ai-chat-bridge, lazy
+//   mfx-ai.<hash>.js    — ai-* modules, lazy
+//
 // Usage: node build.js [--dev] [--clean]
 // ═══════════════════════════════════════════════════════════════
 
@@ -17,22 +21,35 @@ const SW = path.join(PUBLIC, 'sw.js');
 const isDev = process.argv.includes('--dev');
 const isClean = process.argv.includes('--clean');
 
-// Exact load order matching index.html script tags
-const JS_FILES = [
-  'sentry-config.js', 'sound.js', 'intro.js', 'core.js', 'full-menu.js', 'os-search.js', 'audit-log.js', 'app.js', 'modules.js',
-  'features.js', 'gamification.js', 'analytics.js', 'pipeline-patch.js',
-  'realtime.js', 'orders.js', 'so-workflow.js', 'production.js',
-  'ppd.js', 'ppd-master.js', 'ppd-labeltraxx-parity.js',
-  'vendor-pos.js', 'vendor-profile.js', 'vendor-workspace.js',
-  'vendor-patches.js', 'logistics.js', 'gmp.js', 'capa.js',
-  'audit.js', 'training.js', 'doccontrol.js', 'hr.js', 'operator.js',
-  'launchpad.js', 'sqf-datalogs.js', 'sqf-alerts.js', 'sqf-evidence.js', 'sqf-records.js', 'master-automation.js', 'client-services.js', 'sales.js',
-  'job-tracker.js', 'ceo-dash.js', 'system-control.js',
-  'ai-core.js', 'ai-recommendations.js', 'ai-approvals.js', 'ai-module-panels.js', 'ai-ops-center.js', 'ai-chat-bridge.js',
-  'data-sync.js', 'chat.js', 'notifications.js',
-  'platform-services.js', 'drive-listener.js', 'fsqms-module.js', 'a11y.js'
-  // tests.js excluded from production bundle
-];
+// PERF-09: 3-bundle chunk split.
+// `core` loads synchronously. `chat` and `ai` are lazy — fetched when their
+// views open (or eagerly preloaded 2s after page load, see core.js loadChunk).
+const CHUNK_GROUPS = {
+  core: [
+    // email-guard MUST load early so it's available before any send-site is called
+    'email-guard.js',
+    // 2026-05-24: communications.js — per-quote Comms hub (composer + timeline)
+    'communications.js',
+    'sentry-config.js', 'sound.js', 'intro.js', 'core.js', 'full-menu.js',
+    'os-search.js', 'audit-log.js', 'app.js', 'modules.js',
+    'features.js', 'gamification.js', 'analytics.js', 'pipeline-patch.js',
+    'realtime.js', 'orders.js', 'so-workflow.js', 'production.js',
+    'ppd.js', 'ppd-master.js', 'ppd-labeltraxx-parity.js',
+    'vendor-pos.js', 'vendor-profile.js', 'vendor-workspace.js',
+    'vendor-patches.js', 'logistics.js', 'gmp.js', 'capa.js',
+    'audit.js', 'training.js', 'doccontrol.js', 'hr.js', 'operator.js',
+    'launchpad.js', 'sqf-datalogs.js', 'sqf-alerts.js', 'sqf-evidence.js',
+    'sqf-records.js', 'master-automation.js', 'client-services.js', 'sales.js',
+    'job-tracker.js', 'ceo-dash.js', 'system-control.js',
+    'data-sync.js', 'notifications.js', 'platform-services.js',
+    'drive-listener.js', 'fsqms-module.js', 'a11y.js',
+  ],
+  chat: ['chat.js', 'ai-chat-bridge.js'],
+  ai:   ['ai-core.js', 'ai-recommendations.js', 'ai-approvals.js',
+         'ai-module-panels.js', 'ai-ops-center.js'],
+  // PERF-15 fix (2026-05-24): MATS catalog (475 entries) lazy-loaded
+  mats: ['mats-data.js'],
+};
 
 // ─── CLEAN ───
 function cleanBundles() {
@@ -40,7 +57,7 @@ function cleanBundles() {
   let cleaned = 0;
   let skipped = 0;
   files.forEach(f => {
-    if (f.startsWith('mfx-bundle.') || f.endsWith('.bak')) {
+    if (/^mfx-(bundle|core|chat|ai)\./.test(f) || f.endsWith('.bak')) {
       try {
         fs.unlinkSync(path.join(JS_DIR, f));
         cleaned++;
@@ -57,11 +74,10 @@ function cleanBundles() {
   console.log(`  Cleaned ${cleaned} file(s)${skipped ? `, skipped ${skipped} locked file(s)` : ''}`);
 }
 
-// ─── CONCATENATE ───
-function concatenate() {
-  console.log(`  Concatenating ${JS_FILES.length} files...`);
+// ─── CONCATENATE ONE GROUP ───
+function concatenateGroup(groupName, files) {
   let total = 0;
-  const parts = JS_FILES.map(file => {
+  const parts = files.map(file => {
     const filepath = path.join(JS_DIR, file);
     if (!fs.existsSync(filepath)) {
       console.warn(`  ⚠ Missing: ${file} — skipping`);
@@ -72,22 +88,19 @@ function concatenate() {
     return `\n/* ═══ ${file} ═══ */\n${content}`;
   });
   const combined = parts.join('\n;\n');
-  console.log(`  Source total: ${(total / 1024).toFixed(0)} KB`);
+  console.log(`  [${groupName}] ${files.length} files, ${(total / 1024).toFixed(0)} KB source`);
   return combined;
 }
 
 // ─── MINIFY ───
 async function minify(code) {
-  if (isDev) {
-    console.log('  Dev mode — skipping minification');
-    return code;
-  }
+  if (isDev) return code;
   const esbuild = require('esbuild');
   const result = await esbuild.transform(code, {
     minify: true,
     target: 'es2020',
     legalComments: 'none',
-    pure: ['console.log']
+    pure: ['console.log'],
   });
   if (result.warnings.length > 0) {
     result.warnings.forEach(w => console.warn(`  ⚠ ${w.text}`));
@@ -95,56 +108,57 @@ async function minify(code) {
   return result.code;
 }
 
-// ─── HASH ───
 function hashContent(content) {
   return crypto.createHash('md5').update(content).digest('hex').slice(0, 8);
 }
 
 // ─── PATCH INDEX.HTML ───
-function patchIndex(bundleFilename) {
+function patchIndex(coreFilename) {
   let html = fs.readFileSync(INDEX, 'utf8');
 
-  // Find the block of local script tags: from first "js/" script to last "js/" script (excluding tests.js)
-  // Replace with a single bundle script tag
-  const scriptPattern = /<script src="js\/(?!mfx-bundle|sentry-loader|inline-boot)[^"]+\.js"><\/script>\n?/g;
-  const scripts = html.match(scriptPattern);
-  if (!scripts || scripts.length === 0) {
-    // Already bundled — replace existing bundle tag
-    html = html.replace(
-      /<script src="js\/mfx-bundle\.[a-f0-9]+\.js"><\/script>/,
-      `<script src="js/${bundleFilename}"></script>`
-    );
-  } else {
-    // First time — replace all individual script tags with bundle
-    let firstIdx = html.indexOf(scripts[0]);
-    let lastIdx = html.lastIndexOf(scripts[scripts.length - 1]);
-    let lastEnd = lastIdx + scripts[scripts.length - 1].length;
+  // Replace any existing mfx-bundle.* or mfx-core.* script tag with new core.
+  // Also strip any prior mfx-chat.* / mfx-ai.* tags — those load via loadChunk now.
+  const monolithic = /<script src="js\/mfx-bundle\.[a-f0-9]+\.js"><\/script>\n?/g;
+  const oldCore    = /<script src="js\/mfx-core\.[a-f0-9]+\.js"><\/script>\n?/g;
+  const oldChat    = /<script src="js\/mfx-chat\.[a-f0-9]+\.js"><\/script>\n?/g;
+  const oldAi      = /<script src="js\/mfx-ai\.[a-f0-9]+\.js"><\/script>\n?/g;
 
-    html = html.substring(0, firstIdx)
-      + `<script src="js/${bundleFilename}"></script>\n`
-      + html.substring(lastEnd);
+  if (monolithic.test(html)) {
+    html = html.replace(monolithic, `<script src="js/${coreFilename}"></script>\n`);
+  } else if (oldCore.test(html)) {
+    html = html.replace(oldCore, `<script src="js/${coreFilename}"></script>\n`);
+  } else {
+    // Fallback: replace the individual JS_FILES script-tag block with our core tag
+    const scriptPattern = /<script src="js\/(?!mfx-(bundle|core|chat|ai)|sentry-loader|inline-boot)[^"]+\.js"><\/script>\n?/g;
+    const scripts = html.match(scriptPattern);
+    if (scripts && scripts.length) {
+      const firstIdx = html.indexOf(scripts[0]);
+      const lastIdx  = html.lastIndexOf(scripts[scripts.length - 1]);
+      const lastEnd  = lastIdx + scripts[scripts.length - 1].length;
+      html = html.substring(0, firstIdx)
+           + `<script src="js/${coreFilename}"></script>\n`
+           + html.substring(lastEnd);
+    }
   }
+  // Always strip lingering chat/ai tags — those are dynamically loaded now.
+  html = html.replace(oldChat, '').replace(oldAi, '');
 
   fs.writeFileSync(INDEX, html, 'utf8');
-  console.log(`  Patched index.html → js/${bundleFilename}`);
+  console.log(`  Patched index.html → js/${coreFilename}`);
 }
 
 // ─── PATCH SW.JS ───
-function patchSW(bundleFilename) {
+function patchSW(coreFilename, chunkBuilds) {
   let sw = fs.readFileSync(SW, 'utf8');
-
-  // Bump cache version
   sw = sw.replace(/var CACHE_NAME = '[^']+';/, `var CACHE_NAME = 'mfx-${Date.now().toString(36)}';`);
+  sw = sw.replace(/var CDN_CACHE = '[^']+';/, `var CDN_CACHE = 'mfx-cdn-${Date.now().toString(36)}';`);
 
-  // Replace STATIC_ASSETS array
-  // Find the array between [ and ];
   const startMarker = 'var STATIC_ASSETS = [';
   const startIdx = sw.indexOf(startMarker);
   if (startIdx === -1) {
     console.warn('  ⚠ Could not find STATIC_ASSETS in sw.js');
     return;
   }
-  // Support both `];` and `]` (no semicolon) as end-of-array marker
   let endIdx = sw.indexOf('];', startIdx);
   let endLen = 2;
   if (endIdx === -1) {
@@ -155,72 +169,82 @@ function patchSW(bundleFilename) {
     console.warn('  ⚠ Could not find end of STATIC_ASSETS in sw.js');
     return;
   }
-
+  // PERF-15 build generic: STATIC_ASSETS now includes every chunk in chunkBuilds.
+  const chunkLines = Object.values(chunkBuilds)
+    .map(c => `  '/js/${c.filename}',`)
+    .join('\n');
   const newAssets = `var STATIC_ASSETS = [
   '/',
   '/index.html',
   '/css/theme.css',
-  '/js/${bundleFilename}',
+  '/js/${coreFilename}',
+${chunkLines}
   '/manifest.json'
 ];`;
-
   sw = sw.substring(0, startIdx) + newAssets + sw.substring(endIdx + endLen);
-
   fs.writeFileSync(SW, sw, 'utf8');
-  console.log(`  Patched sw.js → cache: js/${bundleFilename}`);
+  console.log(`  Patched sw.js (${Object.keys(chunkBuilds).length + 1} entries in cache)`);
 }
 
 // ─── MAIN ───
 async function main() {
-  console.log('\n🔨 MFX OS Build\n');
+  console.log('\n🔨 MFX OS Build (PERF-09: code-split bundles)\n');
 
-  // Step 1: Clean old bundles and .bak files
   console.log('Step 1: Cleaning...');
   cleanBundles();
+  if (isClean) { console.log('\n✅ Clean complete\n'); return; }
 
-  if (isClean) {
-    console.log('\n✅ Clean complete\n');
-    return;
+  // PERF-15 build generic (2026-05-24): iterate ALL non-core chunks in
+  // CHUNK_GROUPS so new chunks (mats, future ones) auto-build without
+  // touching this file. Core is still built LAST so it can ship the manifest.
+  const nonCoreNames = Object.keys(CHUNK_GROUPS).filter(n => n !== 'core');
+  const chunkBuilds = {}; // {name: {filename, size}}
+  let stepNum = 2;
+  for (const name of nonCoreNames) {
+    console.log(`Step ${stepNum}: Building ${name} chunk...`);
+    const raw = concatenateGroup(name, CHUNK_GROUPS[name]);
+    const min = await minify(raw);
+    const hash = hashContent(min);
+    const filename = `mfx-${name}.${hash}.js`;
+    fs.writeFileSync(path.join(JS_DIR, filename), min, 'utf8');
+    console.log(`  → js/${filename} (${(min.length / 1024).toFixed(0)} KB)`);
+    chunkBuilds[name] = { filename, size: min.length };
+    stepNum++;
   }
 
-  // Step 2: Concatenate
-  console.log('Step 2: Concatenating...');
-  const combined = concatenate();
+  console.log(`Step ${stepNum}: Building core chunk (with chunk manifest)...`);
+  const manifestEntries = nonCoreNames
+    .map(n => `"${n}":${JSON.stringify(chunkBuilds[n].filename)}`)
+    .join(',');
+  const manifestHeader =
+    `\n/* ═══ chunk manifest (PERF-09) ═══ */\n` +
+    `window.MFX_CHUNK_MANIFEST = {${manifestEntries}};\n`;
+  const coreRaw  = manifestHeader + concatenateGroup('core', CHUNK_GROUPS.core);
+  const coreMin  = await minify(coreRaw);
+  const coreHash = hashContent(coreMin);
+  const coreFilename = `mfx-core.${coreHash}.js`;
+  fs.writeFileSync(path.join(JS_DIR, coreFilename), coreMin, 'utf8');
+  console.log(`  → js/${coreFilename} (${(coreMin.length / 1024).toFixed(0)} KB)`);
+  stepNum++;
 
-  // Step 3: Minify
-  console.log('Step 3: Minifying...');
-  const minified = await minify(combined);
-  const reduction = Math.round((1 - minified.length / combined.length) * 100);
-  console.log(`  Minified: ${(minified.length / 1024).toFixed(0)} KB (${reduction}% reduction)`);
+  console.log(`Step ${stepNum}: Patching index.html...`);
+  patchIndex(coreFilename);
+  stepNum++;
 
-  // Step 4: Hash and write
-  console.log('Step 4: Writing bundle...');
-  const hash = hashContent(minified);
-  const bundleFilename = `mfx-bundle.${hash}.js`;
-  const bundlePath = path.join(JS_DIR, bundleFilename);
-  fs.writeFileSync(bundlePath, minified, 'utf8');
-  console.log(`  → js/${bundleFilename}`);
+  console.log(`Step ${stepNum}: Patching sw.js...`);
+  patchSW(coreFilename, chunkBuilds);
 
-  // Step 5: Patch index.html
-  console.log('Step 5: Patching index.html...');
-  patchIndex(bundleFilename);
-
-  // Step 6: Patch sw.js
-  console.log('Step 6: Patching sw.js...');
-  patchSW(bundleFilename);
-
-  // Summary
-  const sourceSize = JS_FILES.reduce((sum, f) => {
-    const p = path.join(JS_DIR, f);
-    return sum + (fs.existsSync(p) ? fs.statSync(p).size : 0);
-  }, 0);
-
+  const chunkTotal = Object.values(chunkBuilds).reduce((s,c) => s + c.size, 0);
+  const totalSize = coreMin.length + chunkTotal;
+  const initialLoad = coreMin.length;
   console.log('\n═══════════════════════════════════════');
-  console.log(`  Source:  ${(sourceSize / 1024).toFixed(0)} KB (${JS_FILES.length} files)`);
-  console.log(`  Bundle:  ${(minified.length / 1024).toFixed(0)} KB (1 file)`);
-  console.log(`  Saved:   ${((sourceSize - minified.length) / 1024).toFixed(0)} KB (${reduction}%)`);
-  console.log(`  Hash:    ${hash}`);
-  console.log(`  Mode:    ${isDev ? 'development' : 'production'}`);
+  console.log(`  Initial load (core):  ${(initialLoad / 1024).toFixed(0)} KB`);
+  for (const name of nonCoreNames) {
+    console.log(`  Lazy ${name} chunk:${' '.repeat(Math.max(1, 8-name.length))}${(chunkBuilds[name].size / 1024).toFixed(0)} KB (lazy)`);
+  }
+  console.log(`  Total all chunks:     ${(totalSize / 1024).toFixed(0)} KB`);
+  console.log(`  Saved off initial:    ${((totalSize - initialLoad) / 1024).toFixed(0)} KB (${Math.round((totalSize - initialLoad) / totalSize * 100)}%)`);
+  console.log(`  Mode: ${isDev ? 'development' : 'production'}`);
   console.log('═══════════════════════════════════════\n');
   console.log('✅ Build complete — run: firebase deploy --only hosting:os\n');
 }

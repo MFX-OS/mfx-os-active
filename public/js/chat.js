@@ -120,7 +120,7 @@ function renderChat(){
   h+='<div id="chatMentionPicker" style="display:none;position:absolute;bottom:100%;left:0;right:0;background:var(--card);border:1px solid var(--ac);border-radius:8px;max-height:120px;overflow-y:auto;z-index:10;margin-bottom:4px"></div>';
   h+='</div>';
   h+='<button onclick="chatAddImage()" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px;color:var(--tx3)" title="Image / Photo">🖼</button>';
-  h+='<button onclick="chatSearchGif()" style="background:none;border:none;cursor:pointer;font-size:11px;padding:4px 6px;color:var(--tx3);font-weight:700;border:1px solid var(--bdr);border-radius:4px" title="GIF">GIF</button>';
+  /* SEC-11 removal (2026-05-24): GIF button removed with Giphy integration */
   h+='<button onclick="chatAddFileLink()" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px;color:var(--tx3)" title="File Link">📎</button>';
   h+='<button onclick="chatAddOSTag()" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px;color:#00e5ff" title="OS Link / Tag">🏷</button>';
   h+='<button onclick="chatToggleEmoji()" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px;color:var(--tx3)" title="Emoji">😊</button>';
@@ -248,14 +248,25 @@ function listenMessages(channelId){
     .onSnapshot(function(snap){
       CHAT.messages=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
       renderMessages();
-      // Mark as read
+      // PERF-06 fix (2026-05-24): batch all read-receipt writes into a single
+      // WriteBatch.commit() per snapshot instead of one .update() per message.
+      // Cuts chat-channel Firestore write volume by up to 100x on busy channels.
       var uid=getUserId();
+      var pending=[];
       snap.docs.forEach(function(d){
         var data=d.data();
         if(data.userId!==uid&&(!data.readBy||data.readBy.indexOf(uid)<0)){
-          fbDb.collection('chat_messages').doc(d.id).update({readBy:firebase.firestore.FieldValue.arrayUnion(uid)}).catch(function(){});
+          pending.push(d.id);
         }
       });
+      if(pending.length){
+        var batch=fbDb.batch();
+        pending.forEach(function(id){
+          batch.update(fbDb.collection('chat_messages').doc(id),
+                       {readBy:firebase.firestore.FieldValue.arrayUnion(uid)});
+        });
+        batch.commit().catch(function(e){console.warn('chat read-receipts batch:',e&&e.message)});
+      }
     }, function(err){ console.warn('chat messages listener:', err.message); });
 }
 
@@ -620,97 +631,11 @@ function chatAddImage(){
   chatShowAttachPreview();
 }
 
-// ── GIF PICKER (GIPHY API) ──
-// Set your GIPHY API key: get one free at https://developers.giphy.com/dashboard/
-// Store in localStorage or hardcode below
-var GIPHY_KEY=localStorage.getItem('mfx_giphy_key')||'GDbNFd3wNVLQwb3bnFRPYinHvy8bskQT';
-
-function chatSearchGif(target){
-  // target: 'chat' (main chat) or 'ic' (instant chat)
-  target=target||'chat';
-  var h='<div style="display:flex;flex-direction:column;height:400px;max-height:70vh">';
-  h+='<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:8px;display:flex;align-items:center;gap:6px"><span style="font-size:18px">GIF</span> Search</div>';
-  if(!GIPHY_KEY){
-    h+='<div style="padding:12px;background:var(--bg3);border-radius:8px;margin-bottom:8px">';
-    h+='<div style="font-size:11px;color:var(--or);font-weight:600;margin-bottom:4px">GIPHY API Key Required</div>';
-    h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:6px">Get a free key at developers.giphy.com/dashboard</div>';
-    h+='<input id="gifApiKeyInput" placeholder="Paste your GIPHY API key..." style="width:100%;padding:6px 8px;font-size:11px;margin-bottom:4px">';
-    h+='<button onclick="gifSaveKey()" class="btn btn-pr btn-sm" style="width:100%">Save Key</button>';
-    h+='</div>';
-  }
-  h+='<div style="display:flex;gap:4px;margin-bottom:8px">';
-  h+='<input id="gifSearchInput" placeholder="Search GIFs..." style="flex:1;padding:8px 10px;font-size:12px" onkeydown="if(event.key===\'Enter\')gifDoSearch(\''+target+'\')"'+(GIPHY_KEY?'':' disabled')+'>';
-  h+='<button onclick="gifDoSearch(\''+target+'\')" class="btn btn-pr btn-sm"'+(GIPHY_KEY?'':' disabled')+'>Search</button>';
-  h+='</div>';
-  // Trending on load
-  h+='<div id="gifGrid" style="flex:1;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;justify-content:center"></div>';
-  h+='<div style="text-align:center;padding:4px;font-size:8px;color:var(--tx3)">Powered by GIPHY</div>';
-  h+='</div>';
-  openModal(h);
-  if(GIPHY_KEY)gifLoadTrending(target);
-}
-
-function gifSaveKey(){
-  var inp=document.getElementById('gifApiKeyInput');
-  if(!inp||!inp.value.trim())return;
-  GIPHY_KEY=inp.value.trim();
-  localStorage.setItem('mfx_giphy_key',GIPHY_KEY);
-  closeModal();
-  toast('GIPHY key saved','ok');
-  chatSearchGif();
-}
-
-function gifLoadTrending(target){
-  var grid=document.getElementById('gifGrid');
-  if(!grid)return;
-  grid.innerHTML='<div style="padding:20px;color:var(--tx3);font-size:10px;width:100%;text-align:center">Loading trending...</div>';
-  fetch('https://api.giphy.com/v1/gifs/trending?api_key='+GIPHY_KEY+'&limit=20&rating=pg')
-    .then(function(r){return r.json()})
-    .then(function(json){gifRenderResults(json.data,target)})
-    .catch(function(e){grid.innerHTML='<div style="padding:20px;color:var(--rd);font-size:10px;width:100%;text-align:center">Failed to load — check API key</div>'});
-}
-
-function gifDoSearch(target){
-  var inp=document.getElementById('gifSearchInput');
-  if(!inp||!inp.value.trim()||!GIPHY_KEY)return;
-  var q=encodeURIComponent(inp.value.trim());
-  var grid=document.getElementById('gifGrid');
-  if(!grid)return;
-  grid.innerHTML='<div style="padding:20px;color:var(--tx3);font-size:10px;width:100%;text-align:center">Searching...</div>';
-  fetch('https://api.giphy.com/v1/gifs/search?api_key='+GIPHY_KEY+'&q='+q+'&limit=24&rating=pg')
-    .then(function(r){return r.json()})
-    .then(function(json){gifRenderResults(json.data,target)})
-    .catch(function(e){grid.innerHTML='<div style="padding:20px;color:var(--rd);font-size:10px;width:100%;text-align:center">Search failed</div>'});
-}
-
-function gifRenderResults(gifs,target){
-  var grid=document.getElementById('gifGrid');if(!grid)return;
-  if(!gifs||!gifs.length){grid.innerHTML='<div style="padding:20px;color:var(--tx3);font-size:10px;width:100%;text-align:center">No GIFs found</div>';return}
-  var h='';
-  gifs.forEach(function(g){
-    var preview=g.images.fixed_height_small.url;
-    var full=g.images.fixed_height.url;
-    h+='<img src="'+preview+'" onclick="gifSelect(\''+full+'\',\''+target+'\')" style="height:100px;border-radius:6px;cursor:pointer;object-fit:cover;transition:transform .15s" onmouseover="this.style.transform=\'scale(1.05)\'" onmouseout="this.style.transform=\'scale(1)\'">';
-  });
-  grid.innerHTML=h;
-}
-
-// IC pending GIF and reply state
+// SEC-11 removal (2026-05-24): Giphy integration removed entirely.
+// State vars below kept so historical messages render and send-path still works.
 var _icPendingGif=null;
 var _icReplyTo=null; // {id, user, text}
 
-function gifSelect(url,target){
-  closeModal();
-  if(target==='ic'){
-    // Store as pending — show preview, don't send yet
-    _icPendingGif=url;
-    icShowPreview();
-  }else{
-    // Main chat — add as attachment
-    window._chatPendingAttachments.push({type:'gif',url:url,name:'GIF'});
-    chatShowAttachPreview();
-  }
-}
 
 function icShowPreview(){
   var bar=document.getElementById('icPreviewBar');
@@ -767,10 +692,7 @@ window.icClearGif=icClearGif;
 window.icClearReply=icClearReply;
 window.icSetReply=icSetReply;
 
-window.chatSearchGif=chatSearchGif;
-window.gifSaveKey=gifSaveKey;
-window.gifDoSearch=gifDoSearch;
-window.gifSelect=gifSelect;
+/* SEC-11 removal: window.chatSearchGif/gifSaveKey/gifDoSearch/gifSelect removed */
 
 function chatAddFileLink(){
   var url=prompt('Paste file/document link:');
@@ -900,7 +822,7 @@ window.startDM=startDM;
 window.filterChatChannels=filterChatChannels;
 window.toggleChatSidebar=toggleChatSidebar;
 window.chatAddImage=chatAddImage;
-window.chatSearchGif=chatSearchGif;
+/* SEC-11 removal: duplicate window.chatSearchGif export removed */
 window.chatAddFileLink=chatAddFileLink;
 window.chatAddOSTag=chatAddOSTag;
 window.chatInsertOSTag=chatInsertOSTag;
@@ -2543,12 +2465,9 @@ function icPostStatus(){
   h+='<input type="hidden" id="statusEmojiSelected" value="">';
   h+='</div>';
   h+='</div>';
-  // GIF option
-  h+='<div style="display:flex;gap:8px;margin-bottom:12px">';
-  h+='<button onclick="icStatusSearchGif()" class="btn btn-ghost btn-sm" style="flex:1;border-radius:10px">🖼 Add GIF</button>';
-  h+='<div id="statusGifPreview" style="display:none;position:relative"><img id="statusGifImg" style="height:40px;border-radius:6px"><span onclick="document.getElementById(\'statusGifPreview\').style.display=\'none\';document.getElementById(\'statusGifUrl\').value=\'\'" style="position:absolute;top:-4px;right:-4px;cursor:pointer;background:rgba(0,0,0,.7);border-radius:50%;width:14px;height:14px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#fff">&times;</span></div>';
+  // SEC-11 removal (2026-05-24): GIF option for status reel removed with Giphy.
+  // Hidden statusGifUrl input kept so icSubmitStatus() can still read .value=''
   h+='<input type="hidden" id="statusGifUrl" value="">';
-  h+='</div>';
   // Admin announcement toggle
   var isAdmin=false;
   try{var p=getMFXProfile();var r=(p.role||'').toLowerCase();isAdmin=['ceo','admin','administrator','owner','operations manager','manager'].indexOf(r)>=0}catch(e){}
@@ -2560,38 +2479,7 @@ function icPostStatus(){
   if(typeof openModal==='function')openModal(h);
 }
 
-function icStatusSearchGif(){
-  // Use GIPHY search inline
-  var h2='<div class="modal-title">Pick a GIF for Status</div>';
-  h2+='<div style="display:flex;gap:4px;margin-bottom:8px"><input id="statusGifSearch" placeholder="Search GIFs..." style="flex:1;padding:8px 10px;font-size:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;outline:none" onkeydown="if(event.key===\'Enter\')icStatusGifDoSearch()"><button onclick="icStatusGifDoSearch()" class="btn btn-pr btn-sm" style="border-radius:10px">Search</button></div>';
-  h2+='<div id="statusGifGrid" style="display:flex;flex-wrap:wrap;gap:4px;max-height:250px;overflow-y:auto;justify-content:center"></div>';
-  if(typeof openModal==='function')openModal(h2);
-  // Load trending
-  fetch('https://api.giphy.com/v1/gifs/trending?api_key='+GIPHY_KEY+'&limit=16&rating=pg').then(function(r){return r.json()}).then(function(json){
-    icStatusGifRender(json.data||[]);
-  }).catch(function(){});
-}
-
-function icStatusGifDoSearch(){
-  var inp=document.getElementById('statusGifSearch');
-  if(!inp||!inp.value.trim())return;
-  fetch('https://api.giphy.com/v1/gifs/search?api_key='+GIPHY_KEY+'&q='+encodeURIComponent(inp.value.trim())+'&limit=16&rating=pg').then(function(r){return r.json()}).then(function(json){
-    icStatusGifRender(json.data||[]);
-  }).catch(function(){});
-}
-
-function icStatusGifRender(gifs){
-  var el=document.getElementById('statusGifGrid');if(!el)return;
-  if(!gifs.length){el.innerHTML='<div style="padding:20px;color:var(--tx3);font-size:10px">No GIFs found</div>';return}
-  var h='';
-  gifs.forEach(function(g){
-    var preview=g.images.fixed_height_small.url;
-    var full=g.images.fixed_height.url;
-    h+='<img src="'+esc(preview)+'" onclick="icStatusPickGif(\''+esc(full)+'\')" style="height:80px;border-radius:6px;cursor:pointer;object-fit:cover;transition:transform .1s" onmouseover="this.style.transform=\'scale(1.05)\'" onmouseout="this.style.transform=\'scale(1)\'">';
-  });
-  el.innerHTML=h;
-}
-
+// SEC-11 removal (2026-05-24): icStatusSearchGif + icStatusGifDoSearch + icStatusGifRender removed with Giphy.
 function icStatusPickGif(url){
   // Go back to post modal with the GIF attached
   if(typeof closeModal==='function')closeModal();
@@ -2767,8 +2655,7 @@ window.icDeleteStatus=icDeleteStatus;
 window.icReplyStatus=icReplyStatus;
 window.icExpandStatus=icExpandStatus;
 window.icSubmitExpandedReply=icSubmitExpandedReply;
-window.icStatusSearchGif=icStatusSearchGif;
-window.icStatusGifDoSearch=icStatusGifDoSearch;
+/* SEC-11 removal: window.icStatusSearchGif/icStatusGifDoSearch removed */
 window.icStatusPickGif=icStatusPickGif;
 
 // ══════════════════════════════════════════════════════════════════
@@ -3007,7 +2894,8 @@ function clearCustomStatus(){
 function startTeamPresenceListener(){
   if(_presenceListener)return;
   if(typeof fbDb==='undefined')return;
-  _presenceListener=fbDb.collection('users').onSnapshot(function(snap){
+  /* PERF-04 fix (2026-05-24): bound to 100 most-recently-seen users + */
+  _presenceListener=fbDb.collection('users').orderBy('lastSeen','desc').limit(100).onSnapshot(function(snap){
     var me=typeof getUserName==='function'?getUserName():'';
     var el=document.getElementById('teamPresenceList');if(!el)return;
     var users=[];
@@ -4152,7 +4040,10 @@ function icPopOutChat(channelId, displayName) {
   popHtml += '<div id="pop-messages"></div>';
   popHtml += '<div id="pop-input-bar"><input id="pop-input" placeholder="Type a message..." autocomplete="off"><button id="pop-send">Send</button></div>';
   popHtml += '<script>';
-  popHtml += 'var channelId="' + channelId + '";';
+  // SEC-12 fix (2026-05-24): escape channelId via JSON.stringify before
+  // injecting into the pop-out <script> block. Closes a stored-XSS vector
+  // (if a malicious channelId ever contained `"` or `</script>`).
+  popHtml += 'var channelId=' + JSON.stringify(channelId) + ';';
   popHtml += 'var firebaseConfig={apiKey:"AIzaSyBLiYHfaGJoRJXd7fqSsIsNlsObmvKQXWk",authDomain:"mfx-2026.firebaseapp.com",projectId:"mfx-2026",storageBucket:"mfx-2026.firebasestorage.app",messagingSenderId:"507375182062",appId:"1:507375182062:web:ee2c3f6f5c6a0a1b2c3d4e"};';
   popHtml += 'firebase.initializeApp(firebaseConfig);';
   popHtml += 'var db=firebase.firestore();';

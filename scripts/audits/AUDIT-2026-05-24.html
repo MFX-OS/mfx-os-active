@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>MFX OS — Health Audit · 2026-05-24</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    --bg: #0a1520;
+    --bg2: #0f1c2c;
+    --panel: #122236;
+    --border: #1e3a4f;
+    --tx: #e0f2fe;
+    --tx2: #94a3b8;
+    --tx3: #64748b;
+    --ac: #00e5ff;
+    --crit: #ef4444;
+    --high: #f97316;
+    --med: #eab308;
+    --low: #4ade80;
+    --info: #94a3b8;
+    --done: #475569;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--tx);
+    font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: linear-gradient(135deg, var(--bg2), var(--panel));
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  h1 span.accent { color: var(--ac); }
+  .sub {
+    color: var(--tx2);
+    font-size: 12px;
+    margin-bottom: 14px;
+  }
+  .stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: rgba(0,229,255,0.04);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .stat:hover { background: rgba(0,229,255,0.08); }
+  .stat.active { background: rgba(0,229,255,0.15); border-color: var(--ac); }
+  .stat .n { font-weight: 700; font-size: 14px; margin-right: 6px; }
+  .stat.crit { color: var(--crit); border-color: rgba(239,68,68,0.4); }
+  .stat.crit.active { background: rgba(239,68,68,0.2); border-color: var(--crit); }
+  .stat.high { color: var(--high); border-color: rgba(249,115,22,0.4); }
+  .stat.high.active { background: rgba(249,115,22,0.2); border-color: var(--high); }
+  .stat.med { color: var(--med); border-color: rgba(234,179,8,0.4); }
+  .stat.med.active { background: rgba(234,179,8,0.2); border-color: var(--med); }
+  .stat.low { color: var(--low); border-color: rgba(74,222,128,0.4); }
+  .stat.low.active { background: rgba(74,222,128,0.2); border-color: var(--low); }
+
+  .toolbar {
+    padding: 12px 24px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .toolbar input, .toolbar select {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--tx);
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .toolbar input { width: 280px; }
+  .toolbar input:focus, .toolbar select:focus { outline: none; border-color: var(--ac); }
+  .toolbar label {
+    color: var(--tx3);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-right: 4px;
+  }
+  .btn {
+    background: var(--panel);
+    color: var(--tx);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn:hover { border-color: var(--ac); }
+  .btn.primary { background: var(--ac); color: #000; border-color: var(--ac); font-weight: 600; }
+
+  main { padding: 18px 24px 80px; max-width: 1400px; margin: 0 auto; }
+
+  .finding {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: opacity 0.2s;
+  }
+  .finding.severity-CRITICAL { border-left-color: var(--crit); }
+  .finding.severity-HIGH { border-left-color: var(--high); }
+  .finding.severity-MEDIUM { border-left-color: var(--med); }
+  .finding.severity-LOW { border-left-color: var(--low); }
+  .finding.severity-INFO { border-left-color: var(--info); }
+  .finding.done { opacity: 0.4; }
+  .finding.done .head { text-decoration: line-through; text-decoration-color: var(--tx3); }
+
+  .head {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .head:hover { background: rgba(0,229,255,0.03); }
+  .badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  .badge.CRITICAL { background: var(--crit); color: white; }
+  .badge.HIGH { background: var(--high); color: white; }
+  .badge.MEDIUM { background: var(--med); color: #000; }
+  .badge.LOW { background: var(--low); color: #000; }
+  .badge.INFO { background: var(--info); color: white; }
+  .id {
+    font-family: ui-monospace, "Cascadia Code", monospace;
+    font-size: 11px;
+    color: var(--tx3);
+    flex-shrink: 0;
+  }
+  .title { flex: 1; font-weight: 500; }
+  .chevron { color: var(--tx3); font-size: 10px; transition: transform 0.2s; }
+  .finding.open .chevron { transform: rotate(90deg); }
+  .checkbox {
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--tx3);
+    border-radius: 4px;
+    flex-shrink: 0;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .checkbox:hover { border-color: var(--ac); }
+  .finding.done .checkbox { background: var(--low); border-color: var(--low); }
+  .finding.done .checkbox::after { content: "✓"; color: #000; font-weight: 700; font-size: 11px; }
+  .cat-tag {
+    font-size: 9.5px;
+    color: var(--tx3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .body {
+    display: none;
+    padding: 0 16px 16px 56px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .finding.open .body { display: block; }
+  .section { margin-bottom: 12px; }
+  .section-label {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--ac);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .section-body { color: var(--tx2); line-height: 1.55; font-size: 13px; }
+  .where {
+    font-family: ui-monospace, "Cascadia Code", monospace;
+    font-size: 11.5px;
+    background: var(--bg);
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--ac);
+    display: inline-block;
+    word-break: break-all;
+  }
+  .empty {
+    text-align: center;
+    color: var(--tx3);
+    padding: 60px 20px;
+    font-style: italic;
+  }
+  .progress {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--ac), var(--low));
+    transition: width 0.3s;
+  }
+  footer {
+    color: var(--tx3);
+    font-size: 11px;
+    padding: 30px 24px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+  kbd {
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 10.5px;
+    color: var(--tx);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="accent">MFX OS</span> — Health Audit Dashboard</h1>
+  <div class="sub">Generated 2026-05-24 · 65 findings across performance, data integrity, security, UX bugs · Click any finding to expand · Check the box to mark done (persists in browser)</div>
+  <div class="stats" id="stats"></div>
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+</header>
+
+<div class="toolbar">
+  <label>Search</label>
+  <input type="text" id="search" placeholder="filter by title, file, text..." />
+  <label>Category</label>
+  <select id="catFilter">
+    <option value="">All</option>
+    <option value="PERF">Performance</option>
+    <option value="DATA">Data integrity</option>
+    <option value="SEC">Security</option>
+    <option value="UX">UX / Bugs</option>
+  </select>
+  <label>Show</label>
+  <select id="doneFilter">
+    <option value="all">All</option>
+    <option value="open">Open only</option>
+    <option value="done">Done only</option>
+  </select>
+  <button class="btn" id="expandAll">Expand all</button>
+  <button class="btn" id="collapseAll">Collapse all</button>
+  <button class="btn" id="resetState">Reset checkboxes</button>
+</div>
+
+<main>
+  <div id="findings"></div>
+  <div class="empty" id="emptyMsg" style="display:none">No findings match your filters.</div>
+</main>
+
+<footer>
+  Saved at <kbd>scripts/audits/AUDIT-2026-05-24.html</kbd> ·
+  Check-state persists per browser via localStorage ·
+  Run again any time — re-audit by asking Claude to re-run the deep dive.
+</footer>
+
+<script>
+const FINDINGS = [
+  // ============= PERFORMANCE =============
+  { id: "PERF-01", cat: "PERF", sev: "CRITICAL", title: "Unbounded quotes listener re-renders entire view on every change",
+    where: "public/js/core.js:546",
+    what: "fbDb.collection('quotes').orderBy('updatedAt','desc').onSnapshot(...) has no .limit() and no date filter. Every snapshot rebuilds _cache.quotes from all docs and calls a full render — not an incremental diff. A single field edit on any quote re-downloads metadata for hundreds of docs and re-renders the entire view.",
+    impact: "Every user pays the cost of every other user's edits. At 1,000 quotes × 20 users this is ~20k Firestore reads on every save.",
+    fix: "Add .limit(200) or filter where('updatedAt','>=', last90Days). Inside the snapshot, use snapshot.docChanges() to mutate _cache.quotes incrementally and only re-render the affected row." },
+  { id: "PERF-02", cat: "PERF", sev: "CRITICAL", title: "Unbounded customers listener — same pattern",
+    where: "public/js/core.js:561",
+    what: "fbDb.collection('customers').orderBy('company').onSnapshot(...) — no limit. Re-runs renderCust() which lowercases+searches the full list on every change.",
+    impact: "Dashboard freezes briefly on every customer write. Search recomputes against full list on every keystroke.",
+    fix: ".limit(500) + paginate. Build a pre-computed _searchBlob field per customer on snapshot. Re-render incrementally via docChanges()." },
+  { id: "PERF-03", cat: "PERF", sev: "CRITICAL", title: "Duplicate full-collection listeners on quotes, jobTickets, users",
+    where: "public/js/notifications.js:1147, 1241, 2346, 2366; chat.js:3010; modules.js:622",
+    what: "quotes subscribed unbounded in core.js + notifications.js twice. jobTickets subscribed unbounded in production.js, ppd.js, notifications.js x2. users collection subscribed unbounded by both chat.js and modules.js.",
+    impact: "Every write triggers 3-5 separate listener fires per browser tab. Single biggest Firestore cost driver in the app.",
+    fix: "Consolidate to one snapshot per collection in core.js, expose via the existing MFX event bus. Delete the duplicate listeners." },
+  { id: "PERF-04", cat: "PERF", sev: "HIGH", title: "Users collection subscribed without limit (presence churn)",
+    where: "public/js/chat.js:3010; modules.js:622",
+    what: "fbDb.collection('users').onSnapshot(...) returns every user and re-runs on every 15-second presence heartbeat (master-automation.js:338). chat.js:3010 rebuilds the team-presence DOM on every event.",
+    impact: "Continuous fires; every connected client repaints the presence list.",
+    fix: "Limit to active users where('lastSeen','>=', last24h).limit(100); throttle DOM repaint to 1x per 2s." },
+  { id: "PERF-05", cat: "PERF", sev: "HIGH", title: "Production view: 3 sibling unbounded listeners",
+    where: "public/js/production.js:14, 18, 22",
+    what: "jobTickets and blueprints listeners, none with .limit(). PPD module caps at limit(400); production doesn't.",
+    impact: "As job history accumulates this becomes the slowest module on load. Single ticket update repaints whole production board.",
+    fix: ".limit(200) + filter where('status','in',['open','active','queued']); render incrementally via docChanges()." },
+  { id: "PERF-06", cat: "PERF", sev: "HIGH", title: "Chat read-receipts: N+1 writes inside snapshot loop",
+    where: "public/js/chat.js:248-258",
+    what: "On every chat snapshot, snap.docs.forEach issues fbDb.collection('chat_messages').doc(d.id).update({readBy: arrayUnion(uid)}) per message. Up to 100 individual writes per snapshot, per viewer.",
+    impact: "Opening a busy channel issues a write per message — high latency, billable writes, feedback loop with the snapshot.",
+    fix: "Batch into single WriteBatch.commit() per snapshot; or write one chat_channel_reads/{uid} doc with {channelId, lastReadAt}." },
+  { id: "PERF-07", cat: "PERF", sev: "MEDIUM", title: "JSON.stringify used as object diff on every save",
+    where: "public/js/core.js:1771,1776; capa.js:321",
+    what: "const oldFields=JSON.stringify(q.fields); ... const newFields=JSON.stringify(q.fields); for change detection. Capa search does JSON.stringify(d).toLowerCase().includes(search) per row per keystroke.",
+    impact: "Wasted main-thread work. Capa search is O(N × doc-size) per keystroke.",
+    fix: "Per-field dirty flag instead of stringify diff. For capa, build a lowercased _searchBlob once on snapshot." },
+  { id: "PERF-08", cat: "PERF", sev: "MEDIUM", title: "localStorage JSON.parse/stringify on every render",
+    where: "public/js/core.js:1253,1256,1259,1262,1263,1899,2123,2124",
+    what: "var tasks=JSON.parse(localStorage.getItem('mfx_tasks')||'[]') runs inside renderStaffHub; spec overlays parse localStorage on every dropdown render. localStorage is synchronous and blocks the main thread.",
+    impact: "Every UI repaint pays the parse cost. Spec list called from every quote-editor render.",
+    fix: "Cache parsed result in a module variable; invalidate on write only. Move large arrays to IndexedDB (idb-keyval)." },
+  { id: "PERF-09", cat: "PERF", sev: "HIGH", title: "Bundle weight — 2.4 MB monolithic, no code splitting",
+    where: "public/js/mfx-bundle.39b71d37.js (2,429,699 bytes)",
+    what: "One bundle built from 56 source files via esbuild. Ships chat (4,687 LOC), SQF datalogs, vendor modules, AI panels, and the 474-entry MATS catalog to every user on first load — even users who only view dashboards.",
+    impact: "First-load TTI on mid-tier devices is several seconds; parsing 2.4 MB blocks main thread 200–800ms.",
+    fix: "Split per-view modules (chat, ppd, sqf-*, vendor-*) into dynamic import() chunks loaded only when S.view enters that module. Move MATS to mats.json fetched on demand or to Firestore." },
+  { id: "PERF-10", cat: "PERF", sev: "MEDIUM", title: "Service worker caches indefinitely with no CDN-cache version bump",
+    where: "public/sw.js:1, 55-64, 111-122",
+    what: "activate keeps CDN_CACHE='mfx-cdn-v1' forever (never bumped). STATIC_ASSETS hard-codes the current bundle filename — if CACHE_NAME isn't bumped at build time, old clients keep serving the stale bundle. Matches the symptom of needing manual Unregister + hard refresh.",
+    impact: "Deploys silently no-op for returning users. Stale CDN assets accumulate.",
+    fix: "In build.js, regenerate CACHE_NAME and STATIC_ASSETS bundle filename on every build. Bump CDN_CACHE version. Add self.registration.update() ping on page load." },
+  { id: "PERF-11", cat: "PERF", sev: "HIGH", title: "Missing Firestore composite indexes for 5+ common queries",
+    where: "firestore.indexes.json (only 11 indexes); needed for: modules.js:16,17 (projects board/createdAt), features.js:28 (dms participants/lastMessageAt), system-control.js:361 (activity userId/timestamp), system-control.js:379 (tasks assignedTo/createdAt), ai-ops-center.js:232 (agentRecommendations type/createdAt)",
+    what: "Compound where + orderBy queries that require composite indexes not declared. Firestore throws at runtime when data crosses a threshold.",
+    impact: "Queries will start failing as data grows — runtime errors, broken views, no warning.",
+    fix: "Add composite indexes to firestore.indexes.json. Deploy via firebase deploy --only firestore:indexes." },
+  { id: "PERF-12", cat: "PERF", sev: "HIGH", title: "Quotes status notifier: O(N²) scan on every change",
+    where: "public/js/notifications.js:1147",
+    what: "fbDb.collection('quotes').onSnapshot(snapshot => ... snapshot.docChanges().forEach(change => if(change.type==='modified') ... STATE.notifications.some(...)) — for every modified quote, scans the full STATE.notifications array via .some() to dedupe.",
+    impact: "UI stutters during active quoting hours; notifications panel slows.",
+    fix: "Replace .some() dedup with a Set<string> of seen quoteId|status keys. Also gate listener to where('assignedTo','==',uid) so it doesn't receive every workspace quote." },
+  { id: "PERF-13", cat: "PERF", sev: "HIGH", title: "Calendar sync listens to quotes + jobTickets unbounded",
+    where: "public/js/notifications.js:2346,2366",
+    what: "Two more unbounded onSnapshot calls just to call Google Calendar API on docs with _calSynced flag. Every workspace edit fires both even though only newly-due items need processing.",
+    impact: "Massive Firestore read amplification for a workflow that should be event-driven.",
+    fix: "Use where('_calSynced','==',false).where('jobDueDate','>=', today).limit(50). Or move entirely to a Cloud Function triggered on document write." },
+  { id: "PERF-14", cat: "PERF", sev: "MEDIUM", title: "SQF listeners re-render even when view isn't visible",
+    where: "public/js/sqf-datalogs.js:158-220 (4 listeners); sqf-alerts.js:77-109",
+    what: "SQF datalog listeners call render() unconditionally on every snapshot regardless of S.view. Other modules at least gate on if(S.view==='ppd'); these don't.",
+    impact: "Background DOM rebuilds for views the user isn't looking at. Wasted CPU and layout thrash.",
+    fix: "Wrap render() calls with if(S.view==='sqf') render() like ppd.js:201 and production.js:15 already do." },
+  { id: "PERF-15", cat: "PERF", sev: "LOW", title: "MATS catalog embedded in bundle (perf angle of data-integrity issue)",
+    where: "public/js/core.js:734-1209 (475 lines of literal data)",
+    what: "~474 entries are parsed by the JS engine on every page load and live in memory for every user.",
+    impact: "+30–80 KB to bundle; small parse-time hit; permanent retained memory per tab.",
+    fix: "Move MATS to public/data/mats.json and fetch on first dropdown open (lazy). Firestore migration will solve both perf and integrity together." },
+
+  // ============= DATA INTEGRITY =============
+  { id: "DATA-01", cat: "DATA", sev: "CRITICAL", title: "Materials \"Manage\" UI writes to localStorage, not Firestore",
+    where: "public/js/core.js:1250-1287; app.js:1334, 1352-1355",
+    what: "addSpecItem, deleteSpec, editSpec, addNewDie, addNewVarnish, addNewSpec all read/write only localStorage (SPEC_KEYS={dies,films,labels,varnishes}). No fbDb.collection(...) call anywhere in that code path.",
+    impact: "User-added dies, films, label stocks, varnishes are invisible to teammates, vanish on cache clear / new browser / mobile, silently desync per workstation.",
+    fix: "Create materialsCatalog Firestore collection. Replace localStorage R/W with fbDb.collection('materialsCatalog')... Merge base + remote overlay in getSpecList. Add audit trigger." },
+  { id: "DATA-02", cat: "DATA", sev: "CRITICAL", title: "Sales Order writes both face/laminate AND faceStock/lamination",
+    where: "public/js/orders.js:314-315, 1103-1104",
+    what: "orders.js:314 writes faceStock:f.faceStock||f.face||''; orders.js:1103 writes face:f.face||f.faceStock||''. Both shapes coexist in salesOrders docs. Reads use f.faceStock||f.face fallback.",
+    impact: "Filters, exports, PPD lookups, and material cost rollups silently miss half the records depending on which key they query.",
+    fix: "Pick one canonical key. One-time migration script. Remove legacy keys from writes. Add normalization in an onSalesOrderWrite trigger." },
+  { id: "DATA-03", cat: "DATA", sev: "HIGH", title: "checkAndSeedData references SEED_CLIENTS that doesn't exist",
+    where: "public/js/core.js:731-733",
+    what: "if(snap.empty && typeof SEED_CLIENTS !== 'undefined') ... SEED_CLIENTS is defined nowhere in current non-bundle source. The typeof guard silently skips seeding.",
+    impact: "Fresh environment looks empty after first login; no error fires. Dead code that confuses anyone debugging \"why no clients\".",
+    fix: "Delete checkAndSeedData entirely, or migrate customer seed data via a proper admin import script. Don't leave a no-op behind." },
+  { id: "DATA-04", cat: "DATA", sev: "HIGH", title: "Most quote status transitions never trigger any server-side workflow",
+    where: "functions/workflows/firestore/onQuoteWrite.js:19 vs modules.js:1662, core.js:1678,1710, app.js:2188,2195",
+    what: "onQuoteWrite only handles afterStatus === 'sent' && beforeStatus !== 'sent'. Client freely sets status to rejected, approval, approved, rev, expired, ready. No server-side audit row, no derived state, no downstream notifications.",
+    impact: "Status history is whatever the client decides; no immutable audit trail. Rejected/approved metrics can't be reconstructed.",
+    fix: "Expand onQuoteWrite to detect every transition and write a status-history subdoc + activity log. Reject malformed transitions." },
+  { id: "DATA-05", cat: "DATA", sev: "HIGH", title: "Quote totals computed client-side only — server never verifies",
+    where: "public/js/app.js:2099,2104,2108,2112 (edCalcAll); read by functions/workflows/firestore/onQuoteWrite.js:25 and quoteAgent.js:36,67,125",
+    what: "totalAmount/totalValue calculated in browser edCalcAll, persisted via DB.saveQ set({merge:true}). Server reads q.totalValue || q.total || 0 with no recompute. quoteAgent.js:36 gates \"high-value\" decisions on numbers it never verifies.",
+    impact: "A tampered/buggy client can mark a $50k quote as $5. Agent-driven alerts and overdueQuoteSweep.amount are based on unverified figures.",
+    fix: "Move totals computation into onQuoteWrite (or a callable). Recompute from lineItems/fields. Write authoritative totalAmount server-side. Use Firestore rules to deny client writes to totalAmount." },
+  { id: "DATA-06", cat: "DATA", sev: "HIGH", title: "5+ live collections have NO Firestore trigger at all",
+    where: "functions/workflows/firestore/ only has onJobTicketWrite, onNCRWrite, onQuoteWrite, onRequestCreate, onTrainingRecordWrite, onVendorPOWrite",
+    what: "Client writes exist for salesOrders, customers, jobPassports, blueprints, prepressInbox, releasePackets, approvalRecords, tasks, plateAssets, prepressIssues — no server triggers.",
+    impact: "No invariants enforced. Deletes silent. Status changes unaudited. Cross-doc denormalization rots.",
+    fix: "Add onSalesOrderWrite, onJobPassportWrite, onBlueprintWrite, onApprovalRecordWrite. At minimum: write a row to activity on every change." },
+  { id: "DATA-07", cat: "DATA", sev: "HIGH", title: "Audit logging is client-only and bypassable",
+    where: "public/js/core.js:541 logActivity(); chat.js:1799, app.js:3294 direct writes/deletes bypass it",
+    what: "All audit entries are written by the same client that performs the mutation. A client that fails to call DB.logActivity creates no audit. delDoc checks if(window.MFXAudit) — silently skipped when absent.",
+    impact: "No reliable record of who deleted what. Critical mutations (task.delete, chat_messages updates) leave no trail.",
+    fix: "Move audit writing into Firestore triggers (onWrite for every collection that matters). Client logs become hints, not the system of record." },
+  { id: "DATA-08", cat: "DATA", sev: "HIGH", title: "Nested MFX-OS copy/MFX-OS copy/ has DRIFTED from top-level",
+    where: "Top-level public/js/core.js (2127 lines) vs nested MFX-OS copy/public/js/core.js (1662 lines)",
+    what: "diff -q shows files DIFFER. ~465 lines of changes between them. Plus three crm/.claude/worktrees/ subdirs each with diverged core.js/modules.js.",
+    impact: "Future edits made to the wrong tree silently get rolled back when the right one is rebuilt; grep results pollute investigations.",
+    fix: "Delete MFX-OS copy/MFX-OS copy/ and crm/.claude/worktrees/ (after confirming live deploy uses top-level). Add to .gitignore." },
+  { id: "DATA-09", cat: "DATA", sev: "MEDIUM", title: "Stale config files alongside live ones",
+    where: "firebase.json.backup, functions/index.js.bak, duplicates in MFX-OS copy/",
+    what: "diff firebase.json firebase.json.backup shows backup contains an extra connect hosting target. If firebase deploy --only hosting:connect points at the backup, deploys go to the wrong place. .bak files in functions/ auto-deploy if not gitignored.",
+    impact: "Risk of deploying stale config or stale Cloud Functions, possibly clobbering a live workflow.",
+    fix: "Move backups out of repo (e.g. _attic/) or delete. Add *.bak, *.backup to .firebaseignore and .gitignore." },
+  { id: "DATA-10", cat: "DATA", sev: "MEDIUM", title: "Large SEED/DEMO constants in 8+ modules (drift twin of MATS)",
+    where: "training.js:99,108; logistics.js:85,99,119; gmp.js:72; audit.js:128; doccontrol.js:13,182",
+    what: "doccontrol.js operates on SEED_DOCUMENTS directly for counts, due-for-review filters, KPIs — never reads Firestore. audit.js falls back to SEED_AUDITS when no audits in DB.",
+    impact: "Dashboards show demo data masquerading as real. Users may make decisions on synthetic data.",
+    fix: "Replace each with a real Firestore collection. Until then, label clearly as \"DEMO DATA\" in UI." },
+  { id: "DATA-11", cat: "DATA", sev: "MEDIUM", title: "Most deletes are silent (no audit log)",
+    where: "core.js:1762 (quote delete) and 1845 (customer delete) log; app.js:3294 deleteTask, core.js:1262 deleteSpec, chat.js/features.js deletes do NOT",
+    what: "deleteTask(tid){...fbDb.collection('tasks').doc(tid).delete().then(...)} — no logActivity call. Chat and features deletes are silent.",
+    impact: "When a record disappears, you cannot tell who/when/why.",
+    fix: "Either require all deletes to go through DB.delDoc (which calls MFXAudit), or — preferred — add onDelete triggers per collection writing to activity/auditLog." },
+  { id: "DATA-12", cat: "DATA", sev: "MEDIUM", title: "Quote field lamination vs laminate legacy aliases",
+    where: "Reads at app.js:1648,1832 use f.lamination||f.laminate; writes at orders.js:315,1104 write both",
+    what: "Current UI under app.js:1352-1354 writes data-field=\"lamination\" but display code and at least one write path still includes laminate. Older quote docs in Firestore carry only f.laminate.",
+    impact: "Same as DATA-02 (data spread across two key names); a future cleanup that drops the fallback breaks reading old quotes.",
+    fix: "One-time migration to copy laminate→lamination and delete laminate. Remove fallback reads after migration verified." },
+  { id: "DATA-13", cat: "DATA", sev: "MEDIUM", title: "FSQMS writes only LAST entry of in-memory array on save",
+    where: "public/js/fsqms-module.js:20,24,28",
+    what: "if(_fsqmsDb && SAN.length){var last=SAN[SAN.length-1]; ...set(last)...} — relies on in-memory SAN/QUAL/MAT arrays being authoritative. Page reload mid-session loses prior unsaved entries; two operators editing concurrently overwrite each other.",
+    impact: "Food-safety records — these need to be reliable for SQF compliance.",
+    fix: "Write each record at the moment of save (event-driven), not as \"last of array\". Use serverTimestamp and unique IDs." },
+  { id: "DATA-14", cat: "DATA", sev: "MEDIUM", title: "Customers: batch-write entire collection on every change",
+    where: "public/js/core.js:539 saveC()",
+    what: "saveC(cs){const b=fbDb.batch(); cs.forEach(c=>b.set(fbDb.collection('customers').doc(c.id),c)); ...} — entire customer list re-set on any edit. No onCustomerWrite trigger; no schema validation; cascade at core.js:1816 is client-side best-effort.",
+    impact: "Two clients editing two different customers in the same tab session will overwrite each other. Cascade integrity is best-effort.",
+    fix: "Switch to per-document set/update. Add onCustomerWrite to compute denorm fields and audit. Move cascade into a Cloud Function transaction." },
+  { id: "DATA-15", cat: "DATA", sev: "LOW", title: "Quote IDs client-generated, no uniqueness invariant",
+    where: "public/js/core.js:538 set(q, {merge:true}) keyed by q.id",
+    what: "Quote IDs originate client-side ('q'+Date.now() style). No server check for collisions. No rejection of malformed IDs or arbitrary new top-level fields.",
+    impact: "Rare collision risk. Bigger issue: no server-side schema gate — clients can write arbitrary new top-level fields that confuse readers.",
+    fix: "Use fbDb.collection('quotes').add() to get server IDs, or validate ID format and required fields in onQuoteWrite/rules." },
+
+  // ============= SECURITY =============
+  { id: "SEC-01", cat: "SEC", sev: "CRITICAL", title: "Portal quote rules allow any authenticated user to read/modify ANY quote",
+    where: "firestore.rules:91-105",
+    what: "allow get: if signedIn() && request.auth.token.email != null; allow update: ...hasOnly([...PO fields...]); — no check that the requester's email matches the quote's poClientEmail/custEmail. Comment says \"the link IS the access token\" but anyone who knows or guesses a quote doc ID can read & modify another customer's PO data.",
+    impact: "Any Google/email-link user (including a malicious customer or anyone with a gmail.com address) can pull every quote in the DB by doc ID and overwrite PO numbers, signatures, ship-to addresses, file references.",
+    fix: "Mirror the list rule's email check on both get and portal update: && resource.data.get('poClientEmail','') == request.auth.token.email || resource.data.fields.custEmail == request.auth.token.email" },
+  { id: "SEC-02", cat: "SEC", sev: "CRITICAL", title: "Customer database exposed unauthenticated on public hosting",
+    where: "public/customers-data.json (11.5 KB); public/job-tickets-data.json (403 KB); firebase.json:14-17 hosting target os",
+    what: "These files contain real customer names, billing/shipping addresses, job-ticket data (Zoho import). Served as static files from https://os.microflexfilm.com/customers-data.json to anyone — no auth.",
+    impact: "Full customer list (with addresses) and job-ticket history scrapable by anyone on the internet — competitive intel leak and PII exposure.",
+    fix: "Delete these files from public/; load data from Firestore behind rules. Add to ignore array in firebase.json. Rotate/notify (assume already scraped)." },
+  { id: "SEC-03", cat: "SEC", sev: "HIGH", title: "Portal storage uploads are world-writable to any Firebase-auth user",
+    where: "storage.rules:22-26",
+    what: "match /portal-uploads/{allPaths=**} { allow read: if request.auth != null; allow write: if request.auth != null && request.resource.size < 25 * 1024 * 1024; } — any signed-in user can write into portal-uploads/** with no path scoping, and can READ every other client's uploaded files.",
+    impact: "Cross-tenant file leak. Anyone can fill the bucket with 25 MB files and rack up storage cost.",
+    fix: "Scope path to per-quote subfolder gated by requester's email matching the quote, OR require upload path to start with user's UID. Add MIME-type allowlist." },
+  { id: "SEC-04", cat: "SEC", sev: "HIGH", title: "Onboarding collection: open read/write to all employees",
+    where: "firestore.rules:568-571",
+    what: "match /onboarding/{docId} { allow read: if companyUser(); allow write: if companyUser(); } — any @microflexfilm.com user can read/edit/delete any onboarding doc. Typically these hold SSN-adjacent PII.",
+    impact: "Any employee can read/tamper with every other employee's onboarding records.",
+    fix: "Restrict read to isManagement() || self(resource.data.userId); write similarly with affectedKeys check for sensitive fields." },
+  { id: "SEC-05", cat: "SEC", sev: "HIGH", title: "Firebase Admin SDK service-account JSONs on user workstation",
+    where: "C:\\Users\\A10ti\\Downloads\\mfx-2026-firebase-adminsdk-fbsvc-*.json",
+    what: "Multiple Firebase Admin SDK private-key JSONs in user's Downloads folder. Repo is clean (no private_key grep hits in public/), but local key files on a workstation with OneDrive + ChatGPT Drive sync increase blast radius.",
+    impact: "Anyone who obtains a JSON has full Firestore/Storage/Functions admin — bypasses every Firestore rule.",
+    fix: "Delete the JSON files. Revoke those service-account keys in IAM. Use firebase login / ADC for local Admin SDK work. Store keys in a password manager and load via env at runtime only." },
+  { id: "SEC-06", cat: "SEC", sev: "MEDIUM", title: "Status reel: any employee can edit anyone's status post",
+    where: "firestore.rules:622-628",
+    what: "allow update: if companyUser(); — not restricted to the author or to non-content fields. Any user can rewrite anyone's post text.",
+    impact: "Internal-content tampering, reputational harm.",
+    fix: "allow update: if companyUser() && (resource.data.userId == request.auth.uid || affectedKeys.hasOnly(['likes','likedBy','replyCount']));" },
+  { id: "SEC-07", cat: "SEC", sev: "MEDIUM", title: "kudos/polls/microfeed/tasks: same author-not-checked pattern",
+    where: "firestore.rules:299-307 (microfeed/tasks), 642-654 (kudos/polls), 636-638 (chat_channels/tasks)",
+    what: "Updates and deletes not scoped to creator. Any employee can edit/delete anyone's microfeed post, kudo, or poll content.",
+    impact: "Internal trust/audit problems — no per-record ownership enforcement.",
+    fix: "Add resource.data.createdBy == request.auth.uid for update/delete, or restrict content edits via affectedKeys." },
+  { id: "SEC-08", cat: "SEC", sev: "MEDIUM", title: "_auditLog is client-writable — audit trail not trustworthy",
+    where: "firestore.rules:604-608",
+    what: "match /_auditLog/{logId} { allow create: if companyUser(); } — client writes its own audit entries. A malicious/buggy client can forge entries or skip writing them.",
+    impact: "Audit log can be fabricated/omitted by any insider; useless for incident forensics or SOC compliance.",
+    fix: "Make _auditLog writes server-only (allow create: if false) and emit audit entries from Firestore triggers reading request.auth.uid from function context." },
+  { id: "SEC-09", cat: "SEC", sev: "MEDIUM", title: "activity collection lets any signed-in user write arbitrary events",
+    where: "firestore.rules:293-297",
+    what: "allow create: if companyUser() || signedIn(); // portal clients can log activity — any portal/anonymous user can spam the activity stream with fabricated actor names.",
+    impact: "Activity feed noise, fake audit entries, possible UI confusion. Unbounded write cost.",
+    fix: "Require request.resource.data.userId == request.auth.uid, cap field sizes, add rate-limit (or move client activity writes through a Cloud Function)." },
+  { id: "SEC-10", cat: "SEC", sev: "MEDIUM", title: "counters collection: read/write to every company user",
+    where: "firestore.rules:594-596",
+    what: "match /counters/{docId} { allow read, write: if companyUser(); } — sequence counters (likely quote/SO numbering) can be overwritten by any employee. systemCounters is correctly locked; counters is the legacy duplicate.",
+    impact: "Any user can break numbering, cause duplicate quote/JT numbers, hide their own changes.",
+    fix: "allow write: if false; and route all increments through the nextSequence Cloud Function (which already exists and is properly auth'd)." },
+  { id: "SEC-11", cat: "SEC", sev: "LOW", title: "Hardcoded Giphy API key in client (committed)",
+    where: "public/js/chat.js:626",
+    what: "var GIPHY_KEY=localStorage.getItem('mfx_giphy_key')||'GDbNFd3wNVLQwb3bnFRPYinHvy8bskQT';",
+    impact: "Quota exhaustion / Giphy abuse attributed to you.",
+    fix: "Rotate the key, then proxy Giphy calls through a Cloud Function so the key never reaches the browser, or accept the leak and set per-key Giphy quotas." },
+  { id: "SEC-12", cat: "SEC", sev: "LOW", title: "CSP includes unsafe-inline (and unsafe-eval on /ceo-dash.html)",
+    where: "firebase.json:44, 57",
+    what: "script-src 'self' 'unsafe-inline' (main) and 'unsafe-eval' (ceo-dash for Babel) neuter CSP's XSS protection. Many inline onclick handlers and template-literal HTML injection (e.g., chat.js:4155 interpolates channelId into a <script> block without escaping).",
+    impact: "Any stored-content vulnerability becomes script execution.",
+    fix: "Move to hashes/nonces; ship pre-compiled JSX so ceo-dash doesn't need unsafe-eval; refactor icPopOutChat to use postMessage; escape channelId for JS context with JSON.stringify(channelId)." },
+  { id: "SEC-13", cat: "SEC", sev: "LOW", title: "No @microflexfilm.com domain enforcement on ceo-dash.html",
+    where: "public/ceo-dash.html:1333-1342",
+    what: "onAuthStateChanged here does NOT check @microflexfilm.com. (Firestore rules still gate reads, so practical impact is limited to UX bleed-through.)",
+    impact: "Non-company Firebase user can sign in and see the CEO dashboard UI shell.",
+    fix: "Add the same if (!u.email.endsWith('@microflexfilm.com')) { auth.signOut(); ... } block as core.js." },
+  { id: "SEC-14", cat: "SEC", sev: "LOW", title: "anonymousFeedback allows any signed-in user (incl. portal) to write",
+    where: "firestore.rules:661-665",
+    what: "allow create: if signedIn(); — portal clients (non-employees) can post into a collection management thinks is \"internal anonymous feedback.\"",
+    impact: "Portal users can spam internal feedback channel.",
+    fix: "allow create: if companyUser(); (still anonymous to readers, but only employees can submit)." },
+  { id: "SEC-15", cat: "SEC", sev: "INFO", title: "HTTP endpoints & CORS — clean (no issue)",
+    where: "functions/index.js:73-92 (requireInternalUser) and functions/workflows/http/*.js",
+    what: "All HTTP endpoints reviewed (~20 endpoints). All verify Authorization: Bearer <idToken> via verifyIdToken and check @microflexfilm.com. CORS restricted to mfx-2026.web.app, mfx-2026.firebaseapp.com, localhost:5000 — no wildcards. relaxedHttpAuthEnabled gated to FUNCTIONS_EMULATOR=true.",
+    impact: "Good security posture on HTTP layer.",
+    fix: "No action needed — keep doing what you're doing here." },
+
+  // ============= UX BUGS =============
+  { id: "UX-01", cat: "UX", sev: "CRITICAL", title: "Department home views silently bounce non-admin users",
+    where: "public/js/core.js:579-596 (DEPT_ALLOWED_VIEWS); full-menu.js:196,228,281,294,349,363,153",
+    what: "Hamburger menu fires goView('dept-prod-home'), dept-qa-home, dept-fai-home, dept-fin-home, dept-fsq-home, dept-lg-home, dept-ops-home. None exist in any entry of DEPT_ALLOWED_VIEWS. Only dept-cs-home, dept-pp-home, dept-jt-home are listed.",
+    impact: "Users in dept production/quality/finance/logistics/fsqms clicking their own dept-home button get blocked and silently bounced to dashboard. Their homepage doesn't open.",
+    fix: "Add the seven missing view IDs to each matching dept's allow list in core.js:579." },
+  { id: "UX-02", cat: "UX", sev: "HIGH", title: "Master Automation menu opens a view no dept can reach",
+    where: "public/js/app.js:675 ({name:'Master Automation', fn:\"goView('masterauto')\"})",
+    what: "'masterauto' is not in any DEPT_ALLOWED_VIEWS list. Only ceo/admin/operations/management role-matches pass through; everyone else hits the silent block in core.js:610.",
+    impact: "All non-admin users clicking Master Automation see no navigation occur (no toast, no error).",
+    fix: "Either add 'masterauto' to relevant dept lists or guard the button with the role check so it's hidden for users who can't open it." },
+  { id: "UX-03", cat: "UX", sev: "HIGH", title: "System Control view target not in any allow list",
+    where: "Any goView('systemcontrol') call; core.js:579-596 doesn't list it",
+    what: "Same pattern as UX-02 — non-admin clicks no-op.",
+    impact: "Silent dead-end for everyone but the admin role check.",
+    fix: "Hide button for non-admins, or add view to allowlist if intended for ops." },
+  { id: "UX-04", cat: "UX", sev: "HIGH", title: "\"Bulletin board coming soon\" still shipping on every dept page",
+    where: "public/js/app.js:435 (renders +Post Update); app.js:513 (handler)",
+    what: "function deptBulletinPost(key){toast('Bulletin board coming soon','ok')} — a stub left in production.",
+    impact: "Users on every dept-home page hit a button that does nothing. Looks broken/abandoned.",
+    fix: "Either implement persistence (write to deptBulletin collection) or remove the button until built." },
+  { id: "UX-05", cat: "UX", sev: "HIGH", title: "unlockField unlocks but doesn't actually gate — privilege escalation surface",
+    where: "public/js/modules.js:1411 (unlockField); modules.js:1408 (openUserProfile)",
+    what: "Clicking the lock toggles el.disabled=false locally. Role check is client-side only and no audit log. saveUserProfile writes whatever is now in inputs — a user with role='manager' can change their own Role to 'admin' and re-save with zero server check.",
+    impact: "Privilege escalation. Confusing UX (locks shown for fields user supposedly can't edit but can unlock).",
+    fix: "Server-side rule in firestore.rules for users/{uid} to deny role/dept/flexId writes from non-admins. Gray out unlock button entirely for non-admins." },
+  { id: "UX-06", cat: "UX", sev: "MEDIUM", title: "\"Signal Command\" view labeled as placeholder",
+    where: "public/js/app.js:240-241 // Signal Command placeholder view",
+    what: "A whole view is documented as a placeholder still in the shipped bundle.",
+    impact: "Confusing UX when users navigate expecting a working module.",
+    fix: "Either implement or remove from menu wiring." },
+  { id: "UX-07", cat: "UX", sev: "MEDIUM", title: "Three orphan HTML helpers at project root never deploy",
+    where: "mfx-os-scoreboard.html, mfx-os-status.html, mfx-pipeline-audit.html, mfx-pipeline-v3.html at project root (not under public/)",
+    what: "These files live outside public/ so Firebase Hosting never serves them. Confirmed zero references from public/js/**.",
+    impact: "Dead files clutter root; if anyone links them in docs/email, the URL 404s.",
+    fix: "Move into public/ if needed, or delete to clean up root." },
+  { id: "UX-08", cat: "UX", sev: "MEDIUM", title: "~55 silent empty catches hide real failures",
+    where: "notifications.js (11), core.js (8), ppd-labeltraxx-parity.js (6), ppd-master.js (4), launchpad.js (4), chat.js (3), modules.js (2), ppd.js (2), sqf-alerts.js (2), ai-chat-bridge.js (2), others",
+    what: "try { ... } catch(e) {} pattern silences failures during real-time listener setup, status reel writes, notification dispatch. Users see things just stop working with no toast/console.",
+    impact: "When Firestore intermittently fails, app appears frozen but no feedback reaches the user.",
+    fix: "Replace empty catches with catch(e){console.warn('<context>:',e)} at minimum. Add toast on user-initiated paths." },
+  { id: "UX-09", cat: "UX", sev: "MEDIUM", title: "\"Admin\" labeled inputs all show unlock buttons that mostly fail",
+    where: "public/js/modules.js:1411 unlockField()",
+    what: "Regular user sees the 🔓 button next to every field, clicks it, gets denied with toast('Unauthorized — admin role required','err').",
+    impact: "Frustrating UX — buttons that always fail for non-admins should not appear, or should be visibly disabled.",
+    fix: "Wrap the lock button render in if(isAdmin) based on current user role, or render it muted with tooltip \"Admin only — request access\"." },
+  { id: "UX-10", cat: "UX", sev: "MEDIUM", title: "Quote send buttons reference globals that may not be loaded",
+    where: "public/js/modules.js:1473-1479; modules.js:699",
+    what: "sendQuoteToCustomer/sendQuoteToMe/saveQuoteToDrive onclicks depend on Drive (GTOKEN) connectivity and optional drive-listener.js. No typeof X === 'function' guard at the call sites in rendered HTML.",
+    impact: "If user opens app without Google auth or drive-listener fails to load, clicking \"Send to Customer\" throws ReferenceError silently.",
+    fix: "Guard buttons at render (omit if function missing) or wrap globals to no-op + toast \"Connect Google Drive to send quotes\"." },
+  { id: "UX-11", cat: "UX", sev: "MEDIUM", title: "PPD wrappers race with ppd.js IIFE — silent breakage",
+    where: "public/js/ppd.js:587,734,758,863,910 (window.X= assignments inside IIFE); ppd-master.js:243-314 (wrappers)",
+    what: "ppd-master.js wraps these globals at load time: var __origSyncPPDSharedInbox = window.syncPPDSharedInbox; If ppd-master.js loads before ppd.js IIFE finishes, the wrapper captures undefined.",
+    impact: "When wrapper invoked from PPD button, tries to call undefined and crashes the handler. User clicks Sync Inbox, nothing happens, only console error.",
+    fix: "Defer wrapping in ppd-master.js until DOMContentLoaded, or use typeof guard before wrapping. Fail loudly if undefined." },
+  { id: "UX-12", cat: "UX", sev: "MEDIUM", title: "Auth restriction uses jarring alert() that races with signOut",
+    where: "public/js/core.js:616",
+    what: "fbAuth.signOut(); alert('Access restricted to @microflexfilm.com accounts only.'); return — signOut called before alert(); alert may fire after redirect to login on some browsers. alert() is jarring vs the rest of the toast UI.",
+    impact: "Confusing experience for accidental Google account picker mis-selection; user gets an alert they don't expect with no recovery hint.",
+    fix: "Use toast(...) + delayed signOut. Mention \"switch to your @microflexfilm.com account and retry\"." },
+  { id: "UX-13", cat: "UX", sev: "LOW", title: "Status reel auto-posts \"is online\" on every login → spam",
+    where: "public/js/core.js:619",
+    what: "Every onAuthStateChanged with a user writes '<name> is online' to statusReel. Every page refresh and tab open creates a new post. No de-dup window.",
+    impact: "Feed quickly fills with redundant green dot posts, hiding real signals.",
+    fix: "Throttle to one per user per hour. Check most recent statusReel for this userId within last 60min before writing." },
+  { id: "UX-14", cat: "UX", sev: "MEDIUM", title: "notesTags lost when using quickApprove instead of full Save",
+    where: "public/js/modules.js:1675 (reads ×6); writes inconsistent at modules.js:1441-1442",
+    what: "When updated via quickApprove/setQStatus, only status fields persist. If editor pre-filled notesTags and user clicks Quick Approve, tags reset on re-open.",
+    impact: "Silent tag loss — user thinks they tagged the quote, returns next session, tags gone.",
+    fix: "Preserve all fields.* on partial updates (use .update({status:...}), not .set()). Or include notesTags in the quick approve update." },
+  { id: "UX-15", cat: "UX", sev: "LOW", title: "HACCP + Mock Recall open in popup with no nav back",
+    where: "public/js/app.js:666-667; core.js:372-373",
+    what: "window.open('/haccp.html','_blank') opens standalone pages with no \"Return to MFX OS\" link.",
+    impact: "Users get stranded on the page, close the tab, lose context.",
+    fix: "Add a back button or render in-app as iframe view with breadcrumb." },
+  { id: "UX-16", cat: "UX", sev: "LOW", title: "unlockField visual stays muted after unlock",
+    where: "public/js/modules.js:1411",
+    what: "Sets el.disabled=false; el.style.opacity='1' but on a field whose container also has inline opacity, the visual stays muted. No focus event after unlock.",
+    impact: "Confusion — visual feedback doesn't match state. User thinks click failed.",
+    fix: "Also remove style=\"opacity:.5\" from input's parent wrapper. Call el.focus() after unlock." },
+  { id: "UX-17", cat: "UX", sev: "LOW", title: "DEPT_HOME_MAP routes \"operations\"/\"ceo\" to dashboard but menu shows dept-home buttons",
+    where: "public/js/core.js:572-576 (DEPT_HOME_MAP); full-menu.js renders dept buttons for all depts",
+    what: "Operations users land on dashboard (not the rich dept homes), yet hamburger menu still shows them every other dept home as clickable buttons. Admin gets a less-rich landing than a regular dept user.",
+    impact: "Senior users feel the app is less polished for them.",
+    fix: "Either build an \"ops home\" or remap to one of the existing dept homes appropriate to user's primary function." },
+  { id: "UX-18", cat: "UX", sev: "LOW", title: "Vendor Auto-Reorder fires on materials with no preferred vendor",
+    where: "public/js/vendor-pos.js:270 (button); vendor-pos.js:1003 (handler)",
+    what: "vpAutoReorder(m.id) renders the button regardless of whether material has a defined preferredVendor. If missing, auto-reorder fails silently due to empty catch pattern elsewhere.",
+    impact: "Users click Auto-Reorder on materials with no vendor and nothing happens.",
+    fix: "Disable the button when m.preferredVendor is empty, with tooltip \"Set preferred vendor first\"." },
+  { id: "UX-19", cat: "UX", sev: "MEDIUM", title: "Notification empty-catch storm hides \"you have new mentions\"",
+    where: "public/js/notifications.js:719,733,745,759,766,2106-2150 (11 empty catches)",
+    what: "These wrap per-event handlers that push toast/sound; if Firestore throws, user never knows mentions came in.",
+    impact: "Missed pings on chat/mentions/approvals — high-trust UX failure for a manufacturing app.",
+    fix: "Add fallback setLastError('notifications', e). Surface a small red badge on the bell when any handler has errored in last 60s." },
+  { id: "UX-20", cat: "UX", sev: "MEDIUM", title: "unlockField role check uses bare string match, misses \"QA Manager\"",
+    where: "public/js/modules.js:1411",
+    what: "['ceo','admin','administrator','owner','operations manager','manager'].includes(_ru) — exact === match. \"QA Manager\" / \"Shift Manager\" fail. But isViewAllowedForDept uses broad regex.",
+    impact: "A \"QA Manager\" (sensible admin candidate) can't unlock their profile, but a user who set their role to literally \"manager\" can edit everything including their own Role field.",
+    fix: "Harmonize with regex /ceo|admin|owner|director|vp|operations|manager/i.test(role) used in core.js:608. Or move gate server-side and stop relying on client roles." },
+];
+
+// Categories metadata
+const CATS = {
+  PERF: { name: "Performance", color: "#3b82f6" },
+  DATA: { name: "Data integrity", color: "#a855f7" },
+  SEC: { name: "Security", color: "#ef4444" },
+  UX: { name: "UX / Bugs", color: "#10b981" }
+};
+
+// State
+let state = {
+  search: "",
+  cat: "",
+  done: "all",
+  severities: new Set(),
+  checked: JSON.parse(localStorage.getItem("mfx-audit-checked") || "{}")
+};
+
+const $ = id => document.getElementById(id);
+
+function severityRank(s) {
+  return { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 }[s] ?? 99;
+}
+
+function persist() {
+  localStorage.setItem("mfx-audit-checked", JSON.stringify(state.checked));
+}
+
+function renderStats() {
+  const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+  FINDINGS.forEach(f => counts[f.sev]++);
+  const totalDone = Object.keys(state.checked).filter(k => state.checked[k]).length;
+  const totalOpen = FINDINGS.length - totalDone;
+
+  $("stats").innerHTML = [
+    { sev: "CRITICAL", cls: "crit", n: counts.CRITICAL, label: "Critical" },
+    { sev: "HIGH", cls: "high", n: counts.HIGH, label: "High" },
+    { sev: "MEDIUM", cls: "med", n: counts.MEDIUM, label: "Medium" },
+    { sev: "LOW", cls: "low", n: counts.LOW, label: "Low" },
+  ].map(s => `<div class="stat ${s.cls} ${state.severities.has(s.sev) ? "active" : ""}" data-sev="${s.sev}"><span class="n">${s.n}</span>${s.label}</div>`).join("")
+   + `<div class="stat" style="margin-left:auto;cursor:default"><span class="n">${totalDone}/${FINDINGS.length}</span>fixed</div>`;
+
+  document.querySelectorAll(".stat[data-sev]").forEach(el => {
+    el.onclick = () => {
+      const sev = el.dataset.sev;
+      if (state.severities.has(sev)) state.severities.delete(sev);
+      else state.severities.add(sev);
+      renderAll();
+    };
+  });
+
+  const pct = FINDINGS.length ? (totalDone / FINDINGS.length) * 100 : 0;
+  $("progressBar").style.width = pct + "%";
+}
+
+function escape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function matchesFilters(f) {
+  if (state.cat && f.cat !== state.cat) return false;
+  if (state.severities.size && !state.severities.has(f.sev)) return false;
+  const isDone = !!state.checked[f.id];
+  if (state.done === "open" && isDone) return false;
+  if (state.done === "done" && !isDone) return false;
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    const blob = (f.id + " " + f.title + " " + f.where + " " + f.what + " " + f.fix).toLowerCase();
+    if (!blob.includes(q)) return false;
+  }
+  return true;
+}
+
+function renderFindings() {
+  const sorted = FINDINGS.slice().sort((a, b) => {
+    // open before done, then by severity
+    const ad = !!state.checked[a.id], bd = !!state.checked[b.id];
+    if (ad !== bd) return ad ? 1 : -1;
+    return severityRank(a.sev) - severityRank(b.sev);
+  });
+  const visible = sorted.filter(matchesFilters);
+
+  $("findings").innerHTML = visible.map(f => {
+    const isDone = !!state.checked[f.id];
+    return `
+      <div class="finding severity-${f.sev} ${isDone ? "done" : ""}" id="finding-${f.id}">
+        <div class="head" data-id="${f.id}">
+          <div class="checkbox" data-toggle="${f.id}" title="${isDone ? "Unmark" : "Mark fixed"}"></div>
+          <div class="badge ${f.sev}">${f.sev}</div>
+          <div class="cat-tag">${escape(CATS[f.cat].name)}</div>
+          <div class="id">${f.id}</div>
+          <div class="title">${escape(f.title)}</div>
+          <div class="chevron">▶</div>
+        </div>
+        <div class="body">
+          <div class="section">
+            <div class="section-label">Where</div>
+            <div class="section-body"><span class="where">${escape(f.where)}</span></div>
+          </div>
+          <div class="section">
+            <div class="section-label">What's wrong</div>
+            <div class="section-body">${escape(f.what)}</div>
+          </div>
+          <div class="section">
+            <div class="section-label">Impact</div>
+            <div class="section-body">${escape(f.impact)}</div>
+          </div>
+          <div class="section">
+            <div class="section-label">Fix</div>
+            <div class="section-body">${escape(f.fix)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  $("emptyMsg").style.display = visible.length ? "none" : "block";
+
+  // Wire up toggles
+  document.querySelectorAll(".checkbox[data-toggle]").forEach(el => {
+    el.onclick = e => {
+      e.stopPropagation();
+      const id = el.dataset.toggle;
+      state.checked[id] = !state.checked[id];
+      persist();
+      renderAll();
+    };
+  });
+  document.querySelectorAll(".finding .head").forEach(el => {
+    el.onclick = e => {
+      if (e.target.classList.contains("checkbox")) return;
+      el.parentElement.classList.toggle("open");
+    };
+  });
+}
+
+function renderAll() {
+  renderStats();
+  renderFindings();
+}
+
+$("search").oninput = e => { state.search = e.target.value; renderFindings(); };
+$("catFilter").onchange = e => { state.cat = e.target.value; renderFindings(); };
+$("doneFilter").onchange = e => { state.done = e.target.value; renderFindings(); };
+$("expandAll").onclick = () => document.querySelectorAll(".finding").forEach(el => el.classList.add("open"));
+$("collapseAll").onclick = () => document.querySelectorAll(".finding").forEach(el => el.classList.remove("open"));
+$("resetState").onclick = () => {
+  if (confirm("Reset all checkboxes? This clears your fix-tracking progress.")) {
+    state.checked = {};
+    persist();
+    renderAll();
+  }
+};
+
+renderAll();
+</script>
+</body>
+</html>

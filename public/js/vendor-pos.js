@@ -267,7 +267,9 @@ function vpTabDashboard(){
       h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bdr);font-size:10px">';
       h+='<span style="color:var(--tx)">'+m.name+'</span>';
       h+='<div style="display:flex;gap:8px"><span style="color:var(--or)">'+(m.onHand||0)+' '+( m.unit||'')+' on hand</span>';
-      h+='<button class="btn btn-ghost btn-xs" onclick="vpAutoReorder(\''+m.id+'\')" style="font-size:9px">Auto-Reorder</button></div></div>';
+      // UX-18 fix (2026-05-24): disable Auto-Reorder when no preferred vendor
+var _hasVendor1 = !!(m.preferredVendor || m.preferredVendorId || m.vendorId || m.vendor);
+h+='<button class="btn btn-ghost btn-xs" '+(_hasVendor1?'onclick="vpAutoReorder(\''+m.id+'\')"':'disabled title="Set preferred vendor first"')+' style="font-size:9px'+(_hasVendor1?'':';opacity:.4;cursor:not-allowed')+'">Auto-Reorder</button></div></div>';
     });
     h+='</div>';
   }
@@ -944,7 +946,9 @@ function vpRenderMaterialProfile(){
     if(low){
       h+='<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:8px;margin-top:10px">';
       h+='<div style="font-size:11px;color:var(--rd)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> LOW STOCK — Current: '+(m.onHand||0)+' · Reorder at: '+(m.reorderPoint||0)+'</div>';
-      h+='<button class="btn btn-pr btn-xs" onclick="vpAutoReorder(\''+m.id+'\')" style="margin-top:6px;width:100%"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> Auto-Generate Reorder PO</button>';
+      // UX-18 fix (2026-05-24): disable Auto-Generate Reorder PO when no preferred vendor
+var _hasVendor2 = !!(m.preferredVendor || m.preferredVendorId || m.vendorId || m.vendor);
+h+='<button class="btn btn-pr btn-xs" '+(_hasVendor2?'onclick="vpAutoReorder(\''+m.id+'\')"':'disabled title="Set preferred vendor first"')+' style="margin-top:6px;width:100%'+(_hasVendor2?'':';opacity:.4;cursor:not-allowed')+'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> Auto-Generate Reorder PO</button>';
       h+='</div>';
     }
   }else if(VP.materialTab==='lots'){
@@ -991,7 +995,9 @@ function vpRenderMaterialProfile(){
   }
 
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">';
-  h+='<button class="btn btn-pr btn-xs" onclick="vpAutoReorder(\''+m.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> Reorder</button>';
+  // UX-18 fix (2026-05-24): disable Reorder when no preferred vendor
+var _hasVendor3 = !!(m.preferredVendor || m.preferredVendorId || m.vendorId || m.vendor);
+h+='<button class="btn btn-pr btn-xs" '+(_hasVendor3?'onclick="vpAutoReorder(\''+m.id+'\')"':'disabled title="Set preferred vendor first"')+(_hasVendor3?'':' style="opacity:.4;cursor:not-allowed"')+'><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> Reorder</button>';
   h+='<button class="btn btn-ghost btn-xs" onclick="vpEditMaterial(\''+m.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>';
   h+='<button class="btn btn-ghost" onclick="closeModal()">Close</button>';
   h+='</div>';
@@ -1074,7 +1080,8 @@ function vpOpenCreate(prefill){
   h+='<div style="margin-bottom:10px">'+vpF('Internal Notes (NOT on PDF)','vpInternalNotes','','textarea','',2)+'</div>';
 
   h+='<button class="btn btn-pr" onclick="vpSaveDraft()" style="width:100%;margin-bottom:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save as Draft</button>';
-  h+='<button class="btn btn-submit-approval" onclick="vpSubmitForApproval()" style="width:100%;margin-bottom:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit for CEO Approval</button>';
+  /* APPROVAL REMOVAL (2026-05-24): VPO CEO approval gate removed; button renamed Save & Approve */
+  h+='<button class="btn btn-pr" onclick="vpSubmitForApproval()" style="width:100%;margin-bottom:4px;background:linear-gradient(135deg,#16a34a,#15803d)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Save & Approve</button>';
   h+='<button class="btn btn-ghost" onclick="closeModal()" style="width:100%">Cancel</button>';
   openModal(h);
 
@@ -1142,14 +1149,16 @@ function vpSaveDraft(){
 }
 
 function vpSubmitForApproval(){
-  var vpo=vpBuildDoc('pending_approval');if(!vpo)return;
-  if(!vpo.eta)return toast('ETA required before submitting','err');
+  // APPROVAL REMOVAL (2026-05-24): VPO CEO gate removed. Auto-approve
+  // straight from create modal. Skips pending_approval state and the
+  // team-notification ping.
+  var vpo=vpBuildDoc('approved');if(!vpo)return;
+  if(!vpo.eta)return toast('ETA required before saving','err');
   vpo.submittedBy=getUserName();vpo.submittedForApprovalAt=new Date().toISOString();
+  vpo.approvedBy=getUserName();vpo.approvedAt=new Date().toISOString();
   vpoSave(vpo).then(function(){
-    notifyTeam('📤 VPO APPROVAL REQUEST: '+vpo.vpoNum+' — '+vpo.vendorName+' | '+vpo.material+' | '+fmt$(vpo.total));
-    fbDb.collection('threads').add({type:'vpo.approval_requested',vpoNum:vpo.vpoNum,vendorName:vpo.vendorName,total:vpo.total,by:getUserName(),createdAt:new Date().toISOString(),message:'📤 VPO Approval: '+vpo.vpoNum+' — '+vpo.vendorName+' '+fmt$(vpo.total)}).catch(function(e){console.warn('op:',e)});
-    toast('Submitted for approval','ok');
-    closeModal();VP.tab='pending';renderVendorPOs();
+    toast('VPO approved — ready to send to vendor','ok');
+    closeModal();VP.tab='approved';renderVendorPOs();
   }).catch(function(e){toast('Error: '+e.message,'err')});
 }
 
@@ -1507,7 +1516,15 @@ function vpRenderDetail(){
   openModal(h);
 }
 
-function vpSubmitFromDetail(vpoId){var vpo=vpoGet(vpoId);if(!vpo)return;vpo.status='pending_approval';vpo.submittedBy=getUserName();vpo.submittedForApprovalAt=new Date().toISOString();vpo.log=vpo.log||[];vpo.log.push({action:'Submitted for approval',by:getUserName(),at:new Date().toISOString()});vpoSave(vpo).then(function(){notifyTeam('📤 VPO APPROVAL: '+vpo.vpoNum+' — '+vpo.vendorName+' '+fmt$(vpo.total));toast('Submitted','ok');vpRenderDetail()})}
+function vpSubmitFromDetail(vpoId){
+  // APPROVAL REMOVAL (2026-05-24): auto-approve from detail view.
+  var vpo=vpoGet(vpoId);if(!vpo)return;
+  vpo.status='approved';
+  vpo.submittedBy=getUserName();vpo.submittedForApprovalAt=new Date().toISOString();
+  vpo.approvedBy=getUserName();vpo.approvedAt=new Date().toISOString();
+  vpo.log=vpo.log||[];vpo.log.push({action:'Auto-approved (approval flow removed)',by:getUserName(),at:new Date().toISOString()});
+  vpoSave(vpo).then(function(){toast('Approved','ok');vpRenderDetail()});
+}
 
 function vpRecordPayment(vpoId){var vpo=vpoGet(vpoId);if(!vpo)return;var amt=gf('vpPayAmt');if(!amt)return toast('Amount required','err');var ref=gv('vpPayRef');var totalPaid=(vpo.paidAmount||0)+amt;var ns=totalPaid>=(vpo.total||0)?'paid':'received';vpo.paidAmount=totalPaid;vpo.status=ns;if(ns==='paid')vpo.paidAt=new Date().toISOString();vpo.invoiceRef=ref||vpo.invoiceRef;vpo.log=vpo.log||[];vpo.log.push({action:'Payment recorded: '+fmt$(amt)+(ref?' Ref: '+ref:''),by:getUserName(),at:new Date().toISOString()});vpoSave(vpo).then(function(){toast('Payment recorded','ok');if(ns==='paid'&&vpo.forJTId){var jt=(_jtCache||[]).find(function(t){return t.id===vpo.forJTId});if(jt&&jt.blueprintId){var bp=typeof getBlueprint==='function'?getBlueprint(jt.blueprintId):null;if(bp){bp.lastMaterialCost=vpo.total;bp.lastMaterialPaidAt=new Date().toISOString();typeof saveBlueprint==='function'&&saveBlueprint(bp).catch(function(e){console.warn('op:',e)})}}}vpRenderDetail()})}
 

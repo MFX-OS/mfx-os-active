@@ -1092,7 +1092,7 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
   #icInputBar textarea{font-size:16px!important;padding:10px 14px!important;border-radius:22px!important}
   /* Hide extra input buttons on phone — keep emoji + send only */
   #icInputBar button[onclick*="icAddFile"],
-  #icInputBar button[onclick*="chatSearchGif"],
+  /* SEC-11 removal: chatSearchGif selector removed */
   #icInputBar button[onclick*="icTogglePriority"],
   #icInputBar button[onclick*="icSendKudos"],
   #icInputBar button[onclick*="icCreatePoll"]{display:none!important}

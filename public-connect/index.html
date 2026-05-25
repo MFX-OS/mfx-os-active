@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Microflex Film Corporation — Connect</title>
+<meta name="description" content="Connect with Microflex Film Corporation — flexible packaging, labels, pouches, shrink sleeves, sachets, and stick packs. SQF Certified. Made in USA.">
+<meta name="theme-color" content="#060d14">
+<meta property="og:title" content="Microflex Film Corporation — Connect">
+<meta property="og:description" content="Flexible packaging, labels, pouches, shrink sleeves, sachets, and stick packs. SQF Certified. Made in USA.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://connect.microflexfilm.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#060d14;--surface:#0a1520;--card:#0f1d2b;--card-lt:#122336;
+  --border:#1a2d40;--border-lt:#243a50;
+  --h1:#e0f2fe;--body:#94a3b8;--sub:#64748b;
+  --ac:#00e5ff;--ac-dk:#00838f;--navy:#0a2e3e;
+  --green:#22c55e;--gold:#DAA520;--purple:#a78bfa
+}
+html,body{background:var(--bg);font-family:Outfit,'Helvetica Neue',Arial,sans-serif;color:var(--body);min-height:100vh;min-height:100dvh}
+body{display:flex;flex-direction:column;align-items:center;padding:24px 20px 40px;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(40px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));background:radial-gradient(ellipse at top,#0a2030 0%,var(--bg) 60%)}
+a{color:var(--ac);text-decoration:none}
+
+/* Card shell */
+.card{width:100%;max-width:440px;background:linear-gradient(180deg,var(--surface) 0%,var(--card) 100%);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55),0 0 0 1px rgba(0,229,255,.04)}
+
+/* Accent stripe at top */
+.stripe{height:4px;background:linear-gradient(90deg,#00838f 0%,#00e5ff 50%,#00838f 100%)}
+
+/* Brand header */
+.brand{padding:32px 28px 20px;text-align:center}
+.logo-word{font-family:Outfit,sans-serif;font-size:44px;font-weight:900;color:var(--h1);letter-spacing:-1.5px;line-height:1}
+.logo-line{width:100%;height:2.5px;background:var(--ac);margin:6px auto 8px;border-radius:2px}
+.logo-sub{font-family:Outfit,sans-serif;font-size:10px;font-weight:300;color:var(--ac-dk);letter-spacing:8px;text-transform:uppercase}
+.tagline{margin-top:18px;font-size:13px;color:var(--body);line-height:1.55;max-width:340px;margin-left:auto;margin-right:auto}
+.tagline b{color:var(--h1);font-weight:700}
+
+/* SQF badge row */
+.badges{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:16px 0 4px;padding:0 28px}
+.badge{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:rgba(0,229,255,.08);color:var(--ac);border:1px solid rgba(0,229,255,.18)}
+.badge.gold{background:rgba(218,165,32,.08);color:var(--gold);border-color:rgba(218,165,32,.22)}
+
+/* Product categories ribbon */
+.ribbon{background:var(--navy);padding:10px 16px;margin:20px 0 0;display:flex;justify-content:center;flex-wrap:wrap;gap:6px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.ribbon span{font-size:9px;font-weight:600;letter-spacing:1.3px;text-transform:uppercase;color:var(--ac)}
+.ribbon i{color:var(--ac-dk);font-style:normal}
+
+/* Contact buttons grid */
+.actions{padding:20px 18px 10px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{display:flex;align-items:center;gap:10px;padding:13px 14px;background:var(--card-lt);border:1px solid var(--border-lt);border-radius:12px;color:var(--h1);cursor:pointer;transition:transform .12s ease,background .2s ease,border-color .2s ease;text-align:left;width:100%;font-family:inherit}
+.btn:hover{background:#16283b;border-color:rgba(0,229,255,.3)}
+.btn:active{transform:scale(.98)}
+.btn .ico{width:34px;height:34px;border-radius:9px;background:rgba(0,229,255,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.btn .ico svg{width:18px;height:18px;stroke:var(--ac);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn .meta{flex:1;min-width:0}
+.btn .lbl{font-size:9px;font-weight:700;color:var(--sub);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:2px}
+.btn .val{font-size:13px;font-weight:700;color:var(--h1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Primary save-to-contacts */
+.save{margin:4px 18px 16px;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:linear-gradient(135deg,var(--ac) 0%,#00b8d0 100%);color:#041820;font-size:13px;font-weight:800;letter-spacing:.3px;border:none;border-radius:12px;cursor:pointer;box-shadow:0 8px 24px rgba(0,229,255,.18);font-family:inherit;transition:transform .12s,box-shadow .2s}
+.save:hover{box-shadow:0 12px 32px rgba(0,229,255,.28)}
+.save:active{transform:scale(.985)}
+.save svg{width:18px;height:18px;stroke:#041820;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+
+/* Details list */
+.details{padding:6px 22px 18px;border-top:1px solid var(--border)}
+.row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px dashed rgba(26,45,64,.7)}
+.row:last-child{border-bottom:none}
+.row .ico{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.row .ico svg{width:15px;height:15px;stroke:var(--ac);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.row .k{font-size:9px;font-weight:700;color:var(--sub);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px}
+.row .v{font-size:13px;font-weight:600;color:var(--h1);line-height:1.4}
+.row .v a{color:var(--h1);border-bottom:1px dotted rgba(0,229,255,.3)}
+.row .v small{display:block;font-size:11px;font-weight:400;color:var(--body);margin-top:2px}
+
+/* Portal CTA */
+.portal{margin:0 18px 18px;padding:14px 16px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.18);border-radius:12px;display:flex;align-items:center;gap:12px}
+.portal .ic{width:34px;height:34px;border-radius:9px;background:rgba(0,229,255,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.portal .ic svg{width:18px;height:18px;stroke:var(--ac);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.portal .tx{flex:1;min-width:0}
+.portal .tt{font-size:12px;font-weight:700;color:var(--h1)}
+.portal .sb{font-size:10px;color:var(--body);margin-top:1px}
+.portal a.go{font-size:11px;font-weight:700;color:var(--ac);padding:7px 12px;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:8px;white-space:nowrap}
+
+/* Footer */
+.foot{padding:16px 24px 22px;text-align:center;border-top:1px solid var(--border);background:rgba(0,0,0,.2)}
+.foot .addr{font-size:10px;color:var(--sub);line-height:1.6;font-weight:500}
+.foot .copy{margin-top:6px;font-size:9px;color:#3a5060;letter-spacing:.6px}
+
+/* Small-screen tweaks */
+@media (max-width:360px){
+  .actions{grid-template-columns:1fr}
+  .logo-word{font-size:38px}
+}
+
+/* Subtle motion on load */
+.card{animation:rise .55s cubic-bezier(.2,.8,.25,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:var(--h1);color:var(--navy);font-size:12px;font-weight:700;padding:10px 18px;border-radius:30px;box-shadow:0 10px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;z-index:100}
+.toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="stripe"></div>
+
+  <div class="brand">
+    <div class="logo-word">Microflex</div>
+    <div class="logo-line"></div>
+    <div class="logo-sub">Film Corporation</div>
+    <p class="tagline"><b>Flexible packaging engineered in California.</b> Labels, pouches, shrink sleeves, sachets, and stick packs for food, beverage, cosmetics, and nutraceutical brands.</p>
+    <div class="badges">
+      <span class="badge">SQF Certified</span>
+      <span class="badge gold">Made in USA</span>
+      <span class="badge">FDA Compliant</span>
+    </div>
+  </div>
+
+  <div class="ribbon">
+    <span>Flexible Packaging</span><i>│</i>
+    <span>Labels</span><i>│</i>
+    <span>Pouches</span><i>│</i>
+    <span>Shrink Sleeves</span><i>│</i>
+    <span>Sachets</span><i>│</i>
+    <span>Stick Packs</span>
+  </div>
+
+  <div class="actions">
+    <a class="btn" href="tel:+19093609066" aria-label="Call Microflex">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+      <div class="meta"><div class="lbl">Call</div><div class="val">(909) 360-9066</div></div>
+    </a>
+    <a class="btn" href="mailto:Quotes@MicroflexFilm.com?subject=Quote%20Request" aria-label="Email Microflex">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+      <div class="meta"><div class="lbl">Email</div><div class="val">Quotes@MicroflexFilm.com</div></div>
+    </a>
+    <a class="btn" href="https://www.microflexfilm.com" target="_blank" rel="noopener" aria-label="Website">
+      <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+      <div class="meta"><div class="lbl">Website</div><div class="val">MicroflexFilm.com</div></div>
+    </a>
+    <a class="btn" href="https://maps.google.com/?q=4130+Garner+Rd,+Riverside,+CA+92501" target="_blank" rel="noopener" aria-label="Directions">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <div class="meta"><div class="lbl">Visit</div><div class="val">Riverside, CA</div></div>
+    </a>
+  </div>
+
+  <button class="save" onclick="saveVCard()" aria-label="Save contact">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+    Save to Contacts
+  </button>
+
+  <div class="details">
+    <div class="row">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <div><div class="k">Headquarters</div><div class="v">4130 Garner Rd<small>Riverside, CA 92501 · United States</small></div></div>
+    </div>
+    <div class="row">
+      <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <div><div class="k">Hours</div><div class="v">Monday–Friday<small>7:00 AM – 5:00 PM Pacific</small></div></div>
+    </div>
+    <div class="row">
+      <div class="ico"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+      <div><div class="k">Specialty</div><div class="v">Short-run & production flexo<small>Digital + flexographic · In-house pre-press & plates</small></div></div>
+    </div>
+    <div class="row">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <div><div class="k">Certified</div><div class="v">SQF Food Safety<small>FDA 21 CFR 174–178 compliant</small></div></div>
+    </div>
+  </div>
+
+  <div class="portal">
+    <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
+    <div class="tx"><div class="tt">Client Portal</div><div class="sb">Approve quotes, upload POs, track orders</div></div>
+    <a class="go" href="https://os.microflexfilm.com/portal" target="_blank" rel="noopener">Open →</a>
+  </div>
+
+  <div class="foot">
+    <div class="addr">Microflex Film Corporation · 4130 Garner Rd · Riverside, CA 92501<br>(909) 360-9066 · Quotes@MicroflexFilm.com</div>
+    <div class="copy">© <span id="yr"></span> Microflex Film Corporation · All rights reserved</div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Contact saved</div>
+
+<script>
+document.getElementById('yr').textContent=new Date().getFullYear();
+
+function showToast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg||'Done';
+  t.classList.add('on');
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(function(){t.classList.remove('on')},2200);
+}
+
+function saveVCard(){
+  var vcf=[
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    'N:;Microflex Film Corporation;;;',
+    'FN:Microflex Film Corporation',
+    'ORG:Microflex Film Corporation',
+    'TITLE:Flexible Packaging Manufacturer',
+    'TEL;TYPE=WORK,VOICE:+19093609066',
+    'EMAIL;TYPE=WORK:Quotes@MicroflexFilm.com',
+    'ADR;TYPE=WORK:;;4130 Garner Rd;Riverside;CA;92501;USA',
+    'URL:https://www.microflexfilm.com',
+    'NOTE:SQF Certified · FDA Compliant · Made in USA',
+    'END:VCARD'
+  ].join('\r\n');
+
+  var blob=new Blob([vcf],{type:'text/vcard;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  a.download='Microflex_Film_Corporation.vcf';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url)},300);
+  showToast('Contact downloaded');
+}
+</script>
+
+</body>
+</html>

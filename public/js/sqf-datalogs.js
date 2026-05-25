@@ -161,7 +161,8 @@
           state.sanitationLogs.push(Object.assign({ id: doc.id }, doc.data()));
         });
         updateAlertCount();
-        render();
+        // PERF-14 fix (2026-05-24): only re-render if user is actually on SQF view
+        if(typeof S!=='undefined' && S.view && /sqf|fsqms/i.test(S.view)) render();
       }, function(err) {
         console.error('Load sanitation error:', err);
       }));
@@ -178,7 +179,8 @@
           state.facilitiesLogs.push(Object.assign({ id: doc.id }, doc.data()));
         });
         updateAlertCount();
-        render();
+        // PERF-14 fix (2026-05-24): only re-render if user is actually on SQF view
+        if(typeof S!=='undefined' && S.view && /sqf|fsqms/i.test(S.view)) render();
       }, function(err) {
         console.error('Load facilities error:', err);
       }));
@@ -195,7 +197,8 @@
           state.qualityLogs.push(Object.assign({ id: doc.id }, doc.data()));
         });
         updateAlertCount();
-        render();
+        // PERF-14 fix (2026-05-24): only re-render if user is actually on SQF view
+        if(typeof S!=='undefined' && S.view && /sqf|fsqms/i.test(S.view)) render();
       }, function(err) {
         console.error('Load quality error:', err);
       }));
@@ -212,7 +215,8 @@
           state.materialsLogs.push(Object.assign({ id: doc.id }, doc.data()));
         });
         updateAlertCount();
-        render();
+        // PERF-14 fix (2026-05-24): only re-render if user is actually on SQF view
+        if(typeof S!=='undefined' && S.view && /sqf|fsqms/i.test(S.view)) render();
       }, function(err) {
         console.error('Load materials error:', err);
       }));

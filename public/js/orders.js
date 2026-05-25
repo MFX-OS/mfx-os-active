@@ -1057,9 +1057,13 @@ async function autoCreateSO(q){
     shapeType:f.shapeType||'',
     colors:f.colors||'',
     jobType:f.jobType||'',
-    face:f.face||f.faceStock||'',
-    laminate:f.laminate||f.lamination||'',
+    // DATA-02 fix (2026-05-24): canonical names are faceStock + lamination.
+    // Legacy keys (face, laminate) kept as fallback reads; never written here.
+    faceStock:f.faceStock||f.face||'',
+    lamination:f.lamination||f.laminate||'',
     coating:f.coating||'',
+    adhesive:f.adhesive||'',
+    liner:f.liner||'',
     windDir:f.windDir||f.copyPos||'',
 
     selectedQtyIndex:selIdx,

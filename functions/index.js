@@ -155,7 +155,11 @@ async function checkRateLimit(uid, action, maxPerWindow, windowMs) {
         return false; // rate limited
       }
 
-      tx.update(ref, { count: data.count + 1, updatedAt: FieldValue.serverTimestamp() });
+      // DATA-15 follow-up fix (2026-05-24): use set(...,{merge:true}) instead
+      // of update() so the FIRST call for a user (whose _rateLimits doc has
+      // never been created — true for everyone post-SEC-10, since the rate
+      // check was broken by IAM until now) doesn't throw NOT_FOUND.
+      tx.set(ref, { count: data.count + 1, windowStart: data.windowStart, uid, action, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       _rateLimitCache.set(key, { count: data.count + 1, windowStart: data.windowStart });
       return true;
     });
@@ -553,7 +557,12 @@ exports.nextSequence = onRequest(
     if (!ensurePost(req, res)) return;
     const actor = await requireInternalUser(req, res);
     if (!actor) return;
-    if (!(await enforceRateLimit(req, res, actor.uid, "nextSequence", 10, 60000))) return;
+    // DATA-15 follow-up (2026-05-24): bumped from 10/min to 30/min so bulk
+    // quote creation (e.g. importing a stack of RFQs in one session) doesn't
+    // hit the wall. Still abuse-proof: server is the sole source of sequence
+    // numbers, so even at 30/min an attacker can only burn ~1800 numbers/hr
+    // and we'd see it in audit logs immediately.
+    if (!(await enforceRateLimit(req, res, actor.uid, "nextSequence", 30, 60000))) return;
     try {
       const kindMap = {
         quote: { kind: "quote", prefix: "MF" },
@@ -2562,6 +2571,13 @@ const { onNCRWrite: aiOnNCRWrite } = require("./workflows/firestore/onNCRWrite")
 const { onVendorPOWrite: aiOnVendorPOWrite } = require("./workflows/firestore/onVendorPOWrite");
 const { onRequestCreate: aiOnRequestCreate } = require("./workflows/firestore/onRequestCreate");
 const { onTrainingRecordWrite: aiOnTrainingRecordWrite } = require("./workflows/firestore/onTrainingRecordWrite");
+// DATA-06 + DATA-07 fix (2026-05-24): server triggers for collections that
+// previously had no server-side validation, derivation, or audit logging.
+const { onSalesOrderWrite: aiOnSalesOrderWrite } = require("./workflows/firestore/onSalesOrderWrite");
+const { onJobPassportWrite: aiOnJobPassportWrite } = require("./workflows/firestore/onJobPassportWrite");
+const { onBlueprintWrite: aiOnBlueprintWrite } = require("./workflows/firestore/onBlueprintWrite");
+const { onApprovalRecordWrite: aiOnApprovalRecordWrite } = require("./workflows/firestore/onApprovalRecordWrite");
+const { onPlateAssetWrite: aiOnPlateAssetWrite } = require("./workflows/firestore/onPlateAssetWrite");
 
 exports.aiOnQuoteWrite = aiOnQuoteWrite;
 exports.aiOnJobTicketWrite = aiOnJobTicketWrite;
@@ -2569,6 +2585,11 @@ exports.aiOnNCRWrite = aiOnNCRWrite;
 exports.aiOnVendorPOWrite = aiOnVendorPOWrite;
 exports.aiOnRequestCreate = aiOnRequestCreate;
 exports.aiOnTrainingRecordWrite = aiOnTrainingRecordWrite;
+exports.aiOnSalesOrderWrite = aiOnSalesOrderWrite;
+exports.aiOnJobPassportWrite = aiOnJobPassportWrite;
+exports.aiOnBlueprintWrite = aiOnBlueprintWrite;
+exports.aiOnApprovalRecordWrite = aiOnApprovalRecordWrite;
+exports.aiOnPlateAssetWrite = aiOnPlateAssetWrite;
 
 // Scheduled sweeps
 const { dailyLeadershipDigest } = require("./workflows/scheduled/dailyLeadershipDigest");

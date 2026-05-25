@@ -1332,6 +1332,16 @@
       useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((authUser) => {
           if (authUser) {
+            // SEC-13 fix (2026-05-24): mirror the @microflexfilm.com domain check
+            // from core.js. Firestore rules already gate reads, but this keeps
+            // non-company Google accounts from seeing the CEO dashboard UI shell.
+            if (authUser.email && !authUser.email.endsWith('@microflexfilm.com') && !authUser.isAnonymous) {
+              try { auth.signOut(); } catch (e) { console.warn('signOut:', e); }
+              setShowAuthModal(true);
+              setLoading(false);
+              setTimeout(function(){ alert('Access restricted to @microflexfilm.com accounts only.'); }, 100);
+              return;
+            }
             setUser(authUser);
             setShowAuthModal(false);
             fetchData();

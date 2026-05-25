@@ -3,7 +3,19 @@ node_modules/
 functions/node_modules/
 
 # Build artifacts
-public/js/mfx-bundle.*.js
+public/js/mfx-*.*.js
+
+# SECURITY: Never commit Firebase service account / admin SDK private keys
+**/*firebase-adminsdk*.json
+**/*service-account*.json
+**/*-adminsdk-*.json
+**/serviceAccount*.json
+
+# SECURITY: Quarantined secrets staging area — items here should be revoked at source, not committed
+_attic/sec-05-revoke-then-delete-*/
+
+# SECURITY: Embedded git repos quarantined in _attic — these have their own .git/, don't double-track
+_attic/data-08-nested-duplicates-*/
 
 # Firebase
 .firebase/
@@ -34,3 +46,5 @@ firebase-debug.log*
 
 # Temporary
 /tmp/
+# DATA-09 audit fix
+*.backup

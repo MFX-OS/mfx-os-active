@@ -8,7 +8,9 @@
     "build:dev": "node build.js --dev",
     "deploy": "node build.js && firebase deploy --only hosting:os",
     "deploy:all": "node build.js && firebase deploy",
-    "clean": "node build.js --clean"
+    "clean": "node build.js --clean",
+    "audit": "npm audit --omit=dev && cd functions && npm audit --omit=dev",
+    "audit:fix": "npm audit fix && cd functions && npm audit fix"
   },
   "devDependencies": {
     "esbuild": "^0.25.12"

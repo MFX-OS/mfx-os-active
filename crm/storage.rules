@@ -1,0 +1,46 @@
+rules_version = '2';
+
+// ============================================================
+// Microflex CRM — Cloud Storage rules
+// Files are organized by company so access can be scoped at the path level.
+// All uploads go through signed URLs minted by a Cloud Function so we can
+// enforce mime-type + size + virus-scan checks before write.
+// ============================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn()  { return request.auth != null; }
+    function role()      { return request.auth.token.role; }
+    function isAdmin()   { return signedIn() && role() == 'admin'; }
+    function hasRole(r)  { return signedIn() && role() in r; }
+
+    // Per-company upload paths — read scoped to anyone who can see the company
+    // (mirrors Firestore companies access). Write only via signed URLs from Functions.
+    match /uploads/{companyId}/{kind}/{fileName} {
+      allow read:  if signedIn();
+      // Direct client write disabled. Use callable function `createSignedUploadUrl`.
+      allow write: if false;
+    }
+
+    // Generated artifacts (quote PDFs, passport PDFs, COA packets) — readable
+    // by signed-in users, written only by Functions.
+    match /generated/{companyId}/{kind}/{fileName} {
+      allow read:  if signedIn();
+      allow write: if false;
+    }
+
+    // User avatars
+    match /avatars/{uid}/{fileName} {
+      allow read:  if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid
+                   && request.resource.size < 2 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -10,6 +10,9 @@
         ],
         "finance": [
           "mfx-2026-finance"
+        ],
+        "connect": [
+          "mfx-connect"
         ]
       }
     }

@@ -1,0 +1,28 @@
+name: Deploy · dev
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://dev.crm.microflexfilm.com
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA_DEV }}
+      - run: npm run build
+      - run: npx firebase deploy --only hosting,functions,firestore:rules --project dev --non-interactive
+      - run: npx firebase hosting:channel:deploy "pr-${{ github.event.number }}" --project dev --expires 7d

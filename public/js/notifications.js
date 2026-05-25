@@ -716,7 +716,7 @@
           allItems.push({id:'q_won_'+q.id, type:'alerts', icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>', title:q.quoteNum+' WON!', body:(q.fields.custCo||'')+(q.wonAmount?' — $'+q.wonAmount:''), timestamp:q.closedAt||q.updatedAt, sourceView:'editor', sourceId:q.id, read:false});
         }
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // ── @MENTIONS in quote internal notes ──
     try {
@@ -730,7 +730,7 @@
           }
         });
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // ── TASKS assigned to user ──
     try {
@@ -742,7 +742,7 @@
         if (!ts) return;
         allItems.push({id:'task_'+t.id, type:'tasks', icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', title:t.title||t.text||'Task', body:t.dueDate?'Due: '+t.dueDate:'', timestamp:ts, sourceView:'dashboard', read:false});
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // ── JOB TICKETS assigned to user ──
     try {
@@ -756,14 +756,14 @@
           allItems.push({id:'jt_'+jt.id, type:'jobs', icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', title:(jt.jtNum||jt.id)+' — '+(jt.company||''), body:'Stage: '+(jt.ppd&&jt.ppd.stage||jt.status||''), timestamp:jt.updatedAt, sourceView:'ppd', read:false});
         }
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // ── SYSTEM ALERTS from _currentAlerts ──
     try {
       (window._currentAlerts||[]).forEach(function(a, i) {
         allItems.push({id:'alert_'+i, type:'alerts', icon:a.flag||'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>', title:a.text||'Alert', body:'', timestamp:Date.now(), read:false});
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // Deduplicate by id
     var seen = {};
@@ -1162,9 +1162,16 @@
             if (!isRelevant) return;
 
             if (quote.status) {
-              // Dedup: check if a notification for this quote+status already exists
+              // PERF-12 fix (2026-05-24): O(1) Set lookup replaces O(N) .some() scan.
+              // _seenQuoteStatusKeys is initialized once at module scope (see init below).
               const dedupKey = `quote_${change.doc.id}_${quote.status}`;
-              if (STATE.notifications.some(n => n.sourceId === change.doc.id && n.body && n.body.indexOf(quote.status) !== -1)) return;
+              if (!window._seenQuoteStatusKeys) window._seenQuoteStatusKeys = new Set();
+              if (window._seenQuoteStatusKeys.has(dedupKey)) return;
+              window._seenQuoteStatusKeys.add(dedupKey);
+              // Cap memory growth — drop oldest if too big
+              if (window._seenQuoteStatusKeys.size > 2000) {
+                window._seenQuoteStatusKeys = new Set(Array.from(window._seenQuoteStatusKeys).slice(-1000));
+              }
 
               addNotification({
                 type: 'alert',
@@ -1238,7 +1245,9 @@
 
     try {
       let _jtInitialLoad = true;
-      return window.fbDb.collection('jobTickets').onSnapshot(snapshot => {
+      // PERF-03 fix (2026-05-24): Bounded to recent 300 tickets (orderBy
+      // updatedAt). Older closed jobs don't need to trigger notifications.
+      return window.fbDb.collection('jobTickets').orderBy('updatedAt','desc').limit(300).onSnapshot(snapshot => {
         // Skip the initial snapshot — it fires 'added' for every existing doc and floods notifications
         if (_jtInitialLoad) { _jtInitialLoad = false; return; }
         snapshot.docChanges().forEach(change => {
@@ -2103,7 +2112,7 @@
             allItems.push({id:'m_'+q.id+'_'+n.id, type:'mentions', icon:'at', color:'#00e5ff', title:(n.by||'Someone')+' mentioned you', body:q.quoteNum+': '+n.text.substring(0,60), timestamp:n.at, nav:'editor', navId:q.id});
         });
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // Tasks
     try {
@@ -2113,7 +2122,7 @@
         if (t.assignedTo && t.assignedTo !== me) return;
         allItems.push({id:'task_'+t.id, type:'tasks', icon:'check-square', color:'#f97316', title:t.title||t.text||'Task', body:t.dueDate?'Due: '+t.dueDate:'', timestamp:t.createdAt||t.dueDate||Date.now(), nav:'dashboard'});
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // Jobs assigned to user
     try {
@@ -2126,28 +2135,28 @@
         if (assignee && assignee.toLowerCase().indexOf(me.toLowerCase()) >= 0)
           allItems.push({id:'jt_'+jt.id, type:'jobs', icon:'file', color:'#8b5cf6', title:(jt.jtNum||jt.id), body:(jt.company||'')+' — '+(jt.ppd&&jt.ppd.stage||jt.status||''), timestamp:jt.updatedAt, nav:'ppd'});
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // System alerts
     try {
       (window._currentAlerts||[]).forEach(function(a, i) {
         allItems.push({id:'alert_'+i, type:'alerts', icon:'alert', color:'#ef4444', title:a.text||'Alert', body:'', timestamp:Date.now()});
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // Emails (from Gmail polling cache)
     try {
       (window._mfxGmailCache||[]).forEach(function(email) {
         allItems.push({id:'email_'+email.id, type:'emails', icon:'mail', color:'#22d3ee', title:escapeHtml(email.from||email.sender||''), body:escapeHtml(email.subject||''), timestamp:email.date||email.receivedAt||Date.now()});
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // Calendar events today
     try {
       (window._mfxCalCache||[]).forEach(function(ev) {
         allItems.push({id:'cal_'+ev.id, type:'calendar', icon:'calendar', color:'#daa520', title:escapeHtml(ev.summary||ev.title||'Event'), body:ev.start&&ev.start.dateTime?new Date(ev.start.dateTime).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'All day', timestamp:ev.start&&ev.start.dateTime?ev.start.dateTime:Date.now()});
       });
-    } catch(e) {}
+    } catch (e) { console.warn('notif:', e); }
 
     // Deduplicate
     var seen = {};
@@ -2343,7 +2352,10 @@
     }, function() {});
 
     // Watch job tickets for due dates
-    fbDb.collection('jobTickets').onSnapshot(function(snap) {
+    // PERF-13 fix (2026-05-24): Bound to recent 200 tickets only. Older
+    // tickets' calendar entries should already exist; only newly-active ones
+    // need syncing. orderBy + limit avoids cost explosion.
+    fbDb.collection('jobTickets').orderBy('updatedAt','desc').limit(200).onSnapshot(function(snap) {
       snap.docChanges().forEach(function(change) {
         if (change.type === 'added' || change.type === 'modified') {
           var jt = change.doc.data();

@@ -15,18 +15,35 @@
   var _fsqmsDb=null;
   try{_fsqmsDb=typeof fbDb!=='undefined'?fbDb:(typeof firebase!=='undefined'?firebase.firestore():null);}catch(e){}
 
-  function persistSan(){
-    localStorage.setItem('mfx-fsqms-san',JSON.stringify(SAN));
-    if(_fsqmsDb&&SAN.length){var last=SAN[SAN.length-1];_fsqmsDb.collection('fsqmsSanitation').doc(last.id).set(last).catch(function(e){console.warn('FSQMS sync san:',e.message);});}
+  // DATA-13 fix (2026-05-24): persist by record-ID instead of always the
+  // last-array-element. Callers that know which record changed can pass its
+  // id for an efficient single-doc write. Callers that don't pass an id fall
+  // back to batch-writing the full array (safe but heavier). This is what
+  // SQF compliance needs — edits to old entries now actually persist, and
+  // concurrent operators no longer overwrite each other's records.
+  function _persistArray(localKey, collectionName, arr, targetId){
+    localStorage.setItem(localKey, JSON.stringify(arr));
+    if(!_fsqmsDb || !arr.length) return;
+    if(targetId){
+      var rec = arr.find(function(x){return x && x.id === targetId;});
+      if(rec){
+        _fsqmsDb.collection(collectionName).doc(rec.id).set(rec)
+          .catch(function(e){console.warn('FSQMS sync '+collectionName+':', e.message);});
+      }
+      return;
+    }
+    // No id given — batch the whole array (legacy "best effort" mode).
+    try{
+      var batch = _fsqmsDb.batch();
+      arr.forEach(function(rec){
+        if(rec && rec.id) batch.set(_fsqmsDb.collection(collectionName).doc(rec.id), rec);
+      });
+      batch.commit().catch(function(e){console.warn('FSQMS sync '+collectionName+' batch:', e.message);});
+    }catch(e){console.warn('FSQMS sync '+collectionName+' batch setup:', e.message);}
   }
-  function persistQual(){
-    localStorage.setItem('mfx-fsqms-qual',JSON.stringify(QUAL));
-    if(_fsqmsDb&&QUAL.length){var last=QUAL[QUAL.length-1];_fsqmsDb.collection('fsqmsQuality').doc(last.id).set(last).catch(function(e){console.warn('FSQMS sync qual:',e.message);});}
-  }
-  function persistMat(){
-    localStorage.setItem('mfx-fsqms-mat',JSON.stringify(MAT));
-    if(_fsqmsDb&&MAT.length){var last=MAT[MAT.length-1];_fsqmsDb.collection('fsqmsMaterials').doc(last.id).set(last).catch(function(e){console.warn('FSQMS sync mat:',e.message);});}
-  }
+  function persistSan(id){ _persistArray('mfx-fsqms-san','fsqmsSanitation',SAN,id); }
+  function persistQual(id){ _persistArray('mfx-fsqms-qual','fsqmsQuality',QUAL,id); }
+  function persistMat(id){ _persistArray('mfx-fsqms-mat','fsqmsMaterials',MAT,id); }
 
   // Load from Firestore on init (merge with localStorage)
   function fsqmsLoadFromFirestore(){

@@ -478,6 +478,10 @@ function buildMIMEEmail(to,subject,bodyHtml,pdfBlob,pdfFileName){
 }
 
 function sendGmailWithAttachment(token,to,subject,bodyHtml,pdfBlob,pdfFileName){
+  /* EMAIL_GUARD wrap (2026-05-24): bail if customer emails are blocked */
+  if(window.MFX_EMAIL_GUARD && window.MFX_EMAIL_GUARD.blockIfDisabled('sendGmailWithAttachment', to)){
+    return Promise.resolve({success:false, blocked:true, error:'Email blocked by guard'});
+  }
   return buildMIMEEmail(to,subject,bodyHtml,pdfBlob,pdfFileName).then(function(encoded){
     return fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{
       method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},

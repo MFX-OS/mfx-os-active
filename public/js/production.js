@@ -10,16 +10,22 @@ var _prodListeners=[];
 var S_JP={view:'passports',jpEditId:null,bpFilter:'all'};
 
 // ─── Firestore Listeners ───
+// PERF-05 fix (2026-05-24): 3 listeners now bounded so the production board
+// doesn't repaint over years of historical jobs on every ticket change.
+// Older closed jobs accessible by direct doc().get() if needed.
+var _PROD_PASSPORT_LIMIT = 300;
+var _PROD_BLUEPRINT_LIMIT = 300;
+var _PROD_TICKET_LIMIT = 300;
 function startProductionListeners(){
-  _prodListeners.push(fbDb.collection('jobPassports').orderBy('createdAt','desc').onSnapshot(function(s){
+  _prodListeners.push(fbDb.collection('jobPassports').orderBy('createdAt','desc').limit(_PROD_PASSPORT_LIMIT).onSnapshot(function(s){
     _jpCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
     if(S.view==='production')renderProductionView();
   }, function(err){ console.warn('production jobPassports listener:', err.message); }));
-  _prodListeners.push(fbDb.collection('blueprints').orderBy('updatedAt','desc').onSnapshot(function(s){
+  _prodListeners.push(fbDb.collection('blueprints').orderBy('updatedAt','desc').limit(_PROD_BLUEPRINT_LIMIT).onSnapshot(function(s){
     _bpCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
     if(S.view==='production'&&S_JP.view==='blueprints')renderProductionView();
   }, function(err){ console.warn('production blueprints listener:', err.message); }));
-  _prodListeners.push(fbDb.collection('jobTickets').orderBy('createdAt','desc').onSnapshot(function(s){
+  _prodListeners.push(fbDb.collection('jobTickets').orderBy('createdAt','desc').limit(_PROD_TICKET_LIMIT).onSnapshot(function(s){
     _jtCache=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});
     if(S.view==='production'&&S_JP.view==='tickets')renderProductionView();
   }, function(err){ console.warn('production jobTickets listener:', err.message); }));
@@ -132,13 +138,27 @@ function renderPassportList(){
 }
 
 // ─── Create Passport from SO ───
-async function createPassportFromSO(soId){
+async function createPassportFromSO(soId, opts){
+  opts = opts || {};
+  var autoTickets = opts.autoTickets !== false; // default true: auto-generate tickets after
   var so=getSO(soId);if(!so)return toast('Sales Order not found','err');
+
+  // Idempotency — if a passport already exists for this SO, return it instead of creating a duplicate
+  var existing=(_jpCache||[]).find(function(p){return p.soId===so.id});
+  if(existing){
+    if(autoTickets){
+      var hasTickets=(_jtCache||[]).some(function(t){return t.passportId===existing.id});
+      if(!hasTickets) setTimeout(function(){generateJobTickets(existing.id)}, 500);
+    }
+    return existing;
+  }
+
   var jpId='jp_'+Date.now();
   if(typeof requestServerNumber !== 'function') { toast('Server unavailable — cannot generate job number','err'); return; }
   var jpNum=await requestServerNumber('jobPassport', genJPLocal);
 
-  // Build initial SKU list from the SO — start with 1 SKU matching the quote specs
+  // Build initial SKU list from the SO — start with 1 SKU matching the quote specs.
+  // Auto-confirm because the SO has already been CEO-approved — specs are final.
   var sku1={
     id:'sku_'+Date.now(),
     name:so.jobDesc,
@@ -148,7 +168,9 @@ async function createPassportFromSO(soId){
     windDir:so.windDir,
     qty:so.selectedQty,
     blueprintId:null,
-    confirmed:false,
+    confirmed:autoTickets?true:false,
+    confirmedAt:autoTickets?new Date().toISOString():undefined,
+    confirmedBy:autoTickets?getUserName():undefined,
     notes:''
   };
 
@@ -189,9 +211,27 @@ async function createPassportFromSO(soId){
     DB.logActivity('jp.created',jpNum+' from '+so.soNum);
     MFX.track('jp.created',{jpId:jpId,jpNum:jpNum,soNum:so.soNum,company:so.company});
     notifyTeam('🛂 New Job Passport: '+jpNum+' — '+so.company+' ('+so.quoteNum+')');
+    // Link passport back to the SO so UI (SO Preview, Orders) can show the jump-link
+    if(typeof fbDb!=='undefined'){
+      fbDb.collection('salesOrders').doc(so.id).set({passportId:jpId,passportNum:jpNum,updatedAt:new Date().toISOString()},{merge:true}).catch(function(e){console.warn('SO passport link:',e.message)});
+    }
     S_JP.view='passports';
-    renderProductionView();
+    if(typeof renderProductionView==='function' && typeof S!=='undefined' && S.view==='production') renderProductionView();
+
+    // Auto-generate tickets + provision PPD workspace when triggered by SO approval
+    if(autoTickets){
+      // Small delay so the passport is in _jpCache before generateJobTickets reads it
+      setTimeout(function(){
+        var fresh=getPassport(jpId);
+        if(!fresh){
+          // Cache not hydrated yet — inject directly so generateJobTickets can find it
+          if(Array.isArray(_jpCache)) _jpCache.push(jp);
+        }
+        generateJobTickets(jpId);
+      }, 800);
+    }
   });
+  return jp;
 }
 
 // ─── Passport Detail ───

@@ -1,0 +1,47 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function companyUser() {
+      return request.auth != null && request.auth.token.email != null &&
+        request.auth.token.email.matches('.*@microflexfilm\\.com$');
+    }
+
+    function deptIsAny(depts) {
+      return request.auth.token.dept in depts;
+    }
+    function isManagement() {
+      return request.auth.token.role in ['ceo','admin','administrator','owner','operations manager','manager'];
+    }
+
+    match /clients/{allPaths=**} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['sales','estimation','operations','administration']) || isManagement());
+    }
+
+    // Portal uploads — any authenticated user (clients via email link verification)
+    match /portal-uploads/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 25 * 1024 * 1024;
+    }
+
+    match /ppd/{allPaths=**} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['pre-press','production','operations']) || isManagement());
+    }
+
+    match /registers/{allPaths=**} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['quality','operations','administration']) || isManagement());
+    }
+
+    match /exports/{allPaths=**} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['accounting','operations','administration']) || isManagement());
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

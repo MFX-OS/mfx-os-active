@@ -1,0 +1,738 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function companyUser() {
+      return signedIn() && request.auth.token.email != null &&
+        request.auth.token.email.matches('.*@microflexfilm\\.com$');
+    }
+
+    function self(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function deptIsAny(depts) {
+      return hasUserDoc() && userDoc().dept != null && userDoc().dept.lower() in depts;
+    }
+
+    function roleIsAny(roles) {
+      return hasUserDoc() && userDoc().role != null && userDoc().role.lower() in roles;
+    }
+
+    function isManagement() {
+      return roleIsAny(['ceo','admin','administrator','owner','operations manager','manager']) ||
+        deptIsAny(['operations','administration']);
+    }
+
+    function canEditCommercial() {
+      return companyUser() && (
+        isManagement() ||
+        deptIsAny(['sales','estimation','operations','administration']) ||
+        roleIsAny(['sales','estimator','csr','account manager'])
+      );
+    }
+
+    function canEditPPD() {
+      return companyUser() && (
+        isManagement() ||
+        deptIsAny(['pre-press','prepress','production','quality','operations','administration']) ||
+        roleIsAny(['prepress','pre-press','designer','operator','qa','quality'])
+      );
+    }
+
+    function canEditPurchasing() {
+      return companyUser() && (
+        isManagement() ||
+        deptIsAny(['operations','purchasing','production','administration','accounting']) ||
+        roleIsAny(['buyer','purchasing','operations manager','production manager','coo'])
+      );
+    }
+
+    function canEditCollaboration() {
+      return companyUser();
+    }
+
+    // Field validation helpers
+    function isStringMax(field, max) {
+      return field is string && field.size() <= max;
+    }
+
+    match /users/{userId} {
+      allow read: if companyUser();
+      allow create: if self(userId) || isManagement();
+      allow update: if (isManagement() || (self(userId) && (
+        // Self-update: users can NEVER change their own role or dept
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'dept'])
+      )))
+        && (!('role' in request.resource.data) || request.resource.data.role is string && request.resource.data.role.size() <= 100);
+      allow delete: if isManagement();
+    }
+
+    match /quotes/{quoteId} {
+      allow read: if companyUser();
+      allow create: if companyUser()
+        && request.resource.data.keys().hasAll(['status'])
+        && request.resource.data.status is string
+        && request.resource.data.status.size() <= 50;
+      allow update, delete: if companyUser();
+      // SEC-01 fix (2026-05-24): portal clients can only access quotes where
+      // their email matches the quote's poClientEmail or fields.custEmail.
+      // The doc-ID alone is NOT sufficient — previously anyone signed in could
+      // read/modify any quote by ID. companyUser() rules above still apply to
+      // internal employees; these signedIn rules are portal-only.
+      allow get: if signedIn()
+        && request.auth.token.email != null
+        && (resource.data.get('poClientEmail', '') == request.auth.token.email
+            || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email);
+      // Query by quoteNum (legacy links) — requires email match for security
+      allow list: if signedIn()
+        && request.auth.token.email != null
+        && (resource.data.get('poClientEmail', '') == request.auth.token.email
+            || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email);
+      // Portal PO submission: portal-safe fields only, AND requester email must
+      // match the quote's stored portal email.
+      allow update: if signedIn()
+        && request.auth.token.email != null
+        && (resource.data.get('poClientEmail', '') == request.auth.token.email
+            || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['poNumber','poShipTo','poInstructions','poSignature',
+                       'poSignedAt','poQtyIndex','poSkuCount','poSelectedQty',
+                       'poSelectedTotal','poClientEmail','poFiles','artFiles',
+                       'artFilesBySku','portalStats','updatedAt']);
+
+      // Portal messages subcollection — scoped to portal client of THIS quote.
+      // Uses get() on parent quote to verify email match.
+      match /portalMessages/{msgId} {
+        allow read: if signedIn()
+          && request.auth.token.email != null
+          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '') == request.auth.token.email
+              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '') == request.auth.token.email
+              || companyUser());
+        allow create: if signedIn()
+          && request.auth.token.email != null
+          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '') == request.auth.token.email
+              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '') == request.auth.token.email
+              || companyUser());
+      }
+    }
+
+    match /customers/{customerId} {
+      allow read: if companyUser();
+      allow write: if canEditCommercial();
+    }
+
+    match /quoteTemplates/{templateId} {
+      allow read: if companyUser();
+      allow write: if canEditCommercial() || canEditPPD();
+    }
+
+    // DATA-01 fix (2026-05-24): Materials catalog overlay (user-added dies,
+    // films, label stocks, varnishes). All employees can read and edit so the
+    // Manage UI persists across teammates. Tighten write to isManagement() later
+    // if catalog vandalism becomes a concern.
+    match /materialsCatalog/{type} {
+      allow read: if companyUser();
+      allow write: if companyUser();
+    }
+
+    match /salesOrders/{orderId} {
+      allow read: if companyUser();
+      allow create: if (canEditCommercial() || isManagement())
+        && request.resource.data.keys().hasAll(['status','soNum'])
+        && request.resource.data.status is string;
+      allow update, delete: if canEditCommercial() || isManagement();
+      // Portal clients: can read SO linked to their quote email, and sign/approve it
+      allow get, list: if signedIn()
+        && request.auth.token.email != null
+        && resource.data.get('email', '') == request.auth.token.email;
+      allow update: if signedIn()
+        && request.auth.token.email != null
+        && resource.data.get('email', '') == request.auth.token.email
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['clientSignature','clientSignedAt','clientEmail','clientApproved']);
+    }
+
+    match /jobPassports/{passportId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || canEditCommercial();
+    }
+
+    match /blueprints/{blueprintId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /jobTickets/{ticketId} {
+      allow read: if companyUser();
+      allow create: if canEditPPD()
+        && request.resource.data.keys().hasAll(['status'])
+        && request.resource.data.status is string;
+      allow update, delete: if canEditPPD();
+    }
+
+    match /requests/{requestId} {
+      allow read: if companyUser();
+      allow create: if companyUser()
+        && request.resource.data.keys().hasAll(['status','company'])
+        && request.resource.data.status is string;
+      allow update: if companyUser()
+        && (resource.data.submittedBy == request.auth.token.name
+            || resource.data.owner == request.auth.token.name
+            || isManagement());
+      allow delete: if isManagement();
+    }
+
+    match /prepressInbox/{docId} {
+      allow read: if companyUser();
+      allow create: if canEditPPD() || isManagement();
+      allow update: if canEditPPD() || isManagement();
+      allow delete: if isManagement();
+    }
+
+    match /approvalRecords/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /plateAssets/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /plateIncidents/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /prepressIssues/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /releasePackets/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /artworkVersions/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /proofs/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    match /clientArtHistory/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD();
+    }
+
+    // ═══ PPD LABELTRAXX PARITY COLLECTIONS ═══
+    match /ppdEstimates/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || canEditCommercial();
+    }
+
+    match /ppdTemplates/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || canEditCommercial();
+    }
+
+    match /equipmentProfiles/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /qcProcedures/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /returnMaterials/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+match /controlConfigs/{docId} {
+  allow read: if companyUser();
+  allow write: if isManagement();
+}
+
+match /masterRegisters/{docId} {
+  allow read: if companyUser();
+  allow write: if canEditPPD() || isManagement();
+}
+
+match /prepressQueue/{docId} {
+  allow read: if companyUser();
+  allow create, update: if canEditPPD() || isManagement();
+  allow delete: if isManagement();
+}
+
+match /exceptionOverrides/{docId} {
+  allow read: if companyUser();
+  allow write: if canEditPPD() || isManagement();
+}
+
+match /ppdEvents/{docId} {
+  allow read: if companyUser();
+  allow write: if canEditPPD() || isManagement();
+}
+
+match /syncEvents/{docId} {
+  allow read: if canEditPPD() || isManagement();
+  allow write: if false;
+}
+
+match /systemHealth/{docId} {
+  allow read: if companyUser();
+  allow write: if isManagement();
+}
+
+    match /notifications/{notifId} {
+      allow read: if companyUser() && (
+        isManagement() || resource.data.userId == request.auth.uid
+      );
+      allow create: if companyUser();
+      allow update: if companyUser() && (
+        isManagement() || resource.data.userId == request.auth.uid
+      );
+      allow delete: if isManagement();
+    }
+
+    match /activity/{activityId} {
+      allow read: if companyUser();
+      allow create: if companyUser() || signedIn(); // portal clients can log activity
+      allow update, delete: if isManagement();
+    }
+
+    match /microfeed/{feedId} {
+      allow read: if companyUser();
+      allow write: if canEditCollaboration();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if companyUser();
+      allow write: if canEditCollaboration();
+    }
+
+    match /projects/{projectId} {
+      allow read: if companyUser();
+      allow write: if canEditCommercial() || canEditPPD();
+    }
+
+    match /presence/{userId} {
+      allow read: if companyUser();
+      allow write: if self(userId);
+    }
+
+    match /collaboration/{docPath=**} {
+      allow read, write: if canEditCollaboration();
+    }
+
+    match /chat/{chatId} {
+      allow read, write: if canEditCollaboration();
+    }
+
+    match /chat_channels/{channelId} {
+      // Public channels: any company user can read
+      // DM channels (type=='dm'): only members can read
+      allow read: if companyUser() && (
+        resource.data.type != 'dm' ||
+        (resource.data.members != null && request.auth.token.name in resource.data.members)
+      );
+      allow list: if companyUser();
+      allow write: if canEditCollaboration();
+    }
+
+    match /chat_messages/{messageId} {
+      // Messages in DM channels: only participants can read
+      // Messages in public channels: any company user
+      allow read: if companyUser() && (
+        resource.data.channelType != 'dm' ||
+        (resource.data.participants != null && request.auth.token.name in resource.data.participants)
+      );
+      allow write: if canEditCollaboration();
+    }
+
+    match /chat_messages/{messageId}/replies/{replyId} {
+      allow read: if companyUser();
+      allow write: if canEditCollaboration();
+    }
+
+    match /threads/{threadId} {
+      allow read, write: if canEditCollaboration();
+    }
+
+    match /discussions/{discussionId} {
+      allow read, write: if canEditCollaboration();
+    }
+
+    match /dms/{dmId} {
+      // Only participants can read their DM threads
+      allow read: if companyUser() && (
+        resource.data.participants != null && request.auth.uid in resource.data.participants
+      );
+      allow list: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser() && (
+        resource.data.participants != null && request.auth.uid in resource.data.participants
+      );
+    }
+
+    match /dms/{dmId}/messages/{msgId} {
+      // Only participants of the parent DM thread can read/write messages
+      allow read, write: if companyUser() && (
+        get(/databases/$(database)/documents/dms/$(dmId)).data.participants != null &&
+        request.auth.uid in get(/databases/$(database)/documents/dms/$(dmId)).data.participants
+      );
+    }
+
+    match /support/{supportId} {
+      allow read, write: if canEditCollaboration();
+    }
+
+    // ═══ VENDOR / PURCHASING COLLECTIONS ═══
+    match /vendorPOs/{docId} {
+      allow read: if companyUser();
+      allow create: if canEditPurchasing()
+        && request.resource.data.keys().hasAll(['status','vendorId'])
+        && request.resource.data.status is string
+        && request.resource.data.status.size() <= 50;
+      allow update, delete: if canEditPurchasing();
+    }
+
+    match /vendors/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPurchasing();
+    }
+
+    match /materials/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPurchasing() || canEditPPD();
+    }
+
+    match /vendorComms/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPurchasing();
+    }
+
+    match /vendorInvoices/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPurchasing();
+    }
+
+    match /materialLots/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPurchasing();
+    }
+
+    match /vendorCerts/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPurchasing();
+    }
+
+    match /invoices/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditCommercial() || isManagement();
+    }
+
+    // ═══ LOGISTICS COLLECTIONS ═══
+    match /shipments/{docId} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['logistics','operations','production']) || isManagement());
+    }
+
+    match /spoilage/{docId} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['production','quality','operations']) || isManagement());
+    }
+
+    match /logisticsEvents/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser()
+        && request.resource.data.keys().hasAll(['type','date'])
+        && request.resource.data.type is string;
+      allow update, delete: if isManagement();
+    }
+
+    // ═══ GMP & ENVIRONMENTAL COLLECTIONS ═══
+    match /gmpInspections/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /gmpReadings/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /swabResults/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /waterTests/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /pestLogs/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    match /pestSightings/{docId} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['quality','operations','maintenance']) || isManagement());
+    }
+
+    match /wasteLog/{docId} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['production','quality','operations','maintenance']) || isManagement());
+    }
+
+    match /glassRegister/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    // ═══ CAPA / NCR COLLECTIONS ═══
+    match /ncrs/{docId} {
+      allow read: if companyUser();
+      allow create: if (canEditPPD() || isManagement())
+        && request.resource.data.keys().hasAll(['status','title'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 500;
+      allow update, delete: if canEditPPD() || isManagement();
+    }
+
+    // ═══ AUDIT COLLECTIONS ═══
+    match /audits/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /auditFindings/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /managementReviews/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    // ═══ TRAINING COLLECTIONS ═══
+    match /trainingRecords/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    match /trainingPrograms/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    // ═══ DOCUMENT CONTROL ═══
+    match /documents/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /dcrs/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser()
+        && request.resource.data.keys().hasAll(['status','title'])
+        && request.resource.data.title is string;
+      allow update: if companyUser()
+        && (resource.data.requestedBy == request.auth.token.name
+            || canEditPPD() || isManagement());
+      allow delete: if isManagement();
+    }
+
+    // ═══ HR / PEOPLE ═══
+    match /employees/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    match /skills/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    match /certifications/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    // ═══ OPERATOR ═══
+    match /operatorLogs/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update, delete: if isManagement();
+    }
+
+    // ═══ ONBOARDING ═══
+    match /onboarding/{docId} {
+      allow read: if companyUser();
+      allow write: if companyUser();
+    }
+
+    // ═══ SQF DATA LOGS ═══
+    match /sqfSanitation/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /sqfFacilities/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /sqfQuality/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /sqfMaterials/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    match /counters/{docId} {
+      allow read, write: if companyUser();
+    }
+
+    match /systemCounters/{docId} {
+      allow read: if isManagement();
+      allow write: if false;
+    }
+
+    // Audit log — append-only for clients, read for management
+    match /_auditLog/{logId} {
+      allow read: if isManagement();
+      allow create: if companyUser();
+      allow update, delete: if false;
+    }
+
+    // Rate limit counters — managed by Cloud Functions
+    match /_rateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
+    // Scheduled function config
+    match /config/{docId} {
+      allow read: if companyUser();
+      allow write: if isManagement();
+    }
+
+    // ═══ STATUS REEL ═══
+    match /statusReel/{statusId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser(); // likes, reply count
+      allow delete: if companyUser() && (
+        resource.data.userId == request.auth.uid || isManagement()
+      );
+      match /replies/{replyId} {
+        allow read: if companyUser();
+        allow create: if companyUser();
+      }
+    }
+
+    // ═══ CHAT WORKSPACE SUBCOLLECTIONS ═══
+    match /chat_channels/{channelId}/tasks/{taskId} {
+      allow read, write: if companyUser();
+    }
+
+    // ═══ ENGAGEMENT COLLECTIONS ═══
+
+    match /kudos/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser(); // likes
+      allow delete: if isManagement();
+    }
+
+    match /polls/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser(); // voting, closing
+      allow delete: if isManagement();
+    }
+
+    match /standups/{docId} {
+      allow read: if companyUser();
+      allow create: if companyUser();
+    }
+
+    match /anonymousFeedback/{docId} {
+      allow read: if isManagement();
+      allow create: if signedIn(); // no userId stored — anonymous
+      allow update: if isManagement(); // resolve
+    }
+
+    // ═══ AI Agent System Collections ═══
+
+    // Agent run history — server writes only, management reads
+    match /agentRuns/{runId} {
+      allow read: if isManagement();
+      allow write: if false;
+    }
+
+    // Agent recommendations — server writes, company reads, management can update status
+    match /agentRecommendations/{recId} {
+      allow read: if companyUser();
+      allow create: if false;
+      allow update: if isManagement() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','approvedBy','approvedAt','rejectedBy','rejectedAt','notes','reviewedAt']);
+      allow delete: if false;
+    }
+
+    // Agent audit log — server writes only, management reads
+    match /_agentAuditLog/{logId} {
+      allow read: if isManagement();
+      allow write: if false;
+    }
+
+    // Agent schedules — management only
+    match /agentSchedules/{scheduleId} {
+      allow read: if isManagement();
+      allow write: if isManagement();
+    }
+
+    // Agent policies — management read, admin write
+    match /agentPolicies/{policyId} {
+      allow read: if isManagement();
+      allow write: if roleIsAny(['admin']);
+    }
+
+    // Agent health snapshots — company read, server write
+    match /agentHealth/{healthId} {
+      allow read: if companyUser();
+      allow write: if false;
+    }
+
+    // AI config (controlConfigs/aiAgents) already covered by controlConfigs match
+
+    match /{document=**} {
+      allow read: if companyUser();
+      allow write: if false;
+    }
+  }
+}

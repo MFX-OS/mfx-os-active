@@ -240,8 +240,30 @@
     return result;
   });
 
+  // UX-11 fix (2026-05-24): only wrap if ppd.js has already published the
+  // global. If it loads later (IIFE race), retry on DOMContentLoaded. Failing
+  // that, the call below is a no-op and the original (when defined) survives.
   var __origSyncPPDSharedInbox = window.syncPPDSharedInbox;
-  window.syncPPDSharedInbox = function(force){
+  if(typeof __origSyncPPDSharedInbox !== 'function'){
+    document.addEventListener('DOMContentLoaded', function(){
+      var fn = window.syncPPDSharedInbox;
+      if(typeof fn === 'function' && fn.__mfxWrapped !== true){
+        var orig = fn;
+        var wrapped = makeSyncPPDSharedInboxWrapper(orig);
+        wrapped.__mfxWrapped = true;
+        window.syncPPDSharedInbox = wrapped;
+      }
+    }, {once:true});
+  }
+  function makeSyncPPDSharedInboxWrapper(orig){
+    return function(force){
+      // Body wired below — kept as a closure factory so DOMContentLoaded path
+      // can rebuild the wrapper after ppd.js finally publishes its IIFE export.
+      return _ppdSyncSharedInboxBody.call(this, orig, force);
+    };
+  }
+  function _ppdSyncSharedInboxBody(original, force){
+
     var PPD = getPPD();
     if(!PPD) return Promise.resolve(false);
     if(PPD.inboxSyncInFlight && !force) return Promise.resolve(false);
@@ -266,8 +288,14 @@
       if(force) toast((err && err.message) || String(err),'err');
       console.warn('PPD inbox sync:', err && err.message || err);
       return false;
-    }).finally(function(){ PPD.inboxSyncInFlight = false; });
-  };
+    }).finally(function(){ PPD.inboxSyncInFlight = false; });  }
+  // Publish the wrapper synchronously if the original was already defined.
+  // (If not, DOMContentLoaded above will re-wrap once it appears.)
+  if(typeof __origSyncPPDSharedInbox === 'function'){
+    var __ppdWrappedSync = makeSyncPPDSharedInboxWrapper(__origSyncPPDSharedInbox);
+    __ppdWrappedSync.__mfxWrapped = true;
+    window.syncPPDSharedInbox = __ppdWrappedSync;
+  }
 
   wrap('savePPDRequest', function(original, args){
     var company = (document.getElementById('ppd-r-company')||{}).value || '';

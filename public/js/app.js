@@ -432,7 +432,10 @@ h+='</div></div>';
 h+='<div class="card" style="border-left:3px solid '+c+'">';
 h+='<div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:6px">📌 Bulletin Board</div>';
 h+='<div style="font-size:10px;color:var(--tx3);padding:8px 0;text-align:center">Post announcements and updates for your team</div>';
-h+='<div style="text-align:center"><button class="btn btn-ghost btn-xs" onclick="deptBulletinPost(\''+key+'\')">+ Post Update</button></div>';
+// UX-04 fix (2026-05-24): "Post Update" button removed — feature not yet built.
+// Original behavior was a toast saying "coming soon"; replaced with an honest
+// placeholder so the dept-home page doesn't ship a fake action.
+h+='<div style="text-align:center;font-size:9px;color:var(--tx3);font-style:italic;padding:4px 0">Bulletin posting — coming Q3 2026</div>';
 h+='</div>';
 
 // ── Department Feed ──
@@ -510,7 +513,9 @@ if(allUsers.length){lEl.innerHTML=allUsers.slice(0,6).map(function(u,i){var meda
 else{lEl.innerHTML='<div style="color:var(--tx3)">No scores yet</div>'}}).catch(function(e){console.warn('deptScores:',e)})}}
 }
 
-function deptBulletinPost(key){toast('Bulletin board coming soon','ok')}
+// UX-04 fix (2026-05-24): handler kept as no-op (with informational toast) in case
+// any remaining onclick attributes reference it. Render path no longer exposes it.
+function deptBulletinPost(key){if(typeof toast==='function')toast('Bulletin posting not yet built — coming Q3 2026','info')}
 
 // Register dept home views
 if(!window.MFX_VIEW_RENDERERS)window.MFX_VIEW_RENDERERS={};
@@ -1247,10 +1252,10 @@ const f=q.fields;
 const mkOpts=(opts,cur)=>opts.map(o=>`<option ${cur===o?'selected':''}>${o}</option>`).join('');
 const mkOptV=(opts,cur)=>opts.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l||v}</option>`).join('');
 
-$('v-editor').innerHTML=`<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO','Passport','Timeline','Workflow'].map(function(t,i){return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
+$('v-editor').innerHTML=`<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO','SO Preview','Passport','Timeline','Workflow'].map(function(t,i){return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
 <style>#statusBar{max-width:250px}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
 
-<div class="epane ${S.etab===12?'active':''}" id="ep-timeline">
+<div class="epane ${S.etab===13?'active':''}" id="ep-timeline">
 <div style="display:flex;gap:0;border-bottom:2px solid var(--bdr);margin-bottom:8px">
 <div class="tl-sub ${!window._tlSub||window._tlSub==='activity'?'active':''}" onclick="switchTLSub('activity')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${!window._tlSub||window._tlSub==='activity'?'var(--ac)':'transparent'};color:${!window._tlSub||window._tlSub==='activity'?'var(--ac)':'var(--tx3)'}">Activity</div>
 <div class="tl-sub ${window._tlSub==='notes'?'active':''}" onclick="switchTLSub('notes')" style="padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer;border-bottom:2px solid ${window._tlSub==='notes'?'var(--ac)':'transparent'};color:${window._tlSub==='notes'?'var(--ac)':'var(--tx3)'}">Notes</div>
@@ -1272,7 +1277,7 @@ $('v-editor').innerHTML=`<div class="etabs">${(function(){var qq=getQ(S.editId);
 </div>
 </div>
 
-<div class="epane ${S.etab===13?'active':''}" id="ep-workflow">
+<div class="epane ${S.etab===14?'active':''}" id="ep-workflow">
 <div id="workflowContent"></div>
 ${(function(){var qq=getQ(S.editId);if(!qq)return'';var h='';
 if(qq.status==='won'||qq.poNumber){
@@ -1764,20 +1769,33 @@ if(linkedSO){
   h+='<div style="font-size:10px;color:var(--tx3);padding:4px 0">PO required before generating SO</div>';
 }
 h+='</div>';
-// ═══ INLINE SO DOCUMENT PREVIEW (matches quote preview pattern with different layout) ═══
+// ═══ INLINE SO PREVIEWS — Document HTML, Actual PDF, or Edit Form ═══
 if(linkedSO&&typeof window.buildSOPrintHTML==='function'){
   var _soTab=window._soTab||'preview';
   var _previewHTML='';
   try{_previewHTML=window.buildSOPrintHTML(so)}catch(_e){_previewHTML='<div style="padding:40px;text-align:center;color:#dc2626;font-size:12px">Preview failed: '+esc(_e.message||String(_e))+'</div>';console.error('[SO Preview]',_e)}
+  // Helper used by all 3 tab buttons to swap visibility + active styles
+  var _swap="(function(t){window._soTab=t;var ids={preview:'soPreviewWrap',pdf:'soPdfPaneWrap',form:'soFormWrap'};var btns={preview:'soViewPrev',pdf:'soViewPdf',form:'soViewEdit'};Object.keys(ids).forEach(function(k){var el=document.getElementById(ids[k]);if(el)el.style.display=(k===t?'block':'none');var b=document.getElementById(btns[k]);if(b){b.style.background=(k===t?'var(--ac)':'var(--bg3)');b.style.color=(k===t?'#000':'var(--tx)')}});if(t==='pdf'&&window.loadSendPDFPreview)window.loadSendPDFPreview('"+so.id+"',false,'soEditorPdfWrap')})";
   h+='<div style="display:flex;gap:0;margin-bottom:8px;border:1px solid var(--bdr);border-radius:8px;overflow:hidden">';
-  h+='<button id="soViewPrev" onclick="window._soTab=\'preview\';document.getElementById(\'soPreviewWrap\').style.display=\'block\';document.getElementById(\'soFormWrap\').style.display=\'none\';this.style.background=\'var(--ac)\';this.style.color=\'#000\';document.getElementById(\'soViewEdit\').style.background=\'var(--bg3)\';document.getElementById(\'soViewEdit\').style.color=\'var(--tx)\'" style="flex:1;padding:8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(_soTab==='preview'?'var(--ac);color:#000':'var(--bg3);color:var(--tx)')+'">📄 Document Preview</button>';
-  h+='<button id="soViewEdit" onclick="window._soTab=\'form\';document.getElementById(\'soFormWrap\').style.display=\'block\';document.getElementById(\'soPreviewWrap\').style.display=\'none\';this.style.background=\'var(--ac)\';this.style.color=\'#000\';document.getElementById(\'soViewPrev\').style.background=\'var(--bg3)\';document.getElementById(\'soViewPrev\').style.color=\'var(--tx)\'" style="flex:1;padding:8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(_soTab==='form'?'var(--ac);color:#000':'var(--bg3);color:var(--tx)')+'">✏ Edit Details</button>';
+  h+='<button id="soViewPrev" onclick="'+_swap+'(\'preview\')" style="flex:1;padding:8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(_soTab==='preview'?'var(--ac);color:#000':'var(--bg3);color:var(--tx)')+'">📄 Document</button>';
+  h+='<button id="soViewPdf" onclick="'+_swap+'(\'pdf\')" style="flex:1;padding:8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(_soTab==='pdf'?'var(--ac);color:#000':'var(--bg3);color:var(--tx)')+'">📕 PDF Preview</button>';
+  h+='<button id="soViewEdit" onclick="'+_swap+'(\'form\')" style="flex:1;padding:8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:'+(_soTab==='form'?'var(--ac);color:#000':'var(--bg3);color:var(--tx)')+'">✏ Edit Details</button>';
   h+='</div>';
+  // Document Preview pane
   h+='<div id="soPreviewWrap" style="display:'+(_soTab==='preview'?'block':'none')+';margin-bottom:10px">';
   h+='<div class="qp" id="soPage" style="max-height:calc(100vh - 320px);overflow-y:auto;-webkit-overflow-scrolling:touch">'+_previewHTML+'</div>';
   h+='<div style="text-align:center;margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">';
   h+='<button class="btn btn-pr btn-sm" onclick="if(window.soPrintPreview)window.soPrintPreview(\''+so.id+'\');else toast(\'Module not loaded\',\'err\')">🖨 Print / Save PDF</button>';
   h+='<button class="btn btn-ghost btn-sm" onclick="if(window.downloadSOPDF)window.downloadSOPDF(\''+so.id+'\');else toast(\'Module not loaded\',\'err\')">⬇ Download PDF</button>';
+  h+='</div>';
+  h+='</div>';
+  // Actual PDF preview pane (the file that will be sent / saved to Drive)
+  h+='<div id="soPdfPaneWrap" style="display:'+(_soTab==='pdf'?'block':'none')+';margin-bottom:10px">';
+  h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">ACTUAL PDF — THIS IS WHAT WILL BE SENT</div>';
+  h+='<div id="soEditorPdfWrap" style="height:calc(100vh - 360px);min-height:480px;border:1px solid var(--bdr);border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:11px">Loading PDF…</div>';
+  h+='<div style="text-align:center;margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">';
+  h+='<button class="btn btn-pr btn-sm" onclick="if(window.loadSendPDFPreview)window.loadSendPDFPreview(\''+so.id+'\',true,\'soEditorPdfWrap\')">🔄 Regenerate</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="if(window.downloadSOPDF)window.downloadSOPDF(\''+so.id+'\')">⬇ Download PDF</button>';
   h+='</div>';
   h+='</div>';
   h+='<div id="soFormWrap" style="display:'+(_soTab==='form'?'block':'none')+'">';
@@ -1906,7 +1924,60 @@ if(linkedSO&&typeof window.buildSOPrintHTML==='function'){h+='</div>'}
 return h})()}
 </div>
 
-<div class="epane ${S.etab===11?'active':''}" id="ep-passport">
+<div class="epane ${S.etab===11?'active':''}" id="ep-so-send">
+${(function(){var qq=getQ(S.editId);if(!qq)return'';var h='';
+var linkedSO=typeof getSalesOrders==='function'?getSalesOrders().find(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum}):null;
+h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+h+='<div style="font-size:13px;font-weight:700;color:var(--ac)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> SO Preview — '+esc(qq.quoteNum)+'</div>';
+if(linkedSO){var _sc={'pending':'#f59e0b','approved':'#2ee89e','sent':'var(--ac)','completed':'var(--gn)','cancelled':'var(--rd)'}[linkedSO.status]||'var(--tx3)';h+='<span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:'+_sc+';color:#fff">'+(linkedSO.status||'').toUpperCase()+'</span>'}
+h+='</div>';
+if(!linkedSO){
+  h+='<div class="empty-state" style="padding:40px 20px;text-align:center"><div style="font-size:32px;margin-bottom:8px">📦</div>';
+  h+='<div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:4px">No Sales Order Yet</div>';
+  h+='<div style="font-size:11px;color:var(--tx3);margin-bottom:16px">Create a Sales Order from the SO tab first, then come back here to ship it to the client.</div>';
+  h+='<button class="btn btn-pr btn-sm" onclick="switchET(10)">Go to SO Tab →</button></div>';
+}else{
+  // Two-column: LEFT = live PDF preview, RIGHT = email composer
+  h+='<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:12px;align-items:start" class="shipGrid">';
+  // ── LEFT: PDF Preview ──
+  h+='<div>';
+  h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">📕 ACTUAL PDF — THIS IS WHAT WILL BE ATTACHED</div>';
+  h+='<div id="shipPdfWrap" style="height:calc(100vh - 320px);min-height:500px;border:1px solid var(--bdr);border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:11px">Loading PDF…</div>';
+  h+='<div style="display:flex;gap:6px;margin-top:8px;justify-content:center;flex-wrap:wrap">';
+  h+='<button class="btn btn-ghost btn-sm" onclick="if(window.loadSendPDFPreview)window.loadSendPDFPreview(\''+linkedSO.id+'\',true,\'shipPdfWrap\')">🔄 Regenerate</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="if(window.downloadSOPDF)window.downloadSOPDF(\''+linkedSO.id+'\')">⬇ Download</button>';
+  h+='</div></div>';
+  // ── RIGHT: Email composer ──
+  h+='<div>';
+  h+='<div style="font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:6px">✉ EMAIL TEMPLATE</div>';
+  // Template selector
+  h+='<div id="shipTplList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">';
+  h+='<div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">TEMPLATE</div>';
+  h+='<select id="shipTplSelect" onchange="if(window._loadShipTemplate)window._loadShipTemplate()" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px">';
+  h+='<option value="confirmation">Order Confirmation</option><option value="followup">Follow-up</option><option value="shipping">Shipping Notice</option><option value="thankyou">Thank You</option>';
+  h+='</select></div>';
+  // To field
+  h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">TO</div>';
+  h+='<input id="shipTo" type="text" value="'+esc(linkedSO.email||'')+'" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px"></div>';
+  // Subject
+  h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">SUBJECT</div>';
+  h+='<input id="shipSubject" type="text" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px"></div>';
+  // Body
+  h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">BODY (HTML) — edit freely, {{placeholders}} get filled at send time</div>';
+  h+='<textarea id="shipBody" style="width:100%;height:220px;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:10px;font-family:JetBrains Mono,Consolas,monospace;resize:vertical"></textarea></div>';
+  // Placeholder help
+  h+='<div style="font-size:9px;color:var(--tx3);line-height:1.6;margin-bottom:10px">Placeholders: <code>{{soNum}}</code> <code>{{company}}</code> <code>{{contact}}</code> <code>{{email}}</code> <code>{{quoteNum}}</code> <code>{{poNumber}}</code> <code>{{jobDesc}}</code> <code>{{qty}}</code> <code>{{total}}</code> <code>{{payTerms}}</code> <code>{{date}}</code></div>';
+  // Actions
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  h+='<button class="btn btn-pr" onclick="shipSOFromPane(\''+linkedSO.id+'\')" style="flex:1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Email with PDF</button>';
+  h+='<button class="btn btn-ghost btn-sm" onclick="if(window.saveSOTemplateOverride){var k=document.getElementById(\'shipTplSelect\').value;var s=document.getElementById(\'shipSubject\').value;var b=document.getElementById(\'shipBody\').value;window.saveSOTemplateOverride(k,s,b).then(function(){toast(\'Template saved as default\',\'ok\')}).catch(function(e){toast(\'Save failed: \'+e.message,\'err\')})}">💾 Save as Default</button>';
+  h+='</div></div>';
+  h+='</div>';// /shipGrid
+}
+return h})()}
+</div>
+
+<div class="epane ${S.etab===12?'active':''}" id="ep-passport">
 ${(function(){var qq=getQ(S.editId);if(!qq)return'';var h='';
 h+='<div style="font-size:13px;font-weight:700;color:var(--ac);margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Job Passport & Tickets — '+esc(qq.quoteNum)+'</div>';
 var linkedSO=typeof getSalesOrders==='function'?getSalesOrders().find(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum}):null;
@@ -1961,11 +2032,11 @@ return h})()}
 `;
 // old ep-timeline pane removed — now at tab 0
 
-buildMS('ed-fs',f.faceStock);buildMS('ed-lam',f.lamination);buildDieSelect(f);buildVarnishSelect(f.coating);edMat('faceStock');edMat('lamination');edRQ();renderTermsEditor();edCalcAll();renderInternalNotes();renderActivityLog();if(S.etab===6)setTimeout(renderSendPane,100);if(S.etab===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(S.etab===12){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(S.etab===13){setTimeout(renderWorkflow,100)}
+buildMS('ed-fs',f.faceStock);buildMS('ed-lam',f.lamination);buildDieSelect(f);buildVarnishSelect(f.coating);edMat('faceStock');edMat('lamination');edRQ();renderTermsEditor();edCalcAll();renderInternalNotes();renderActivityLog();if(S.etab===6)setTimeout(renderSendPane,100);if(S.etab===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(S.etab===11)setTimeout(function(){if(typeof initSOShipPane==='function')initSOShipPane()},100);if(S.etab===13){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(S.etab===14){setTimeout(renderWorkflow,100)}
 if(f.custCo){var _mc=DB.customers().find(function(x){return x.company&&x.company.toLowerCase()===f.custCo.toLowerCase()});if(_mc)setTimeout(function(){renderClientMiniDash(_mc)},200)}
 // Inject Next/Prev navigation buttons into each pane
-var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Portal','PO','Art','SO','Passport','Timeline','Workflow'];
-var _paneIds=['ep-info','ep-specs','ep-mats','ep-pricing','ep-matrix','ep-preview','ep-send','ep-portal','ep-po','ep-art','ep-so','ep-passport','ep-timeline','ep-workflow'];
+var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Portal','PO','Art','SO','SO Preview','Passport','Timeline','Workflow'];
+var _paneIds=['ep-info','ep-specs','ep-mats','ep-pricing','ep-matrix','ep-preview','ep-send','ep-portal','ep-po','ep-art','ep-so','ep-so-send','ep-passport','ep-timeline','ep-workflow'];
 _paneIds.forEach(function(pid,i){var pane=$(pid);if(!pane)return;var nav=document.createElement('div');nav.style.cssText='display:flex;gap:8px;margin-top:16px;padding:12px 0;border-top:1px solid var(--bdr)';if(i>0){var prev=document.createElement('button');prev.className='btn btn-ghost btn-sm';prev.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px';prev.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> '+_tabNames[i-1];prev.onclick=function(){switchET(i-1)};nav.appendChild(prev)}if(i<_paneIds.length-1){var next=document.createElement('button');next.className='btn btn-pr btn-sm';next.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px;margin-left:auto';next.innerHTML=_tabNames[i+1]+' <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';next.onclick=function(){switchET(i+1)};nav.appendChild(next)}pane.appendChild(nav)})}
 
 function buildDieSelect(f){const sel=$('ed-die');if(!sel)return;const dies=getSpecList('dies');sel.innerHTML='<option value="">- Select Die -</option>';
@@ -2045,8 +2116,8 @@ function resetTerms(){if(!confirm('Reset to default terms?'))return;
 const all=DB.quotes();const q=all.find(x=>x.id===S.editId);if(!q)return;
 q.terms=[...DEFAULT_TERMS];DB.saveQ(all,S.editId);renderTermsEditor();edCalcAll()}
 
-function switchET(n){S.etab=n;saveQ();renderEditor();if(n===6)setTimeout(renderSendPane,100);if(n===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(n===12){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(n===13)setTimeout(renderWorkflow,100);$('vc').scrollTop=0}
-function switchTLSub(sub){window._tlSub=sub;var tabs=['activity','notes','connections'];tabs.forEach(function(t){var el=$('tl'+t.charAt(0).toUpperCase()+t.slice(1));if(el)el.style.display=t===sub?'block':'none'});if(sub==='connections')renderConnections();S.etab=12;renderEditor()}
+function switchET(n){S.etab=n;saveQ();renderEditor();if(n===6)setTimeout(renderSendPane,100);if(n===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(n===10)setTimeout(function(){if(window._soTab==='pdf'&&window.loadSendPDFPreview){var qq=getQ(S.editId);if(!qq)return;var so=typeof getSalesOrders==='function'?getSalesOrders().find(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum}):null;if(so)window.loadSendPDFPreview(so.id,false,'soEditorPdfWrap')}},150);if(n===11)setTimeout(function(){if(typeof initSOShipPane==='function')initSOShipPane()},100);if(n===13){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(n===14)setTimeout(renderWorkflow,100);$('vc').scrollTop=0}
+function switchTLSub(sub){window._tlSub=sub;var tabs=['activity','notes','connections'];tabs.forEach(function(t){var el=$('tl'+t.charAt(0).toUpperCase()+t.slice(1));if(el)el.style.display=t===sub?'block':'none'});if(sub==='connections')renderConnections();S.etab=13;renderEditor()}
 // ═══ Portal/PO/Art tab helpers ═══
 var _portalMsgUnsub=null;
 function initPortalMsgListener(qq){
@@ -2116,10 +2187,13 @@ if(!q.fields.estimator || !q.fields.estimator.trim()) { toast('Estimator is requ
 if(!q.qtys || q.qtys.length === 0) { toast('Add at least one quantity','err'); return false; }
 if(!q.fields.sA && !q.fields.sar) { toast('Product dimensions required','err'); return false; }
 return true;}
-function submitForApproval(qid){const all=DB.quotes();const q=all.find(x=>x.id===qid);if(!q)return;
-if(!_validateQuoteForSubmit(q))return;
-q.status='approval';q.updatedAt=new Date().toISOString();q.submittedBy=getUserName();q.submittedAt=new Date().toISOString();
-logQuoteEvent(q,'status','Submitted for approval');DB.saveQ(all,qid);DB.logActivity('quote.approval',q.quoteNum+' submitted for approval by '+getUserName());toast('Submitted for approval!','ok');notifyTeam('🔒 '+q.quoteNum+' needs approval — submitted by '+getUserName());if(S.view==='editor'){S.etab=6;renderEditor();setTimeout(renderSendPane,100)}else{renderQuotes()}}
+function submitForApproval(qid){
+  // APPROVAL REMOVAL (2026-05-24): internal CEO approval gate removed at
+  // user request. Kept as compat shim so any leftover caller (gamification
+  // wrap, master-automation, third-party) keeps working; just routes to
+  // the auto-promote-to-ready path.
+  return (typeof markReadyDirect==='function') ? markReadyDirect(qid) : null;
+}
 function markReadyDirect(qid){const all=DB.quotes();const q=all.find(x=>x.id===qid);if(!q)return;
 if(!_validateQuoteForSubmit(q))return;
 q.status='ready';q.approvedBy=getUserName();q.approvedAt=new Date().toISOString();q.updatedAt=new Date().toISOString();if(typeof bakePricing==='function')bakePricing(q);logQuoteEvent(q,'status','Marked ready (skipped approval)');DB.saveQ(all,qid);DB.logActivity('quote.ready',q.quoteNum+' marked ready by '+getUserName());toast('Quote is Ready!','ok');notifyTeam('✅ '+q.quoteNum+' ready — '+getUserName());if(S.view==='editor'){S.etab=6;renderEditor();setTimeout(renderSendPane,100)}else{renderQuotes()}}
@@ -2313,7 +2387,7 @@ else{saveCust({id:'c'+Date.now(),company:q.fields.custCo,contact:q.fields.custAt
 function viewCustFromQ(){saveQ();const q=getQ(S.editId);if(!q||!q.fields.custCo)return toast('No customer','err');const c=DB.customers().find(x=>x.company.toLowerCase()===q.fields.custCo.toLowerCase());if(c){S.profileId=c.id;openProfile(c.id)}else{toast('Customer not saved yet','err')}}
 // MATERIALS
 function buildMS(id,def){const sel=$(id);if(!sel)return;sel.innerHTML='';const oC=document.createElement('option');oC.value='CUSTOM';oC.textContent='- Custom -';sel.appendChild(oC);const oN=document.createElement('option');oN.value='NA';oN.textContent='NA';sel.appendChild(oN);
-const vs=[...new Set(MATS.map(m=>m.v))];for(const v of vs){const og=document.createElement('optgroup');og.label=v;MATS.filter(m=>m.v===v).forEach(m=>{const o=document.createElement('option');o.value=m.s;o.textContent=m.s+' - '+m.d;if(m.m!=null)o.dataset.m=m.m;if(m.mk!=null)o.dataset.mk=m.mk;if(m.s===def)o.selected=true;og.appendChild(o)});sel.appendChild(og)}}
+/* PERF-15 fix: if mats chunk not loaded yet, kick it off and re-render */ if((!MATS||!MATS.length)&&typeof loadChunk==='function'){loadChunk('mats').then(function(){buildMS(id,def)}).catch(function(e){console.warn('mats chunk load:',e&&e.message)});return} const vs=[...new Set(MATS.map(m=>m.v))];for(const v of vs){const og=document.createElement('optgroup');og.label=v;MATS.filter(m=>m.v===v).forEach(m=>{const o=document.createElement('option');o.value=m.s;o.textContent=m.s+' - '+m.d;if(m.m!=null)o.dataset.m=m.m;if(m.mk!=null)o.dataset.mk=m.mk;if(m.s===def)o.selected=true;og.appendChild(o)});sel.appendChild(og)}}
 function edMat(field,fromChange){const selId=field==='faceStock'?'ed-fs':'ed-lam';const sel=$(selId);if(!sel)return;const opt=sel.options[sel.selectedIndex];const badge=$('msi-'+field);
 const q=getQ(S.editId);
 if(opt&&opt.dataset.m){const msi=parseFloat(opt.dataset.m);badge.textContent='MSI $'+msi.toFixed(3);badge.style.display='inline';if(field==='faceStock'&&fromChange&&!(q&&q.pricingLocked)){const mf=document.querySelector('[data-field="msiCost"]');if(mf)mf.value=msi.toFixed(4);if(opt.dataset.mk){const mk=document.querySelector('[data-field="mkupPct"]');if(mk)mk.value=(parseFloat(opt.dataset.mk)*100).toFixed(1)}}}else{badge.style.display='none'}asave()}
@@ -3225,6 +3299,11 @@ function addTaskNote(tid){var el=$('task-note');if(!el||!el.value.trim())return;
 function logTaskTime(tid){var m=parseInt(($('task-time')||{}).value);if(!m)return;fbDb.collection('tasks').doc(tid).get().then(function(doc){var t=doc.data();fbDb.collection('tasks').doc(tid).update({timeSpent:(t.timeSpent||0)+m}).then(function(){closeModal();openTaskDetail(tid);toast(m+'m logged','ok')})}).catch(function(e){ console.warn('APP get:', e.message); })}
 function completeTask(tid){fbDb.collection('tasks').doc(tid).update({completed:true,completedAt:new Date().toISOString(),pointsEarned:firebase.firestore.FieldValue.increment(0.5)}).then(function(){closeModal();toast('Done! +0.5 pts','ok');renderMeetingsView()})}
 function reopenTask(tid){fbDb.collection('tasks').doc(tid).update({completed:false,completedAt:null}).then(function(){closeModal();toast('Reopened','ok');renderMeetingsView()})}
-function deleteTask(tid){if(!confirm('Delete?'))return;fbDb.collection('tasks').doc(tid).delete().then(function(){closeModal();toast('Deleted','ok');renderMeetingsView()})}
+function deleteTask(tid){if(!confirm('Delete?'))return;
+// DATA-11 fix (2026-05-24): audit hook — server trigger onTaskWrite would be
+// ideal long-term, but for now write a client-side activity entry so the delete
+// at least leaves a breadcrumb. logActivity sets user/userId from the session.
+if(typeof DB!=='undefined'&&DB.logActivity){DB.logActivity('task.deleted','Task '+tid+' deleted')}
+fbDb.collection('tasks').doc(tid).delete().then(function(){closeModal();toast('Deleted','ok');renderMeetingsView()}).catch(function(e){console.error('deleteTask:',e);if(typeof toast==='function')toast('Delete failed — check connection','err')})}
 function showDayTasks(ds){fbDb.collection('tasks').where('date','==',ds).get().then(function(snap){var items=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});var h='<div class="modal-title">'+new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})+'</div>';items.forEach(function(m){h+='<div class="card" style="padding:8px;margin-bottom:6px;cursor:pointer" onclick="closeModal();openTaskDetail(\''+m.id+'\')"><strong style="color:var(--ac)">'+(m.type==='task'?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>')+' '+esc(m.title)+'</strong></div>'});if(!items.length)h+='<div style="color:var(--tx3);padding:12px;text-align:center">No items</div>';h+='<button class="btn btn-pr" onclick="closeModal();newMeetingTask()" style="width:100%;margin-top:8px">+ New</button><button class="btn btn-ghost" onclick="closeModal()" style="width:100%;margin-top:6px">Close</button>';openModal(h)}).catch(function(e){ console.warn('APP get:', e.message); })}
 

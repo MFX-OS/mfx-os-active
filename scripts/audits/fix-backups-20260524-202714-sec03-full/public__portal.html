@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Microflex Film Corporation — Quote Approval</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060d14;--surface:#0a1520;--card:#0f1d2b;--border:#1a2d40;--border-lt:#243a50;--h1:#e0f2fe;--body:#94a3b8;--sub:#64748b;--accent:#00e5ff;--accent-dk:#00838f;--navy:#0a2e3e;--green:#22c55e;--gold:#DAA520;--purple:#a78bfa;--red:#ef4444}
+body{background:var(--bg);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:var(--body);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+a{color:var(--accent);text-decoration:none}
+
+/* Header */
+.hdr{width:100%;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 0}
+.hdr-inner{max-width:720px;margin:0 auto;padding:0 24px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-family:Outfit,sans-serif}
+.logo b{font-size:22px;font-weight:900;color:var(--h1)}
+.logo span{font-weight:200;color:#5a7888}
+.logo-line{width:50px;height:2px;background:var(--accent);border-radius:1px;margin:2px 0}
+.logo-sub{font-family:Outfit,sans-serif;font-size:7px;font-weight:300;color:var(--accent-dk);letter-spacing:4px;text-transform:uppercase}
+.hdr-contact{text-align:right;font-size:11px;color:var(--sub)}
+.hdr-contact b{color:var(--h1);font-weight:700}
+
+/* Container */
+.wrap{max-width:720px;width:100%;padding:20px 24px 40px}
+
+/* Status banner */
+.status{background:linear-gradient(135deg,rgba(0,229,255,.04),rgba(0,229,255,.01));border:1px solid rgba(0,229,255,.12);border-radius:10px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:14px}
+.status-icon{width:42px;height:42px;border-radius:10px;background:rgba(0,229,255,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.status-icon svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.status h2{font-size:16px;font-weight:700;color:var(--h1);margin-bottom:2px}
+.status p{font-size:12px;color:var(--sub)}
+
+/* Quote card */
+.qcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.qcard-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.qcard-head h3{font-size:10px;color:var(--accent);font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.qnum{font-size:22px;font-weight:900;color:var(--h1);font-family:Outfit,sans-serif}
+.rev{display:inline-block;background:#00BCD4;color:#060d14;font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;margin-left:6px}
+.qcard-grid{padding:14px 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.qf-label{font-size:9px;color:var(--sub);font-weight:600}
+.qf-value{font-size:12px;color:var(--h1);font-weight:700;margin-top:2px}
+
+/* Spec tags */
+.specs{padding:10px 20px 14px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--border)}
+.spec-tag{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:4px;font-size:10px;font-weight:700}
+.spec-tag .lab{font-size:8px;font-weight:600;text-transform:uppercase}
+.stg{background:rgba(132,204,22,.08);border:1px solid rgba(132,204,22,.2)}.stg .lab{color:#84cc16}.stg .val{color:#d9f99d}
+.stb{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2)}.stb .lab{color:#60a5fa}.stb .val{color:#bfdbfe}
+.sto{background:rgba(234,88,12,.08);border:1px solid rgba(234,88,12,.2)}.sto .lab{color:#fb923c}.sto .val{color:#fed7aa}
+
+/* Pricing selector */
+.pricing{margin-bottom:16px}
+.pricing h3{font-size:10px;color:var(--accent);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+.price-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.price-opt{background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;transition:all .15s;position:relative}
+.price-opt:hover{border-color:var(--border-lt);background:var(--card)}
+.price-opt.selected{border-color:var(--accent);background:rgba(0,229,255,.03)}
+.price-opt.selected::after{content:'✓';position:absolute;top:10px;right:12px;font-size:14px;color:var(--accent);font-weight:700}
+.price-opt.best{border-color:var(--accent)}
+.po-qty{font-size:18px;font-weight:800;color:var(--h1)}
+.po-per{font-size:11px;color:var(--sub);margin-top:2px}
+.po-tot{font-size:14px;font-weight:800;color:var(--accent);margin-top:4px}
+.po-best{display:inline-block;background:rgba(0,229,255,.1);color:var(--accent);font-size:8px;font-weight:700;padding:2px 6px;border-radius:2px;margin-top:4px;letter-spacing:.5px}
+
+/* Pricing matrix table */
+.price-matrix{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:11px}
+.price-matrix th{background:var(--card);color:var(--accent);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:10px 8px;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap}
+.price-matrix th:first-child{text-align:left;padding-left:14px;width:80px}
+.price-matrix td{padding:8px;text-align:center;border-bottom:1px solid rgba(26,45,64,.5);cursor:pointer;transition:all .12s;position:relative}
+.price-matrix td:first-child{text-align:left;padding-left:14px;font-size:13px;font-weight:800;color:var(--h1);cursor:default;background:rgba(15,29,43,.5)}
+.price-matrix tr:last-child td{border-bottom:none}
+.price-matrix td:not(:first-child):hover{background:rgba(0,229,255,.06);border-color:rgba(0,229,255,.2)}
+.price-matrix td.pm-sel{background:rgba(0,229,255,.1);box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:4px}
+.price-matrix .pm-tot{font-size:12px;font-weight:800;color:var(--h1);display:block}
+.price-matrix .pm-ppu{font-size:9px;color:var(--sub);display:block;margin-top:1px}
+.pm-summary{margin-top:10px;padding:12px 16px;border:1.5px solid var(--accent);border-radius:8px;background:rgba(0,229,255,.04);display:none}
+.pm-summary .pm-sel-label{font-size:10px;color:var(--sub);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.pm-summary .pm-sel-total{font-size:24px;font-weight:900;color:var(--accent);margin-top:2px}
+.pm-summary .pm-sel-detail{font-size:11px;color:var(--body);margin-top:4px}
+.fixed-charges-bar{margin-top:8px;padding:8px 14px;border:1px solid rgba(218,165,32,.2);border-radius:6px;background:rgba(218,165,32,.04);display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--gold);font-weight:700}
+
+/* Form sections */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:12px}
+.section h3{font-size:10px;color:var(--accent);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+.field{margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:11px;color:var(--sub);font-weight:600;margin-bottom:4px}
+.field input,.field textarea{width:100%;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:13px;color:var(--h1);font-family:inherit;outline:none;transition:border .15s}
+.field input:focus,.field textarea:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:80px}
+.field-row{display:flex;gap:10px}
+.field-row .field{flex:1}
+
+/* Drop zone */
+.dropzone{border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:all .15s;background:var(--card)}
+.dropzone:hover{border-color:var(--accent);background:rgba(0,229,255,.02)}
+.dropzone svg{width:32px;height:32px;stroke:var(--sub);fill:none;stroke-width:1.5;margin:0 auto 8px;display:block}
+.dropzone p{font-size:12px;color:var(--sub)}
+.dropzone p b{color:var(--accent)}
+.dropzone small{font-size:10px;color:#3a4a58;margin-top:4px;display:block}
+
+/* File list */
+.file-list{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.file-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px}
+.file-item span{font-size:11px;color:var(--h1);font-weight:600}
+.file-item small{font-size:10px;color:var(--sub)}
+.file-remove{color:var(--red);font-size:11px;cursor:pointer;font-weight:700}
+
+/* Acceptance */
+.accept{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;background:var(--card);border-radius:8px;cursor:pointer}
+.accept input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex-shrink:0;margin-top:1px}
+.accept span{font-size:12px;color:var(--body);line-height:1.5}
+.accept span a{color:var(--accent);text-decoration:underline}
+
+/* Signature */
+.sig-box{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px}
+.sig-box label{display:block;font-size:9px;color:var(--sub);font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+.sig-input{width:100%;background:transparent;border:none;border-bottom:2px solid var(--border);padding:8px 0;font-size:20px;font-family:'Outfit',sans-serif;font-style:italic;font-weight:600;color:var(--h1);outline:none;transition:border .15s}
+.sig-input:focus{border-color:var(--accent)}
+.sig-date{font-size:10px;color:var(--sub);margin-top:6px}
+
+/* Submit */
+.submit-wrap{margin-top:16px}
+.submit-btn{width:100%;padding:16px;background:var(--accent);color:var(--bg);font-size:15px;font-weight:800;font-family:Outfit,sans-serif;border:none;border-radius:8px;cursor:pointer;letter-spacing:.5px;transition:all .15s}
+.submit-btn:hover{background:#33ebff;transform:translateY(-1px)}
+.submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.submit-note{text-align:center;font-size:10px;color:var(--sub);margin-top:8px}
+
+/* Messages thread */
+.msg-thread{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.msg{padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5}
+.msg.client{background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.1);color:var(--h1)}
+.msg.mfx{background:var(--card);border:1px solid var(--border);color:var(--body)}
+.msg-meta{font-size:9px;color:var(--sub);margin-bottom:3px}
+.msg-meta b{color:var(--h1)}
+
+/* Footer */
+.portal-footer{width:100%;border-top:1px solid var(--border);padding:16px 0;margin-top:20px}
+.portal-footer-inner{max-width:720px;margin:0 auto;padding:0 24px;text-align:center}
+.portal-footer-inner .logo-sm{font-family:Outfit,sans-serif;font-size:11px;margin-bottom:4px}
+.portal-footer-inner .logo-sm b{font-weight:900;color:var(--h1)}
+.portal-footer-inner .logo-sm span{font-weight:200;color:#5a7888}
+.portal-footer-inner p{font-size:9px;color:#1e3a4f;line-height:1.5}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.qcard,.section,.pricing,.status,.submit-wrap{animation:fadeUp .4s ease both}
+.section:nth-child(2){animation-delay:.05s}
+.section:nth-child(3){animation-delay:.1s}
+.section:nth-child(4){animation-delay:.15s}
+.upload-bar{width:100%;height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden}
+.upload-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .2s}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyA5N8V4jVNe4pVt3jmjEdbQEfv1lnKj7PM",
+  authDomain:"os.microflexfilm.com",
+  projectId:"mfx-2026",
+  storageBucket:"mfx-2026.firebasestorage.app"
+});
+var db=firebase.firestore();
+var auth=firebase.auth();
+var storage=firebase.storage();
+var QUOTE_ID=null;
+var QUOTE_DATA=null;
+var CLIENT_EMAIL=null;
+var UPLOADED_FILES=[];
+
+// ─── Auth: Anonymous + Email Identification ───
+function loadQuote(){
+  var params=new URLSearchParams(window.location.search);
+  var docId=params.get('id')||'';
+  var qNum=params.get('q')||'';
+
+  // Restore quote params from localStorage if missing from URL (email link redirect strips them)
+  if(!docId&&!qNum){
+    docId=localStorage.getItem('mfxPortalPendingId')||'';
+    qNum=localStorage.getItem('mfxPortalPendingQ')||'';
+  }
+  if(!docId&&!qNum){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
+
+  // Always save current quote params so email link redirect can recover them
+  if(docId)localStorage.setItem('mfxPortalPendingId',docId);
+  if(qNum)localStorage.setItem('mfxPortalPendingQ',qNum);
+
+  // Check if returning from email verification link
+  if(auth.isSignInWithEmailLink(window.location.href)){
+    var email=localStorage.getItem('mfxPortalPendingEmail')||localStorage.getItem('mfxPortalEmail');
+    if(!email)email=prompt('Please confirm your email address:');
+    auth.signInWithEmailLink(email,window.location.href).then(function(result){
+      localStorage.removeItem('mfxPortalEmail');
+      localStorage.removeItem('mfxPortalPendingEmail');
+      CLIENT_EMAIL=result.user.email;
+      // Recover quote params — URL may have lost them during Firebase redirect
+      var recoveredId=params.get('id')||localStorage.getItem('mfxPortalPendingId')||'';
+      var recoveredQ=params.get('q')||localStorage.getItem('mfxPortalPendingQ')||'';
+      var cleanParams=[];
+      if(recoveredId)cleanParams.push('id='+recoveredId);
+      if(recoveredQ)cleanParams.push('q='+recoveredQ);
+      var clean=window.location.origin+window.location.pathname+(cleanParams.length?'?'+cleanParams.join('&'):'');
+      window.history.replaceState({},'',clean);
+      doLoadQuote();
+    }).catch(function(e){
+      console.error('[Portal Auth] signInWithEmailLink failed:', e.code, e.message);
+      // Show error to user instead of silently going back to auth screen
+      var wrap=document.querySelector('.wrap');
+      if(wrap)wrap.innerHTML='<div style="max-width:380px;margin:60px auto;text-align:center">'
+        +'<div style="font-family:Outfit;font-size:28px;font-weight:900;color:var(--h1);margin-bottom:12px">Microflex</div>'
+        +'<div style="font-size:14px;color:var(--red,#ff6474);font-weight:700;margin-bottom:8px">Verification Failed</div>'
+        +'<div style="font-size:12px;color:var(--sub);margin-bottom:16px">'+escPortal(e.message)+'</div>'
+        +'<div style="font-size:11px;color:var(--sub);margin-bottom:16px">This can happen if the link has expired or was already used. Please request a new verification link.</div>'
+        +'<button onclick="location.href=location.pathname+location.search.replace(/&?oobCode=[^&]*/g,\\\'\\\').replace(/&?mode=[^&]*/g,\\\'\\\')" style="padding:10px 24px;border-radius:8px;background:var(--accent,#00e5ff);color:#060d14;font-size:12px;font-weight:700;border:none;cursor:pointer">Try Again</button>'
+        +'</div>';
+    });
+    return;
+  }
+  // Already signed in — skip auth, load quote directly
+  var savedEmail=localStorage.getItem('mfxPortalEmail');
+  auth.onAuthStateChanged(function(user){
+    if(user){
+      CLIENT_EMAIL=user.email||savedEmail||localStorage.getItem('mfxPortalClientEmail')||'';
+      if(CLIENT_EMAIL)doLoadQuote();
+      else showAuthScreen(qNum);
+    }else{
+      showAuthScreen(qNum);
+    }
+  });
+}
+
+function showAuthScreen(qNum){
+  var params=new URLSearchParams(window.location.search);
+  var docId=params.get('id')||'';
+  if(!qNum&&!docId){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
+  document.querySelector('.wrap').innerHTML='<div style="max-width:380px;margin:60px auto;text-align:center">'
+    +'<div style="font-family:Outfit;font-size:28px;font-weight:900;color:var(--h1);margin-bottom:4px">Microflex</div>'
+    +'<div style="width:50px;height:2px;background:var(--accent);margin:0 auto 4px;border-radius:1px"></div>'
+    +'<div style="font-family:Outfit;font-size:8px;font-weight:300;color:var(--accent-dk);letter-spacing:4px;text-transform:uppercase;margin-bottom:24px">Film Corporation</div>'
+    +'<div style="font-size:14px;color:var(--h1);font-weight:700;margin-bottom:6px">Enter your email to view quote '+(qNum||'')+'</div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-bottom:20px">Your email is used for identification and communication only.</div>'
+    +'<input id="portalEmail" type="email" placeholder="your@company.com" style="width:100%;padding:12px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border);color:var(--h1);font-size:13px;margin-bottom:10px;outline:none;box-sizing:border-box">'
+    +'<button id="portalBtn" onclick="portalSignIn()" style="width:100%;padding:12px;border-radius:8px;background:var(--accent);color:#060d14;font-size:13px;font-weight:700;border:none;cursor:pointer">View Quote</button>'
+    +'<div id="portalStatus" style="margin-top:12px;font-size:11px;color:var(--sub)"></div>'
+    +'</div>';
+}
+
+function portalSignIn(){
+  var email=document.getElementById('portalEmail').value.trim();
+  if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Please enter a valid email address</div>';return;
+  }
+  var btn=document.getElementById('portalBtn');
+  btn.textContent='Sending verification...';btn.disabled=true;
+
+  // Check if user is returning from email link
+  if(auth.isSignInWithEmailLink && auth.isSignInWithEmailLink(window.location.href)){
+    var savedEmail=localStorage.getItem('mfxPortalPendingEmail')||email;
+    auth.signInWithEmailLink(savedEmail, window.location.href).then(function(){
+      CLIENT_EMAIL=savedEmail;
+      localStorage.removeItem('mfxPortalPendingEmail');
+      localStorage.setItem('mfxPortalClientEmail',savedEmail);
+      doLoadQuote();
+    }).catch(function(e){
+      btn.textContent='View Quote';btn.disabled=false;
+      document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Verification failed: '+escPortal(e.message)+'</div>';
+    });
+    return;
+  }
+
+  // Build a clean return URL that preserves the quote id/q params
+  var params=new URLSearchParams(window.location.search);
+  var returnUrl=window.location.origin+window.location.pathname+'?';
+  var rp=[];
+  if(params.get('id'))rp.push('id='+params.get('id'));
+  if(params.get('q'))rp.push('q='+params.get('q'));
+  returnUrl+=rp.join('&');
+
+  // Save quote params to localStorage as backup (Firebase redirects can lose URL params)
+  if(params.get('id'))localStorage.setItem('mfxPortalPendingId',params.get('id'));
+  if(params.get('q'))localStorage.setItem('mfxPortalPendingQ',params.get('q'));
+
+  // Send email verification link
+  var actionCodeSettings={
+    url: returnUrl,
+    handleCodeInApp: true
+  };
+  auth.sendSignInLinkToEmail(email, actionCodeSettings).then(function(){
+    localStorage.setItem('mfxPortalPendingEmail', email);
+    btn.textContent='Check your email';
+    document.getElementById('portalStatus').innerHTML='<div style="color:var(--accent)">We sent a verification link to <strong>'+escPortal(email)+'</strong>. Click it to view the quote.</div>';
+  }).catch(function(e){
+    btn.textContent='View Quote';btn.disabled=false;
+    document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Error: '+escPortal(e.message)+'</div>';
+  });
+}
+
+function escPortal(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function doLoadQuote(){
+  var params=new URLSearchParams(window.location.search);
+  var docId=params.get('id')||localStorage.getItem('mfxPortalPendingId')||'';
+  var qNum=params.get('q')||localStorage.getItem('mfxPortalPendingQ')||'';
+  if(!docId&&!qNum){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
+  document.querySelector('.status h2').textContent='Loading quote '+(qNum||docId)+'...';
+  // Clean up URL if params were recovered from localStorage
+  if(!params.get('id')&&!params.get('q')){
+    var cp=[];
+    if(docId)cp.push('id='+docId);
+    if(qNum)cp.push('q='+qNum);
+    if(cp.length)window.history.replaceState({},'',window.location.pathname+'?'+cp.join('&'));
+  }
+  // Prefer doc ID (direct fetch, works with security rules)
+  var loadPromise;
+  if(docId){
+    loadPromise=db.collection('quotes').doc(docId).get().then(function(doc){
+      if(!doc.exists)return null;
+      return{id:doc.id,data:doc.data()};
+    });
+  }else{
+    loadPromise=db.collection('quotes').where('quoteNum','==',qNum).get().then(function(snap){
+      if(snap.empty)return null;
+      return{id:snap.docs[0].id,data:snap.docs[0].data()};
+    });
+  }
+  loadPromise.then(function(result){
+    if(!result){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">Quote not found</h2><p>'+(qNum||docId)+' could not be found.</p></div>';return}
+    QUOTE_ID=result.id;
+    QUOTE_DATA=result.data;
+    // Clear stale quote params — this quote is now loaded
+    localStorage.removeItem('mfxPortalPendingId');
+    localStorage.removeItem('mfxPortalPendingQ');
+    // Track portal visit
+    try{
+      var now=new Date().toISOString();
+      var statsRef=db.collection('quotes').doc(QUOTE_ID);
+      statsRef.get().then(function(doc){
+        var d=doc.data()||{};var ps=d.portalStats||{visits:0,firstVisit:null,lastVisit:null,visitors:[]};
+        ps.visits=(ps.visits||0)+1;
+        if(!ps.firstVisit)ps.firstVisit=now;
+        ps.lastVisit=now;
+        ps.lastIP=null;
+        var vName=localStorage.getItem('portalVisitorName')||'Anonymous';
+        if(ps.visitors&&ps.visitors.indexOf(vName)===-1&&ps.visitors.length<50)ps.visitors.push(vName);
+        ps.visitLog=ps.visitLog||[];
+        ps.visitLog.push({at:now,name:vName,ua:navigator.userAgent.substring(0,80)});
+        if(ps.visitLog.length>100)ps.visitLog=ps.visitLog.slice(-50);
+        statsRef.update({portalStats:ps}).catch(function(){});
+      }).catch(function(){});
+    }catch(e){}
+    renderPortalData();
+  }).catch(function(e){
+    document.querySelector('.status h2').textContent='Error loading quote';
+    document.querySelector('.status p').textContent=e.message;
+  });
+}
+
+function renderPortalData(){
+  var q=QUOTE_DATA;var f=q.fields||{};
+  document.querySelector('.qnum').textContent=q.quoteNum||'';
+  document.querySelector('.rev').textContent='REV '+(q.rev||'A');
+  document.querySelectorAll('.qf-value').forEach(function(el){
+    var label=el.previousElementSibling?el.previousElementSibling.textContent:'';
+    if(label==='Job Description')el.textContent=(f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'');
+    if(label==='Process')el.textContent=(f.colors||'?')+'-Color '+(f.jobType||'Flexo');
+    if(label==='Date')el.textContent=f.quoteDate?new Date(f.quoteDate+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
+    if(label==='Lead Time')el.textContent='15 working days';
+    if(label==='Valid Until'){try{var vd=new Date(f.quoteDate+'T12:00');vd.setDate(vd.getDate()+30);el.textContent=vd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch(e){el.textContent='—'}}
+    if(label==='Flex Team')el.textContent=f.estimator||'—';
+  });
+  var prepFor=document.querySelector('.qcard-head div[style*="text-align:right"]');
+  if(prepFor){prepFor.innerHTML='<div style="font-size:10px;color:var(--sub)">Prepared for</div><div style="font-size:14px;font-weight:700;color:var(--h1)">'+escPortal(f.custCo||'—')+'</div><div style="font-size:10px;color:var(--sub)">'+escPortal(f.custAttn||'')+'</div>'}
+  var shipInput=document.querySelector('input[value="Los Angeles, CA"]');
+  if(shipInput)shipInput.value=f.shipTo||f.cityState||'';
+  // Specs tags
+  var specsEl=document.querySelector('.specs');
+  if(specsEl){specsEl.innerHTML=
+    '<div class="spec-tag stg"><span class="lab">Size</span><span class="val">'+escPortal(f.sA||'?')+'" x '+escPortal(f.sar||'?')+'"</span></div>'
+    +'<div class="spec-tag stg"><span class="lab">Shape</span><span class="val">'+escPortal(f.shapeType||'—')+'</span></div>'
+    +'<div class="spec-tag stg"><span class="lab">Colors</span><span class="val">'+escPortal(f.colors||'—')+'</span></div>'
+    +'<div class="spec-tag stb"><span class="lab">Material</span><span class="val">'+escPortal(f.face||'—')+'</span></div>'
+    +(f.laminate?'<div class="spec-tag sto"><span class="lab">Lam</span><span class="val">'+escPortal(f.laminate)+'</span></div>':'')
+  }
+  // Render pricing — full matrix with qty rows × SKU columns
+  var pricingData=q.pricedQtys||[];
+  var pricingEl=document.querySelector('.pricing');
+  if(pricingData.length&&pricingData[0].skus){
+    // Full matrix mode — determine max SKU columns
+    var maxSku=1;
+    pricingData.forEach(function(row){var keys=Object.keys(row.skus||{});keys.forEach(function(k){var n=parseInt(k);if(n>maxSku)maxSku=n})});
+    var h='<h3>Select Your Quantity'+(maxSku>1?' & SKU Count':'')+'</h3>';
+    h+='<div style="overflow-x:auto"><table class="price-matrix"><thead><tr><th>QTY</th>';
+    for(var sk=1;sk<=maxSku;sk++){h+='<th>'+sk+' SKU'+(sk>1?'s':'')+'</th>'}
+    h+='</tr></thead><tbody>';
+    pricingData.forEach(function(row,qi){
+      h+='<tr><td>'+Number(row.qty).toLocaleString()+'</td>';
+      for(var sk=1;sk<=maxSku;sk++){
+        var cell=row.skus[sk];
+        if(cell){
+          var tot=cell.tot||0;var ppu=cell.ppu||0;
+          h+='<td data-qi="'+qi+'" data-sk="'+sk+'" data-tot="'+tot.toFixed(2)+'" data-ppu="'+ppu.toFixed(4)+'" data-qty="'+row.qty+'" onclick="selectCell(this)">';
+          h+='<span class="pm-tot">$'+tot.toLocaleString(undefined,{minimumFractionDigits:2})+'</span>';
+          h+='<span class="pm-ppu">$'+ppu.toFixed(4)+'/ea</span></td>';
+        }else{h+='<td>—</td>'}
+      }
+      h+='</tr>';
+    });
+    h+='</tbody></table></div>';
+    h+='<div class="pm-summary" id="pmSummary"><div class="pm-sel-label">YOUR SELECTION</div><div class="pm-sel-total" id="pmTotal">—</div><div class="pm-sel-detail" id="pmDetail">Click a price above to select</div></div>';
+    h+='<div class="fixed-charges-bar" id="fixedChargesBar"></div>';
+    pricingEl.innerHTML=h;
+    // Auto-select best value: last qty, 1 SKU
+    var defCell=pricingEl.querySelector('td[data-qi="'+(pricingData.length-1)+'"][data-sk="1"]');
+    if(defCell)selectCell(defCell);
+  }else{
+    // Fallback: simple qty list (no pricedQtys or no skus)
+    var rawQtys=q.qtys||[];
+    if(rawQtys.length){
+      var opts=document.querySelector('.price-opts');
+      if(opts){opts.innerHTML='';
+      rawQtys.forEach(function(qty,i){
+        var isLast=i===rawQtys.length-1;
+        var div=document.createElement('div');
+        div.className='price-opt'+(isLast?' best selected':'');
+        div.setAttribute('data-qi',i);
+        div.setAttribute('data-qty',qty);
+        div.onclick=function(){selectQty(div,i)};
+        div.innerHTML='<div class="po-qty">'+Number(qty).toLocaleString()+'</div><div class="po-per">Contact for pricing</div>';
+        opts.appendChild(div);
+      })}
+    }
+  }
+  // Show fixed charges
+  if(q.fixedCharges){
+    var fc=q.fixedCharges;
+    var fcTotal=(fc.die||0)+(fc.plates||0)+(fc.mr||0)+(fc.cu||0)+(fc.shipping||0);
+    var fcEl=document.getElementById('fixedChargesBar')||document.querySelector('.fixed-charges-bar');
+    if(fcEl)fcEl.innerHTML='Fixed Charges / SKU (Die + Plates + MR + Shipping) <span style="float:right;font-weight:700">$'+fcTotal.toLocaleString(undefined,{minimumFractionDigits:2})+'</span>';
+  }
+  // Render per-SKU art upload zones
+  renderPerSkuArtZones(q);
+  // Handle already submitted PO
+  if(q.status==='won'&&q.poSignature){
+    document.querySelector('.status h2').textContent='PO Already Submitted';
+    document.querySelector('.status p').textContent='Your PO was submitted on '+(q.poSignedAt?new Date(q.poSignedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'—')+' by '+q.poSignature+'.';
+    document.querySelector('.status-icon').innerHTML='<svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:#22c55e;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg>';
+    // Hide submission form, show summary
+    var sections=document.querySelectorAll('.section');
+    sections.forEach(function(s){var h3=s.querySelector('h3');if(h3&&(h3.textContent==='Purchase Order Details'||h3.textContent==='Upload Purchase Order'||h3.textContent==='Upload Art Files'||h3.textContent==='Approval'))s.style.display='none'});
+    var submitWrap=document.querySelector('.submit-wrap');if(submitWrap)submitWrap.style.display='none';
+    // Show PO summary
+    var sumDiv=document.createElement('div');sumDiv.className='section';
+    var sh='<h3>Submission Summary</h3>';
+    sh+='<div style="font-size:12px;color:var(--h1);margin-bottom:4px">PO Number: <strong>'+(q.poNumber||'—')+'</strong></div>';
+    sh+='<div style="font-size:12px;color:var(--h1);margin-bottom:4px">Signed by: <strong>'+q.poSignature+'</strong></div>';
+    if(q.poSelectedQty)sh+='<div style="font-size:12px;color:var(--h1);margin-bottom:4px">Quantity: <strong>'+Number(q.poSelectedQty).toLocaleString()+'</strong> × '+(q.poSkuCount||1)+' SKU'+((q.poSkuCount||1)>1?'s':'')+'</div>';
+    if(q.poSelectedTotal)sh+='<div style="font-size:12px;color:var(--h1);margin-bottom:4px">Total: <strong>$'+Number(q.poSelectedTotal).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong></div>';
+    if(q.poFiles&&q.poFiles.length){sh+='<div style="font-size:11px;color:var(--sub);margin-top:8px;font-weight:600">PO Documents ('+q.poFiles.length+')</div>';q.poFiles.forEach(function(pf){sh+='<div style="font-size:10px;color:var(--accent);padding:2px 0">📎 '+pf.name+'</div>'})}
+    if(q.artFiles&&q.artFiles.length){sh+='<div style="font-size:11px;color:var(--sub);margin-top:8px;font-weight:600">Art Files ('+q.artFiles.length+')</div>';q.artFiles.forEach(function(af){sh+='<div style="font-size:10px;color:var(--accent);padding:2px 0">🎨 '+af.name+'</div>'})}
+    sh+='<div style="margin-top:12px;padding:10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:6px;font-size:11px;color:#4ade80;font-weight:600;text-align:center">Your order is being processed by the Microflex team.</div>';
+    sumDiv.innerHTML=sh;
+    var pricingEl=document.querySelector('.pricing');if(pricingEl)pricingEl.after(sumDiv);
+    // Show SO approval section if SO exists
+    renderPortalSOSection(q, sumDiv);
+  }else{
+    document.querySelector('.status h2').textContent='Your quote is ready for approval';
+    document.querySelector('.status p').textContent='Review the details below, select your quantity, and submit your PO.';
+  }
+  // Load messages
+  loadMessages();
+  // Show logged-in user
+  if(CLIENT_EMAIL){
+    var hdrContact=document.querySelector('.hdr-contact');
+    if(hdrContact)hdrContact.innerHTML='<div style="font-size:10px;color:var(--sub)">Signed in as</div><b style="font-size:11px">'+escPortal(CLIENT_EMAIL)+'</b><br><a href="#" onclick="auth.signOut();location.reload();return false" style="font-size:10px">Sign out</a>';
+  }
+}
+
+// ─── File Upload via Cloud Function → Google Drive ───
+var UPLOADED_PO_FILES=[];
+var UPLOADED_ART_FILES=[];
+var UPLOADED_ART_BY_SKU={}; // {1: [{name,url,...}], 2: [...], ...}
+
+function getAuthToken(){
+  var user=auth.currentUser;
+  if(!user)return Promise.reject(new Error('Not signed in'));
+  return user.getIdToken();
+}
+
+function handleFiles(files,type,skuIdx){
+  // skuIdx is optional — only for per-SKU art uploads
+  var listId=type==='po'?'poFileList':(skuIdx?'artFileList_sku'+skuIdx:'artFileList');
+  var list=document.getElementById(listId);
+  var arr=type==='po'?UPLOADED_PO_FILES:UPLOADED_ART_FILES;
+  // Also track per-SKU
+  if(type==='art'&&skuIdx){
+    if(!UPLOADED_ART_BY_SKU[skuIdx])UPLOADED_ART_BY_SKU[skuIdx]=[];
+  }
+  for(var i=0;i<files.length;i++){
+    (function(f){
+      if(f.size>25*1024*1024){alert(f.name+' is too large (max 25MB)');return}
+      var size=f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB';
+      var itemId='file_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
+      var div=document.createElement('div');
+      div.className='file-item';div.id=itemId;
+      div.innerHTML='<div><span>'+f.name+'</span><br><small>'+size+' — <span class="upload-status" style="color:var(--accent)">Uploading to Drive... 0%</span></small></div><div class="upload-bar"><div class="upload-fill" id="bar_'+itemId+'" style="width:5%"></div></div>';
+      if(list)list.appendChild(div);
+
+      var company=(QUOTE_DATA&&QUOTE_DATA.fields?QUOTE_DATA.fields.custCo:'Unknown');
+      var qNum=QUOTE_DATA?QUOTE_DATA.quoteNum:'unknown';
+      var qId=QUOTE_ID||'';
+      var subFolder=type==='po'?'PO':(skuIdx?'Art/SKU'+skuIdx:'Art');
+
+      var formData=new FormData();
+      formData.append('file',f);
+      formData.append('company',company);
+      formData.append('quoteNum',qNum);
+      formData.append('fileType',subFolder);
+      formData.append('quoteId',qId);
+
+      // Show progress animation
+      var bar=document.getElementById('bar_'+itemId);
+      var pct=5;
+      var progInterval=setInterval(function(){if(pct<85){pct+=Math.random()*8;if(bar)bar.style.width=Math.round(pct)+'%';var st=document.querySelector('#'+itemId+' .upload-status');if(st)st.textContent='Uploading to Drive... '+Math.round(pct)+'%'}},400);
+
+      // Upload to shared Drive via Cloud Function
+      getAuthToken().then(function(token){
+        return fetch('/api/uploadToDrive',{method:'POST',headers:{'Authorization':'Bearer '+token},body:formData});
+      }).then(function(r){return r.json()})
+      .then(function(data){
+        clearInterval(progInterval);
+        if(data.success){
+          if(bar)bar.style.width='100%';
+          var st=document.querySelector('#'+itemId+' .upload-status');
+          if(st){st.innerHTML='<span style="color:#22c55e">✓ Saved to Drive</span>'}
+          var barWrap=document.querySelector('#'+itemId+' .upload-bar');
+          if(barWrap)setTimeout(function(){barWrap.style.display='none'},1000);
+          var linkDiv=document.createElement('div');
+          linkDiv.innerHTML='<a href="'+escPortal(data.driveLink)+'" target="_blank" style="font-size:9px;color:var(--accent)">📁 '+escPortal(data.folder)+'</a>';
+          var el=document.getElementById(itemId);if(el)el.appendChild(linkDiv);
+          var fileObj={name:data.name,url:data.driveLink,driveId:data.driveId,driveLink:data.driveLink,uploadedAt:new Date().toISOString(),skuIndex:skuIdx||null};
+          arr.push(fileObj);
+          if(type==='art'&&skuIdx&&UPLOADED_ART_BY_SKU[skuIdx])UPLOADED_ART_BY_SKU[skuIdx].push(fileObj);
+        }else{
+          var st2=document.querySelector('#'+itemId+' .upload-status');
+          if(st2){st2.innerHTML='<span style="color:var(--accent)">Saving...</span>'}
+          fallbackStorageUpload(f,type,itemId,arr,skuIdx);
+        }
+      })
+      .catch(function(err){
+        clearInterval(progInterval);
+        fallbackStorageUpload(f,type,itemId,arr,skuIdx);
+      });
+    })(files[i]);
+  }
+}
+
+// Fallback: upload to Firebase Storage if Cloud Function not available
+function fallbackStorageUpload(f,type,itemId,arr,skuIdx){
+  var company=(QUOTE_DATA&&QUOTE_DATA.fields?QUOTE_DATA.fields.custCo:'Unknown').replace(/[^a-zA-Z0-9 ]/g,'').trim();
+  var qNum=QUOTE_DATA?QUOTE_DATA.quoteNum:'unknown';
+  var folder=type==='po'?'PO':(skuIdx?'Art/SKU'+skuIdx:'Art');
+  var path='portal-uploads/'+company+'/'+qNum+'/'+folder+'/'+Date.now()+'_'+f.name;
+  var ref=storage.ref(path);
+  var task=ref.put(f);
+  task.on('state_changed',function(snap){
+    var pct=Math.round((snap.bytesTransferred/snap.totalBytes)*100);
+    var bar=document.getElementById('bar_'+itemId);if(bar)bar.style.width=pct+'%';
+    var st=document.querySelector('#'+itemId+' .upload-status');if(st)st.textContent='Uploading... '+pct+'%';
+  },function(err){
+    var st=document.querySelector('#'+itemId+' .upload-status');if(st)st.innerHTML='<span style="color:#ef4444">Upload failed: '+err.message+'</span>';
+  },function(){
+    task.snapshot.ref.getDownloadURL().then(function(url){
+      var st=document.querySelector('#'+itemId+' .upload-status');if(st){st.innerHTML='<span style="color:#22c55e">✓ Uploaded</span>'}
+      var barWrap=document.querySelector('#'+itemId+' .upload-bar');if(barWrap)barWrap.style.display='none';
+      var fileObj={name:f.name,url:url,path:path,type:type,uploadedAt:new Date().toISOString(),skuIndex:skuIdx||null};
+      arr.push(fileObj);
+      if(type==='art'&&skuIdx&&UPLOADED_ART_BY_SKU[skuIdx]){UPLOADED_ART_BY_SKU[skuIdx].push(fileObj)}
+    });
+  });
+}
+
+// ─── Per-SKU Art Upload Zones ───
+function renderPerSkuArtZones(q){
+  var f=q.fields||{};
+  var skuCount=parseInt(f.skuCols)||1;
+  var container=document.getElementById('perSkuArtZones');
+  if(!container)return;
+  if(skuCount<=1){
+    // Single SKU — keep default flat zone but tag as SKU 1
+    var inp=document.getElementById('artFileInput');
+    if(inp)inp.setAttribute('onchange','handleFiles(this.files,"art",1)');
+    return;
+  }
+  // Multiple SKUs — render per-SKU sections
+  var h='';
+  for(var sk=1;sk<=skuCount;sk++){
+    var skuLabel=f['skuName'+sk]||f['sku'+sk+'Name']||('SKU '+sk);
+    var inputId='artFileInput_sku'+sk;
+    h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+    h+='<span style="background:rgba(167,139,250,.15);color:#a78bfa;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px">SKU '+sk+'</span>';
+    h+='<span style="font-size:12px;color:var(--h1);font-weight:600">'+escPortal(skuLabel)+'</span>';
+    h+='</div>';
+    h+='<div class="dropzone" onclick="document.getElementById(\''+inputId+'\').click()" style="padding:16px">';
+    h+='<svg viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
+    h+='<p style="font-size:11px">Drop art files for <b>'+escPortal(skuLabel)+'</b>, or <b>browse</b></p>';
+    h+='<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 25MB each</small>';
+    h+='</div>';
+    h+='<input type="file" id="'+inputId+'" multiple style="display:none" onchange="handleFiles(this.files,\'art\','+sk+')">';
+    h+='<div class="file-list" id="artFileList_sku'+sk+'"></div>';
+    h+='</div>';
+  }
+  container.innerHTML=h;
+  // Setup drag-drop for each SKU zone
+  setTimeout(function(){
+    for(var s=1;s<=skuCount;s++){
+      (function(si){
+        var zones=container.querySelectorAll('.dropzone');
+        var dz=zones[si-1];
+        if(!dz)return;
+        dz.addEventListener('dragover',function(e){e.preventDefault();dz.style.borderColor='var(--accent)';dz.style.background='rgba(0,229,255,.04)'});
+        dz.addEventListener('dragleave',function(){dz.style.borderColor='var(--border)';dz.style.background='var(--card)'});
+        dz.addEventListener('drop',function(e){e.preventDefault();dz.style.borderColor='var(--border)';dz.style.background='var(--card)';if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files,'art',si)});
+      })(s);
+    }
+  },100);
+}
+
+// ─── SO Approval / Signature / Deposit Section on Portal ───
+function renderPortalSOSection(q, afterEl){
+  if(!QUOTE_ID)return;
+  // Look for a linked SO in salesOrders collection
+  db.collection('salesOrders').where('quoteId','==',QUOTE_ID).get().then(function(snap){
+    if(snap.empty){
+      // Also try by quoteNum
+      db.collection('salesOrders').where('quoteNum','==',q.quoteNum).get().then(function(snap2){
+        if(!snap2.empty)_renderSOBlock(snap2.docs[0],afterEl);
+      }).catch(function(){});
+      return;
+    }
+    _renderSOBlock(snap.docs[0],afterEl);
+  }).catch(function(e){console.warn('SO lookup:',e.message)});
+}
+
+function _renderSOBlock(soDoc,afterEl){
+  var so=soDoc.data();
+  var soId=soDoc.id;
+  var soDiv=document.createElement('div');
+  soDiv.className='section';
+  // White card on the dark portal background — matches the PDF template visually
+  soDiv.style.cssText='padding:0;background:transparent;border:none;overflow:hidden';
+  soDiv.innerHTML=buildPortalSOHTML(so,soId);
+  if(afterEl&&afterEl.parentNode){afterEl.parentNode.insertBefore(soDiv,afterEl.nextSibling)}
+}
+
+// Portal-side SO renderer — mirrors buildSOPrintHTML in public/js/orders.js so the
+// client sees the same branded layout in the portal as in the PDF email attachment.
+function buildPortalSOHTML(so,soId){
+  var _fD=function(d){try{return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch(e){return '—'}};
+  var _fN=function(n){return Number(n||0).toLocaleString()};
+  var _f$=function(n){return '$'+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})};
+  var confQty=so.selectedQty||0;
+  var confPPU=so.ppu||(confQty?so.total/confQty:0);
+  var confTotal=so.total||0;
+  var statusColor={'pending':'#f59e0b','approved':'#16a34a','sent':'#00bcd4','completed':'#16a34a','cancelled':'#dc2626'}[so.status]||'#94a3b0';
+  var statusLabel=(so.status||'pending').toUpperCase();
+  var jobDesc=escPortal(so.jobDesc||((so.sizeA||'?')+'x'+(so.sizeB||'?')+'" '+(so.shapeType||'')+' - '+(so.colors||'?')+'C '+(so.jobType||'Flexo')));
+
+  // Lifecycle stages — approvals removed
+  var stages=[
+    {l:'SO Created',done:!!so.createdAt,at:so.createdAt},
+    {l:'Sent to Client',done:!!so.sentAt,at:so.sentAt},
+    {l:'In Production',done:so.status==='completed'||!!so.productionStartedAt,at:so.productionStartedAt},
+    {l:'Shipped',done:!!so.shippedAt,at:so.shippedAt}
+  ];
+
+  var h='<div style="background:#fff;color:#0a2030;font-family:Outfit,Arial,sans-serif;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.25)">';
+
+  // Header (matches PDF)
+  h+='<div style="padding:14px 24px 10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
+   +'<div style="line-height:1"><span style="font-family:Outfit,sans-serif;font-size:30px;font-weight:900;color:#0a2e3e;letter-spacing:-.5px;display:block">Microflex</span><div style="width:100%;height:2.5px;background:#00e5ff;margin:3px 0 4px;border-radius:1px"></div><span style="font-family:Outfit,sans-serif;font-size:9px;font-weight:300;color:#00838f;letter-spacing:5px;text-transform:uppercase;display:block">Film Corporation</span></div>'
+   +'<div style="text-align:right"><div style="font-size:10px;font-weight:800;color:#0a2e3e">MicroflexFilm.com</div><div style="font-size:8px;color:#7a8a98;line-height:1.5;margin-top:2px;font-weight:500">4130 Garner Rd · Riverside, CA 92501<br>(909) 360-9066 · Orders@MicroflexFilm.com</div><div style="font-size:7px;color:#00BCD4;font-weight:700;letter-spacing:1px;margin-top:3px">SQF Certified | Made in USA</div></div>'
+   +'</div>';
+
+  // Navy product bar
+  h+='<div style="padding:6px 24px;background:#0a2e3e;text-align:center"><span style="font-size:7.5px;color:#00e5ff;font-weight:600;letter-spacing:1px">FLEXIBLE PACKAGING</span><span style="font-size:7.5px;color:#0a5a6a;margin:0 6px">│</span><span style="font-size:7.5px;color:#00e5ff;font-weight:600;letter-spacing:1px">LABELS</span><span style="font-size:7.5px;color:#0a5a6a;margin:0 6px">│</span><span style="font-size:7.5px;color:#00e5ff;font-weight:600;letter-spacing:1px">POUCHES</span><span style="font-size:7.5px;color:#0a5a6a;margin:0 6px">│</span><span style="font-size:7.5px;color:#00e5ff;font-weight:600;letter-spacing:1px">SHRINK SLEEVES</span><span style="font-size:7.5px;color:#0a5a6a;margin:0 6px">│</span><span style="font-size:7.5px;color:#00e5ff;font-weight:600;letter-spacing:1px">SACHETS</span><span style="font-size:7.5px;color:#0a5a6a;margin:0 6px">│</span><span style="font-size:7.5px;color:#00e5ff;font-weight:600;letter-spacing:1px">STICK PACKS</span></div>';
+
+  // Ticket — two columns (client on left, SO details on right)
+  h+='<div style="display:flex;flex-wrap:wrap;border-bottom:1px solid #e8ecf0">';
+
+  // Client side
+  h+='<div style="flex:1;min-width:260px;padding:12px 16px;border-right:1px solid #edf0f2">'
+   +'<div style="font-size:7px;color:#00BCD4;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:6px">Client</div>'
+   +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px">'
+   +'<div style="grid-column:1/-1"><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Company</div><div style="font-size:14px;font-weight:800;color:#0a2030">'+escPortal(so.company||'—')+'</div></div>'
+   +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Contact</div><div style="font-size:11px;font-weight:700;color:#0a2030">'+escPortal(so.contact||'—')+'</div></div>'
+   +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Email</div><div style="font-size:10px;font-weight:700;color:#0a2030;word-break:break-all">'+escPortal(so.email||'—')+'</div></div>'
+   +'<div style="grid-column:1/-1;height:1px;background:#edf0f2;margin:2px 0"></div>'
+   +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Phone</div><div style="font-size:11px;font-weight:700;color:#0a2030">'+escPortal(so.phone||'—')+'</div></div>'
+   +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Terms</div><div style="font-size:11px;font-weight:700;color:#0a2030">'+escPortal(so.payTerms||'Net 30')+'</div></div>'
+   +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Ship To</div><div style="font-size:11px;font-weight:700;color:#0a2030">'+escPortal(so.shipTo||so.company||'—')+'</div></div>'
+   +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">PO Number</div><div style="font-size:11px;font-weight:800;color:#0a2030">'+escPortal(so.poNumber||'—')+'</div></div>'
+   +'<div style="grid-column:1/-1;height:1px;background:#edf0f2;margin:2px 0"></div>'
+   // Spec cards — matches PDF color scheme
+   +'<div style="grid-column:1/-1"><div style="font-size:7px;color:#00BCD4;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px">Specifications</div><div style="display:flex;flex-direction:column;gap:5px">'
+   +'<div style="padding:6px 10px;background:#f7fee7;border-left:3px solid #84cc16;border-radius:0 5px 5px 0"><div style="font-size:7px;font-weight:700;color:#4d7c0f;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Dimensions</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center"><span style="font-size:8px;color:#3a5a10;font-weight:600">Size</span><span style="background:#d9f99d;color:#365314;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(String(so.sizeA||'?'))+'" × '+escPortal(String(so.sizeB||'?'))+'"</span><span style="font-size:8px;color:#3a5a10;font-weight:600">Shape</span><span style="background:#d9f99d;color:#365314;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(so.shapeType||'—')+'</span><span style="font-size:8px;color:#3a5a10;font-weight:600">Colors</span><span style="background:#d9f99d;color:#365314;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(String(so.colors||'—'))+'</span></div></div>'
+   +'<div style="padding:6px 10px;background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 5px 5px 0"><div style="font-size:7px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Finishing</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">'+(so.labRoll?'<span style="font-size:8px;color:#14532d;font-weight:600">Impressions/Roll</span><span style="background:#bbf7d0;color:#14532d;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(String(so.labRoll))+'</span>':'')+'<span style="font-size:8px;color:#14532d;font-weight:600">Copy Position</span><span style="background:#bbf7d0;color:#14532d;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(so.windDir||'—')+'</span></div></div>'
+   +'<div style="padding:6px 10px;background:#fff7ed;border-left:3px solid #ea580c;border-radius:0 5px 5px 0"><div style="font-size:7px;font-weight:700;color:#c2410c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Materials</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center"><span style="font-size:8px;color:#7c2d12;font-weight:600">Face</span><span style="background:#fed7aa;color:#7c2d12;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(so.face||so.faceStock||'—')+'</span><span style="font-size:8px;color:#7c2d12;font-weight:600">Lam</span><span style="background:#fed7aa;color:#7c2d12;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(so.laminate||so.lamination||'NA')+'</span><span style="font-size:8px;color:#7c2d12;font-weight:600">Adhesive</span><span style="background:#fed7aa;color:#7c2d12;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(so.adhesive||'NA')+'</span><span style="font-size:8px;color:#7c2d12;font-weight:600">Coating</span><span style="background:#fed7aa;color:#7c2d12;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">'+escPortal(so.coating||'NA')+'</span></div></div>'
+   +'</div></div></div></div>';
+
+  // SO detail side
+  h+='<div style="flex:1;min-width:260px;padding:12px 20px 12px 16px;display:flex;flex-direction:column">'
+   +'<div style="font-size:30px;font-weight:900;color:#0a2e3e;text-align:center;line-height:1;letter-spacing:-1px">'+escPortal(so.soNum||'—')+'</div>'
+   +'<div style="text-align:center;margin-top:6px"><span style="display:inline-block;font-size:9px;font-weight:700;color:#fff;background:'+statusColor+';padding:3px 12px;border-radius:4px;letter-spacing:.5px">'+statusLabel+'</span></div>'
+   +'<div style="border:1.5px solid #dce2e8;border-radius:6px;padding:8px 12px;margin-top:10px">'
+   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Date</span><span style="color:#0a2030;font-weight:700">'+_fD(so.createdAt)+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
+   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px;gap:10px"><span style="color:#94a3b0;font-weight:600">Job</span><span style="color:#0a2030;font-weight:700;text-align:right">'+jobDesc+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
+   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Quote Ref</span><span style="color:#0a2030;font-weight:700">'+escPortal(so.quoteNum||'—')+' Rev '+escPortal(so.quoteRev||'A')+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
+   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">PO Number</span><span style="color:#0a2030;font-weight:800">'+escPortal(so.poNumber||'—')+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
+   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Lead Time</span><span style="color:#0a2030;font-weight:700">15 working days</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
+   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Terms</span><span style="color:#0a2030;font-weight:700">'+escPortal(so.payTerms||'Net 30')+'</span></div>'
+   +'</div>'
+   // Flex Team (purple card)
+   +'<div style="background:#f3e8ff;border:1.5px solid #d8b4fe;border-radius:6px;padding:8px 12px;margin-top:8px">'
+   +'<div style="font-size:7px;color:#7c3aed;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Flex Team</div>'
+   +'<div style="display:flex;justify-content:space-between;font-size:9px;padding:2px 0"><span style="color:#7c3aed;font-weight:600">Estimator</span><span style="color:#4c1d95;font-weight:700">'+escPortal(so.estimator||'—')+'</span></div>'
+   +(so.salesRep?'<div style="display:flex;justify-content:space-between;font-size:9px;padding:2px 0"><span style="color:#7c3aed;font-weight:600">Sales Rep</span><span style="color:#4c1d95;font-weight:700">'+escPortal(so.salesRep)+'</span></div>':'')
+   +'</div></div></div>';
+
+  // Pricing section
+  h+='<div style="padding:10px 24px;background:#f5f7f9;border-bottom:1px solid #e8ecf0"><div style="font-size:7px;color:#00BCD4;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:6px">◆ Sales Order Confirmation ◆</div>'
+   +'<table style="width:100%;border-collapse:collapse"><thead><tr>'
+   +'<th style="background:#0a2e3e;color:#00e5ff;padding:7px 10px;font-size:10px;font-weight:800;text-align:center;border:1px solid #0d3a4f;width:30%">QUANTITY</th>'
+   +'<th style="background:#0a2e3e;color:#00e5ff;padding:7px 10px;font-size:10px;font-weight:800;text-align:center;border:1px solid #0d3a4f;width:35%">PRICE / UNIT</th>'
+   +'<th style="background:#0a2e3e;color:#00e5ff;padding:7px 10px;font-size:10px;font-weight:800;text-align:center;border:1px solid #0d3a4f;width:35%">ORDER TOTAL</th>'
+   +'</tr></thead><tbody>'
+   +'<tr><td style="background:#edf1f5;padding:12px 10px;text-align:center;font-size:22px;font-weight:900;color:#0a2030;border:1px solid #e0e4ea">'+_fN(confQty)+'</td>'
+   +'<td style="background:#fff;padding:12px 10px;text-align:center;border:1px solid #e8ecf0"><div style="font-size:16px;font-weight:800;color:#0a2030">$'+(confPPU||0).toFixed(4)+'</div></td>'
+   +'<td style="background:#fff;padding:12px 10px;text-align:center;border:1px solid #e8ecf0"><div style="font-size:16px;font-weight:800;color:#0a2030">'+_f$(confTotal)+'</div><div style="font-size:8px;color:#00838f;font-weight:600;margin-top:2px;background:#e8f8fa;display:inline-block;padding:1px 6px;border-radius:3px">'+escPortal(so.payTerms||'Net 30')+'</div></td>'
+   +'</tr></tbody></table>'
+   +'<div style="font-size:13px;font-weight:800;color:#0a2030;margin-top:8px;line-height:1.3">'+jobDesc+'</div>'
+   +'</div>';
+
+  // Charges + Terms
+  h+='<div style="padding:10px 24px;border-bottom:1px solid #e8ecf0;display:flex;gap:10px;flex-wrap:wrap">';
+  if(so.depositRequired){
+    h+='<div style="flex:1;min-width:220px;border:1.5px solid #DAA520;border-radius:6px;overflow:hidden"><div style="padding:5px 10px;background:#fdf8e8;border-bottom:1px solid #e8d8a0;font-size:7px;font-weight:800;color:#8B6914;letter-spacing:1.5px;text-transform:uppercase">Deposit & Payment</div><div style="padding:5px 10px">'
+     +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px;border-bottom:1px dashed #f0e8d0"><span style="color:#5a4a28">Deposit Amount</span><span style="color:#2a1a00;font-weight:800">'+_f$(so.depositAmount||0)+'</span></div>'
+     +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#5a4a28">Deposit Status</span><span style="color:#2a1a00;font-weight:800">'+escPortal((so.depositStatus||'pending').toUpperCase())+'</span></div>'
+     +'</div><div style="background:#DAA520;padding:6px 10px;display:flex;justify-content:space-between;font-size:12px;font-weight:900;color:#fff"><span>Order Total</span><span>'+_f$(confTotal)+'</span></div></div>';
+  }
+  h+='<div style="flex:1;min-width:220px;border:1.5px solid #d0d8e0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column"><div style="padding:5px 10px;background:#f5f7f9;border-bottom:1px solid #d0d8e0;display:flex;justify-content:space-between;align-items:center"><span style="font-size:7px;font-weight:800;color:#2a3a4a;letter-spacing:1.5px;text-transform:uppercase">Terms & Conditions</span><span style="font-size:12px;font-weight:900;color:#0a2e3e">'+escPortal(so.payTerms||'Net 30')+'</span></div>'
+   +'<div style="padding:5px 10px;flex:1;font-size:9px;color:#4a5a68;line-height:1.5">'
+   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>Payment terms: '+escPortal(so.payTerms||'Net 30')+'</div>'
+   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>±10% quantity tolerance applies</div>'
+   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>Lead time: 15 working days from proof sign-off</div>'
+   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>Changes after approval may incur additional charges</div>'
+   +'</div></div></div>';
+
+  // Order Lifecycle timeline
+  h+='<div style="padding:14px 24px;border-bottom:1px solid #e8ecf0">'
+   +'<div style="font-size:7px;color:#00BCD4;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px">Order Lifecycle</div>'
+   +'<div style="display:flex;justify-content:space-between;position:relative;gap:4px">'
+   +'<div style="position:absolute;top:12px;left:8%;right:8%;height:2px;background:#e8ecf0;z-index:0"></div>'
+   +stages.map(function(s){
+     var bg=s.done?'#16a34a':'#e8ecf0';var color=s.done?'#fff':'#94a3b0';
+     return '<div style="flex:1;text-align:center;position:relative;z-index:1">'
+      +'<div style="width:26px;height:26px;border-radius:50%;background:'+bg+';color:'+color+';display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;border:2px solid #fff">'+(s.done?'✓':'○')+'</div>'
+      +'<div style="font-size:8px;color:'+(s.done?'#16a34a':'#94a3b0')+';font-weight:700;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">'+s.l+'</div>'
+      +(s.done&&s.at?'<div style="font-size:7px;color:#94a3b0;margin-top:1px">'+_fD(s.at)+'</div>':'')
+      +'</div>';}).join('')
+   +'</div></div>';
+
+  // Deposit CTA (if provided)
+  if(so.depositRequired&&so.depositLink){
+    h+='<div style="padding:14px 24px;background:#fffbea;border-bottom:1px solid #e8ecf0;text-align:center">'
+     +'<div style="font-size:9px;color:#8B6914;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">DEPOSIT REQUIRED</div>'
+     +'<div style="font-size:12px;color:#2a1a00;margin-bottom:10px">Amount: <strong style="color:#8B6914">'+_f$(so.depositAmount||0)+'</strong></div>'
+     +'<a href="'+escPortal(so.depositLink)+'" target="_blank" style="display:inline-block;padding:10px 28px;background:#DAA520;color:#fff;font-size:12px;font-weight:700;border-radius:6px;text-decoration:none">Pay Deposit</a>'
+     +'</div>';
+  }else if(so.depositRequired){
+    h+='<div style="padding:10px 24px;background:#fffbea;border-bottom:1px solid #e8ecf0;font-size:10px;color:#8B6914;text-align:center;font-weight:600">Deposit required — payment link will be provided shortly.</div>';
+  }
+
+  // CTA bar
+  h+='<div style="padding:10px 24px;background:#0a2e3e;text-align:center"><div style="font-family:Outfit,sans-serif;font-size:15px;font-weight:900;color:#fff">Thank you for your order</div><div style="font-size:9px;color:#00e5ff;font-weight:500;margin:3px 0 6px">Questions? Contact us directly</div><div style="font-size:10px;font-weight:600;display:flex;justify-content:center;gap:10px;flex-wrap:wrap"><span style="color:#fff;font-weight:800">MicroflexFilm.com</span><span style="color:#0a5a6a">│</span><span style="color:#fff;font-weight:800">(909) 360-9066</span><span style="color:#0a5a6a">│</span><span style="color:#fff;font-weight:800">Orders@MicroflexFilm.com</span></div></div>';
+
+  // Fine print
+  h+='<div style="padding:8px 24px;background:#fafbfc"><div style="font-size:8px;color:#6a7a88;line-height:1.5"><b style="color:#0a2e3e;font-weight:800">Microflex Film Corporation - Standard Terms:</b> Lead time is 15 working days from proof sign-off. Quantities shipped are ±10% of order quantity; stand-up gusset bags ±20%. Stability testing must be completed prior to running the order. Art will be billed at $90.00/hour if not in AI format. Plates, dies, and tooling remain the property of Microflex Film Corporation until paid in full. All finished goods comply with FDA Title 21 CFR Sections 174–178 for food contact.</div><div style="margin-top:5px;font-size:8px;font-weight:700;color:#0a2e3e">For complete terms visit: <span style="text-decoration:underline">MicroflexFilm.com/Terms</span></div></div>';
+
+  h+='</div>';
+  return h;
+}
+
+// Submit SO client approval from portal
+function submitSOApproval(soId){
+  var sigInput=document.getElementById('soSigInput');
+  if(!sigInput||!sigInput.value.trim()){alert('Please type your name to sign');return}
+  var btn=document.getElementById('soApproveBtn');
+  if(btn){btn.textContent='Submitting...';btn.disabled=true}
+  var sig=sigInput.value.trim();
+  db.collection('salesOrders').doc(soId).update({
+    clientSignature:sig,
+    clientSignedAt:new Date().toISOString(),
+    clientEmail:CLIENT_EMAIL||'',
+    clientApproved:true
+  }).then(function(){
+    if(btn){btn.textContent='Sales Order Approved ✓';btn.style.background='#22c55e'}
+    // Log activity
+    db.collection('activity').add({
+      type:'so.clientApproved',
+      soId:soId,
+      signedBy:sig,
+      clientEmail:CLIENT_EMAIL||'',
+      timestamp:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // Notify via portal message
+    if(QUOTE_ID){
+      db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').add({
+        text:'Sales Order approved and signed by '+sig+'.',
+        name:CLIENT_EMAIL||'Client',from:'client',timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }).catch(function(e){
+    if(btn){btn.textContent='Error — Try Again';btn.style.background='#ef4444';btn.disabled=false}
+    alert('Error: '+e.message);
+  });
+}
+
+// ─── Portal Messages ───
+function loadMessages(){
+  if(!QUOTE_ID)return;
+  db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').orderBy('timestamp','asc').onSnapshot(function(snap){
+    var el=document.getElementById('msgThread');if(!el)return;
+    el.innerHTML='';
+    snap.docs.forEach(function(doc){
+      var m=doc.data();
+      var isClient=m.from==='client';
+      var div=document.createElement('div');
+      div.className='msg '+(isClient?'client':'mfx');
+      div.innerHTML='<div class="msg-meta"><b>'+escPortal(m.name)+'</b> · '+(isClient?'Client':'Microflex')+' · '+(m.timestamp?new Date(m.timestamp.toDate()).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'')+'</div>'+escPortal(m.text);
+      el.appendChild(div);
+    });
+    el.scrollTop=el.scrollHeight;
+  });
+}
+
+function sendPortalMessage(){
+  var input=document.getElementById('portalMsgInput');
+  if(!input||!input.value.trim()||!QUOTE_ID)return;
+  db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').add({
+    text:input.value.trim(),
+    name:CLIENT_EMAIL||'Client',
+    from:'client',
+    timestamp:firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){input.value='';});
+}
+
+// ─── Submit PO ───
+function submitPO(){
+  if(!QUOTE_ID)return;
+  var btn=document.getElementById('submitBtn');
+  btn.textContent='Submitting...';btn.disabled=true;
+  var poNum=document.querySelector('input[placeholder="Enter your PO number"]').value;
+  var shipTo=document.querySelectorAll('.field input')[1].value;
+  var instructions=document.querySelector('.field textarea').value;
+  var sigName=document.getElementById('sigInput').value;
+  if(sigName)try{localStorage.setItem('portalVisitorName',sigName)}catch(e){}
+  // Save PO fields (no status change — server handles transition to 'won')
+  db.collection('quotes').doc(QUOTE_ID).update({
+    poNumber:poNum,
+    poShipTo:shipTo,
+    poInstructions:instructions,
+    poSignature:sigName,
+    poSignedAt:new Date().toISOString(),
+    poQtyIndex:_selectedQi,
+    poSkuCount:_selectedSk,
+    poSelectedQty:_selectedQty,
+    poSelectedTotal:_selectedTot,
+    poClientEmail:CLIENT_EMAIL||'',
+    poFiles:UPLOADED_PO_FILES,
+    artFiles:UPLOADED_ART_FILES,
+    artFilesBySku:UPLOADED_ART_BY_SKU,
+    updatedAt:new Date().toISOString()
+  }).then(function(){
+    // Trigger server-side status transition to 'won' via portal-safe endpoint
+    getAuthToken().then(function(token){
+      fetch('/api/portalSubmitPO',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify({quoteId:QUOTE_ID})
+      }).catch(function(e){console.warn('Portal PO submit:',e.message)});
+    }).catch(function(){});
+    db.collection('activity').add({
+      type:'po.approved',
+      quoteId:QUOTE_ID,
+      quoteNum:QUOTE_DATA.quoteNum,
+      company:QUOTE_DATA.fields.custCo||'',
+      poNumber:poNum,
+      signedBy:sigName,
+      clientEmail:CLIENT_EMAIL||'',
+      filesCount:(UPLOADED_PO_FILES.length+UPLOADED_ART_FILES.length),
+      timestamp:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    btn.textContent='PO Submitted Successfully ✓';
+    btn.style.background='#22c55e';
+    var company=(QUOTE_DATA.fields.custCo||'Client').replace(/[^a-zA-Z0-9 ]/g,'').trim();
+    var qNum=QUOTE_DATA.quoteNum;
+    document.querySelector('.status h2').textContent='PO Submitted Successfully!';
+    document.querySelector('.status p').textContent='Thank you! Your PO and files have been received by the Microflex team.';
+    document.querySelector('.status-icon').innerHTML='<svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:#22c55e;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg>';
+    // Show submission summary
+    var summary=document.createElement('div');
+    summary.style.cssText='background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:16px;text-align:left';
+    var sh='<div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:8px">SUBMISSION SUMMARY</div>';
+    sh+='<div style="font-size:12px;color:var(--text);margin-bottom:4px">PO Number: <strong>'+poNum+'</strong></div>';
+    sh+='<div style="font-size:12px;color:var(--text);margin-bottom:4px">Signed by: <strong>'+sigName+'</strong></div>';
+    sh+='<div style="font-size:12px;color:var(--text);margin-bottom:4px">Quote: <strong>'+qNum+'</strong></div>';
+    if(_selectedQty){sh+='<div style="font-size:12px;color:var(--text);margin-bottom:4px">Quantity: <strong>'+Number(_selectedQty).toLocaleString()+'</strong> × '+_selectedSk+' SKU'+(_selectedSk>1?'s':'')+'</div>'}
+    if(_selectedTot){sh+='<div style="font-size:12px;color:var(--text);margin-bottom:4px">Total: <strong>$'+_selectedTot.toLocaleString(undefined,{minimumFractionDigits:2})+'</strong></div>'}
+    if(UPLOADED_PO_FILES.length){sh+='<div style="font-size:11px;color:var(--muted);margin-top:8px;font-weight:600">PO Documents ('+UPLOADED_PO_FILES.length+')</div>';UPLOADED_PO_FILES.forEach(function(f){sh+='<div style="font-size:10px;color:var(--accent);padding:2px 0">📎 '+f.name+'</div>'})}
+    if(UPLOADED_ART_FILES.length){sh+='<div style="font-size:11px;color:var(--muted);margin-top:8px;font-weight:600">Art Files ('+UPLOADED_ART_FILES.length+')</div>';UPLOADED_ART_FILES.forEach(function(f){sh+='<div style="font-size:10px;color:var(--accent);padding:2px 0">🎨 '+f.name+'</div>'})}
+    sh+='<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">Files saved to: <strong>'+company+' / '+qNum+'</strong></div>';
+    sh+='<div style="font-size:10px;color:var(--muted);margin-top:4px">Your files are securely stored and the Microflex team has been notified. You will receive proof timelines shortly.</div>';
+    summary.innerHTML=sh;
+    btn.parentElement.appendChild(summary);
+    // Send portal message confirming submission
+    if(typeof db!=='undefined'&&QUOTE_ID){
+      db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').add({
+        text:'PO #'+poNum+' submitted with '+(UPLOADED_PO_FILES.length+UPLOADED_ART_FILES.length)+' files. Signed by '+sigName+'.',
+        name:CLIENT_EMAIL||'Client',from:'client',timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }).catch(function(e){
+    btn.textContent='Error — Try Again';
+    btn.style.background='#ef4444';
+    btn.disabled=false;
+    alert('Error: '+e.message);
+  });
+}
+
+window.addEventListener('DOMContentLoaded',loadQuote);
+</script>
+</head><body>
+
+<!-- HEADER -->
+<div class="hdr">
+<div class="hdr-inner">
+<div class="logo">
+<b>Microflex</b> <span>Film Corporation</span>
+<div class="logo-line"></div>
+<div class="logo-sub">Film Corporation</div>
+</div>
+<div class="hdr-contact">
+<b>Need help?</b><br>
+(909) 360-9066 · <a href="mailto:Quotes@MicroflexFilm.com">Quotes@MicroflexFilm.com</a>
+</div>
+</div>
+</div>
+
+<div class="wrap">
+
+<!-- STATUS BANNER -->
+<div class="status">
+<div class="status-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+<div><h2>Your quote is ready for approval</h2><p>Review the details below, select your quantity, and submit your PO to get started.</p></div>
+</div>
+
+<!-- QUOTE SUMMARY -->
+<div class="qcard">
+<div class="qcard-head">
+<div><h3>Quote</h3><span class="qnum">MF2603-124</span><span class="rev">REV A</span></div>
+<div style="text-align:right"><div style="font-size:10px;color:var(--sub)">Prepared for</div><div style="font-size:14px;font-weight:700;color:var(--h1)">Fresh Foods Inc.</div><div style="font-size:10px;color:var(--sub)">Maria Gonzalez</div></div>
+</div>
+<div class="qcard-grid">
+<div><div class="qf-label">Job Description</div><div class="qf-value">6×6" Rectangle Labels</div></div>
+<div><div class="qf-label">Process</div><div class="qf-value">4-Color Flexo</div></div>
+<div><div class="qf-label">Date</div><div class="qf-value">Mar 26, 2026</div></div>
+<div><div class="qf-label">Lead Time</div><div class="qf-value">15 working days</div></div>
+<div><div class="qf-label">Valid Until</div><div class="qf-value" style="color:var(--accent)">Apr 25, 2026</div></div>
+<div><div class="qf-label">Flex Team</div><div class="qf-value">Randy Vazquez</div></div>
+</div>
+<div class="specs">
+<div class="spec-tag stg"><span class="lab">Size</span><span class="val">6" × 6"</span></div>
+<div class="spec-tag stg"><span class="lab">Shape</span><span class="val">Rectangle</span></div>
+<div class="spec-tag stg"><span class="lab">Colors</span><span class="val">4</span></div>
+<div class="spec-tag stb"><span class="lab">Repeat</span><span class="val">6.125"</span></div>
+<div class="spec-tag sto"><span class="lab">Face</span><span class="val">539SHP</span></div>
+<div class="spec-tag sto"><span class="lab">Lam</span><span class="val">557SW</span></div>
+</div>
+</div>
+
+<!-- PRICING SELECTOR -->
+<div class="pricing">
+<h3>Select Your Quantity</h3>
+<div class="price-opts"></div>
+<div class="fixed-charges-bar" id="fixedChargesBar"></div>
+</div>
+
+<!-- PO DETAILS -->
+<div class="section">
+<h3>Purchase Order Details</h3>
+<div class="field-row">
+<div class="field"><label>PO Number *</label><input type="text" placeholder="Enter your PO number"></div>
+<div class="field"><label>Ship To</label><input type="text" value="Los Angeles, CA"></div>
+</div>
+<div class="field"><label>Special Instructions (optional)</label><textarea placeholder="Any notes about packaging, delivery, labeling requirements..."></textarea></div>
+</div>
+
+<!-- FILE UPLOAD -->
+<div class="section">
+<h3>Upload Purchase Order</h3>
+<div class="dropzone" onclick="document.getElementById('poFileInput').click()">
+<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+<p>Drop your PO document here, or <b>browse</b></p>
+<small>PDF, DOCX — Max 25MB</small>
+</div>
+<input type="file" id="poFileInput" multiple style="display:none" onchange="handleFiles(this.files,'po')">
+<div class="file-list" id="poFileList"></div>
+</div>
+
+<div class="section" id="artUploadSection">
+<h3>Upload Art Files</h3>
+<div id="perSkuArtZones">
+<!-- Per-SKU zones rendered by JS; fallback single zone if no SKU data -->
+<div class="dropzone" onclick="document.getElementById('artFileInput').click()">
+<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+<p>Drop your art/design files here, or <b>browse</b></p>
+<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 25MB each</small>
+</div>
+<input type="file" id="artFileInput" multiple style="display:none" onchange="handleFiles(this.files,'art')">
+<div class="file-list" id="artFileList"></div>
+</div>
+</div>
+
+<!-- MESSAGES -->
+<div class="section">
+<h3>Messages</h3>
+<div class="msg-thread" id="msgThread"></div>
+<div class="field" style="margin-top:10px"><textarea id="portalMsgInput" placeholder="Type a message to the Microflex team..." rows="3"></textarea>
+<div style="text-align:right;margin-top:6px"><button onclick="sendPortalMessage()" style="background:var(--accent);border:none;color:#060d14;padding:8px 20px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">Send Message</button></div></div>
+</div>
+
+<!-- ACCEPTANCE + SIGNATURE -->
+<div class="section">
+<h3>Approval</h3>
+<label class="accept">
+<input type="checkbox" id="acceptCheck" onchange="checkReady()">
+<span>I have reviewed this quote and agree to the <a href="https://microflexfilm.com/terms" target="_blank">Terms &amp; Conditions</a>. I understand quantities may ship ±10% and pricing is valid until April 25, 2026.</span>
+</label>
+<div class="sig-box" style="margin-top:10px">
+<label>Authorized Signature</label>
+<input type="text" class="sig-input" id="sigInput" placeholder="Type your full name" oninput="checkReady()">
+<div class="sig-date" id="sigDate"></div>
+</div>
+</div>
+
+<!-- SUBMIT -->
+<div class="submit-wrap">
+<button class="submit-btn" id="submitBtn" disabled onclick="submitPO()">Approve Quote & Submit PO</button>
+<div class="submit-note">Your approval is binding. A confirmation will be sent to your email.</div>
+</div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="portal-footer">
+<div class="portal-footer-inner">
+<div class="logo-sm"><b>Microflex</b> <span>Film Corporation</span></div>
+<p>4130 Garner Rd · Riverside, CA 92501 · (909) 360-9066<br><a href="mailto:Quotes@MicroflexFilm.com">Quotes@MicroflexFilm.com</a> · MicroflexFilm.com · SQF Certified | Made in USA</p>
+</div>
+</div>
+
+<script>
+var _selectedQi=0;
+var _selectedSk=1;
+var _selectedTot=0;
+var _selectedQty=0;
+
+// Matrix cell selector
+function selectCell(td){
+  document.querySelectorAll('.price-matrix td.pm-sel').forEach(function(c){c.classList.remove('pm-sel')});
+  td.classList.add('pm-sel');
+  _selectedQi=parseInt(td.getAttribute('data-qi'))||0;
+  _selectedSk=parseInt(td.getAttribute('data-sk'))||1;
+  _selectedTot=parseFloat(td.getAttribute('data-tot'))||0;
+  _selectedQty=parseInt(td.getAttribute('data-qty'))||0;
+  var ppu=parseFloat(td.getAttribute('data-ppu'))||0;
+  var sum=document.getElementById('pmSummary');
+  if(sum){sum.style.display='block';
+    document.getElementById('pmTotal').textContent='$'+_selectedTot.toLocaleString(undefined,{minimumFractionDigits:2});
+    document.getElementById('pmDetail').textContent=Number(_selectedQty).toLocaleString()+' units × '+_selectedSk+' SKU'+(_selectedSk>1?'s':'')+' · $'+ppu.toFixed(4)+'/unit';
+  }
+}
+
+// Card-style qty selector (fallback for no-SKU data)
+function selectQty(el, idx) {
+  document.querySelectorAll('.price-opt').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+  _selectedQi=idx;
+  _selectedSk=1;
+  _selectedQty=parseInt(el.getAttribute('data-qty'))||0;
+}
+
+// Check if ready to submit
+function checkReady() {
+  var accepted = document.getElementById('acceptCheck').checked;
+  var signed = document.getElementById('sigInput').value.trim().length > 0;
+  document.getElementById('submitBtn').disabled = !(accepted && signed);
+  if (signed) {
+    var now = new Date();
+    document.getElementById('sigDate').textContent = 'Signed: ' + now.toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) + ' at ' + now.toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
+  }
+}
+
+// Drag and drop for PO dropzone only (art zones handled by renderPerSkuArtZones)
+var poDz=document.querySelector('.section:not(#artUploadSection) .dropzone');
+if(poDz){
+  poDz.addEventListener('dragover',function(e){e.preventDefault();poDz.style.borderColor='var(--accent)';poDz.style.background='rgba(0,229,255,.04)'});
+  poDz.addEventListener('dragleave',function(){poDz.style.borderColor='var(--border)';poDz.style.background='var(--card)'});
+  poDz.addEventListener('drop',function(e){e.preventDefault();poDz.style.borderColor='var(--border)';poDz.style.background='var(--card)';if(e.dataTransfer.files.length)handleFiles(e.dataTransfer.files,'po')});
+}
+</script>
+

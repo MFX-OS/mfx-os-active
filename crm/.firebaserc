@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "mfx-2026"
+  },
+  "targets": {
+    "mfx-2026": {
+      "hosting": {
+        "crm": ["mfx-crm"],
+        "os":  ["mfx-os"]
+      }
+    }
+  }
+}

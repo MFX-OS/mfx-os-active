@@ -86,30 +86,54 @@ service cloud.firestore {
         && request.resource.data.status is string
         && request.resource.data.status.size() <= 50;
       allow update, delete: if companyUser();
-      // Portal clients: direct doc access by ID (the link IS the access token)
-      // Any verified user with the doc ID can read — the secret URL grants access
-      allow get: if signedIn() && request.auth.token.email != null;
-      // Query by quoteNum (legacy links) — requires email match for security
+      // SEC-01 fix (2026-05-24): portal clients can only access quotes where
+      // their email matches the quote's poClientEmail or fields.custEmail.
+      // 2026-05-24 follow-up: comparisons are now CASE-INSENSITIVE (.lower())
+      // because Firebase Auth normalizes emails to lowercase but sales reps may
+      // type customer emails with mixed case (John.Smith@... vs john.smith@...).
+      // Without case-insensitive match, customer is blocked from their own portal.
+      allow get: if signedIn()
+        && request.auth.token.email != null
+        && (resource.data.get('poClientEmail', '').lower() == request.auth.token.email.lower()
+            || resource.data.get('fields', {}).get('custEmail', '').lower() == request.auth.token.email.lower());
       allow list: if signedIn()
         && request.auth.token.email != null
-        && (resource.data.get('poClientEmail', '') == request.auth.token.email
-            || resource.data.get('fields', {}).get('custEmail', '') == request.auth.token.email);
-      // Portal PO submission + visit tracking: no status changes allowed
-      // Any authenticated portal user with doc access can update portal-safe fields
+        && (resource.data.get('poClientEmail', '').lower() == request.auth.token.email.lower()
+            || resource.data.get('fields', {}).get('custEmail', '').lower() == request.auth.token.email.lower());
+      // Portal PO submission: portal-safe fields only, AND requester email must
+      // match the quote's stored portal email (case-insensitive).
       allow update: if signedIn()
         && request.auth.token.email != null
+        && (resource.data.get('poClientEmail', '').lower() == request.auth.token.email.lower()
+            || resource.data.get('fields', {}).get('custEmail', '').lower() == request.auth.token.email.lower())
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['poNumber','poShipTo','poInstructions','poSignature',
                        'poSignedAt','poQtyIndex','poSkuCount','poSelectedQty',
                        'poSelectedTotal','poClientEmail','poFiles','artFiles',
                        'artFilesBySku','portalStats','updatedAt']);
 
-      // Portal messages subcollection — scoped to quote participants
+      // Portal messages subcollection — scoped to portal client of THIS quote.
+      // Uses get() on parent quote to verify email match.
       match /portalMessages/{msgId} {
         allow read: if signedIn()
-          && request.auth.token.email != null;
+          && request.auth.token.email != null
+          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '') == request.auth.token.email
+              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '') == request.auth.token.email
+              || companyUser());
         allow create: if signedIn()
-          && request.auth.token.email != null;
+          && request.auth.token.email != null
+          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '') == request.auth.token.email
+              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '') == request.auth.token.email
+              || companyUser());
+      }
+
+      // 2026-05-24: quoteComms subcollection — per-quote communications log
+      // (every email sent via the Comms tab, plus internal-only entries).
+      // Internal-only by design; portal customers don't see these directly.
+      match /quoteComms/{commId} {
+        allow read: if companyUser();
+        allow create: if companyUser();
+        allow update, delete: if isManagement();
       }
     }
 
@@ -121,6 +145,15 @@ service cloud.firestore {
     match /quoteTemplates/{templateId} {
       allow read: if companyUser();
       allow write: if canEditCommercial() || canEditPPD();
+    }
+
+    // DATA-01 fix (2026-05-24): Materials catalog overlay (user-added dies,
+    // films, label stocks, varnishes). All employees can read and edit so the
+    // Manage UI persists across teammates. Tighten write to isManagement() later
+    // if catalog vandalism becomes a concern.
+    match /materialsCatalog/{type} {
+      allow read: if companyUser();
+      allow write: if companyUser();
     }
 
     match /salesOrders/{orderId} {
@@ -292,18 +325,41 @@ match /systemHealth/{docId} {
 
     match /activity/{activityId} {
       allow read: if companyUser();
-      allow create: if companyUser() || signedIn(); // portal clients can log activity
+      // SEC-09 fix (2026-05-24): require userId field to match the writer's
+      // auth.uid so portal clients/employees can't fake actor names.
+      allow create: if (companyUser() || signedIn())
+        && request.resource.data.keys().hasAll(['userId'])
+        && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isManagement();
     }
 
+    // SEC-07 fix (2026-05-24): only author can edit/delete; anyone in company
+    // can create new posts.
     match /microfeed/{feedId} {
       allow read: if companyUser();
-      allow write: if canEditCollaboration();
+      allow create: if canEditCollaboration();
+      allow update, delete: if canEditCollaboration() && (
+        resource.data.userId == request.auth.uid
+        || resource.data.createdById == request.auth.uid
+        || isManagement()
+      );
     }
 
+    // SEC-07 fix (2026-05-24): creator OR assignee can edit; anyone in company
+    // can create. Delete restricted to creator/management.
     match /tasks/{taskId} {
       allow read: if companyUser();
-      allow write: if canEditCollaboration();
+      allow create: if canEditCollaboration();
+      allow update: if canEditCollaboration() && (
+        resource.data.createdById == request.auth.uid
+        || resource.data.assignedToId == request.auth.uid
+        || resource.data.userId == request.auth.uid
+        || isManagement()
+      );
+      allow delete: if canEditCollaboration() && (
+        resource.data.createdById == request.auth.uid
+        || isManagement()
+      );
     }
 
     match /projects/{projectId} {
@@ -497,6 +553,14 @@ match /systemHealth/{docId} {
       allow update, delete: if canEditPPD() || isManagement();
     }
 
+    // ═══ EMAIL KILL-SWITCH (2026-05-24) ═══
+    // Master ON/OFF flag for customer-facing emails. Read+write by any
+    // company user — keeps friction low for testing workflows.
+    match /systemConfig/{docId} {
+      allow read: if companyUser();
+      allow write: if companyUser();
+    }
+
     // ═══ AUDIT COLLECTIONS ═══
     match /audits/{docId} {
       allow read: if companyUser();
@@ -565,9 +629,27 @@ match /systemHealth/{docId} {
     }
 
     // ═══ ONBOARDING ═══
+    // SEC-04 fix (2026-05-24): Restrict reads to management or the doc owner.
+    // Writes: management can do anything; the subject can self-update only
+    // non-sensitive fields (their own contact info, preferences, etc.).
+    // Sensitive fields (status, approvedBy, salary, ssnRef, payRate) are
+    // management-only.
     match /onboarding/{docId} {
-      allow read: if companyUser();
-      allow write: if companyUser();
+      allow read: if companyUser() && (
+        isManagement()
+        || resource.data.userId == request.auth.uid
+        || resource.data.uid == request.auth.uid
+      );
+      allow create: if isManagement();
+      allow update: if companyUser() && (
+        isManagement()
+        || (
+          (resource.data.userId == request.auth.uid || resource.data.uid == request.auth.uid)
+          && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['status','approvedBy','approvedAt','salary','payRate','ssnRef','i9Status','offerLetter','startDate','reportsTo','dept','role'])
+        )
+      );
+      allow delete: if isManagement();
     }
 
     // ═══ SQF DATA LOGS ═══
@@ -592,7 +674,11 @@ match /systemHealth/{docId} {
     }
 
     match /counters/{docId} {
-      allow read, write: if companyUser();
+      // SEC-10 fix (2026-05-24): legacy counters collection — lock writes to
+      // server-only. All increments must go through the nextSequence Cloud
+      // Function which is properly auth'd. systemCounters is already locked.
+      allow read: if companyUser();
+      allow write: if false;
     }
 
     match /systemCounters/{docId} {
@@ -600,11 +686,13 @@ match /systemHealth/{docId} {
       allow write: if false;
     }
 
-    // Audit log — append-only for clients, read for management
+    // SEC-08 fix (2026-05-24): _auditLog is now SERVER-ONLY. Client writes
+    // are blocked so audit entries can't be forged or omitted. Use Firestore
+    // triggers (onWrite for sensitive collections) to emit audit entries from
+    // function context where request.auth.uid is trustworthy.
     match /_auditLog/{logId} {
       allow read: if isManagement();
-      allow create: if companyUser();
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     // Rate limit counters — managed by Cloud Functions
@@ -619,10 +707,17 @@ match /systemHealth/{docId} {
     }
 
     // ═══ STATUS REEL ═══
+    // SEC-06 fix (2026-05-24): only author or management can edit content;
+    // everyone else limited to like/reply-count fields.
     match /statusReel/{statusId} {
       allow read: if companyUser();
       allow create: if companyUser();
-      allow update: if companyUser(); // likes, reply count
+      allow update: if companyUser() && (
+        resource.data.userId == request.auth.uid
+        || isManagement()
+        || request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['likes','likedBy','replyCount','reactions','viewedBy'])
+      );
       allow delete: if companyUser() && (
         resource.data.userId == request.auth.uid || isManagement()
       );
@@ -633,23 +728,49 @@ match /systemHealth/{docId} {
     }
 
     // ═══ CHAT WORKSPACE SUBCOLLECTIONS ═══
+    // SEC-07 fix (2026-05-24): creator or assignee can edit/delete.
     match /chat_channels/{channelId}/tasks/{taskId} {
-      allow read, write: if companyUser();
+      allow read: if companyUser();
+      allow create: if companyUser();
+      allow update: if companyUser() && (
+        resource.data.createdById == request.auth.uid
+        || resource.data.assignedToId == request.auth.uid
+        || isManagement()
+      );
+      allow delete: if companyUser() && (
+        resource.data.createdById == request.auth.uid
+        || isManagement()
+      );
     }
 
     // ═══ ENGAGEMENT COLLECTIONS ═══
 
+    // SEC-07 fix (2026-05-24): only author can edit content; others limited
+    // to like fields. Delete restricted to management.
     match /kudos/{docId} {
       allow read: if companyUser();
       allow create: if companyUser();
-      allow update: if companyUser(); // likes
+      allow update: if companyUser() && (
+        resource.data.fromUserId == request.auth.uid
+        || isManagement()
+        || request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['likes','likedBy','reactions'])
+      );
       allow delete: if isManagement();
     }
 
+    // SEC-07 fix (2026-05-24): only author or management can edit poll
+    // content; everyone else can vote (votes field) or react.
     match /polls/{docId} {
       allow read: if companyUser();
       allow create: if companyUser();
-      allow update: if companyUser(); // voting, closing
+      allow update: if companyUser() && (
+        resource.data.createdBy == request.auth.uid
+        || resource.data.createdById == request.auth.uid
+        || isManagement()
+        || request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['votes','voters','reactions','closed','closedAt'])
+      );
       allow delete: if isManagement();
     }
 
@@ -660,7 +781,11 @@ match /systemHealth/{docId} {
 
     match /anonymousFeedback/{docId} {
       allow read: if isManagement();
-      allow create: if signedIn(); // no userId stored — anonymous
+      // SEC-14 fix (2026-05-24): tightened from signedIn() to companyUser() so
+      // portal clients (non-employees) can't post into the "internal anonymous
+      // feedback" collection. Submissions remain anonymous to READERS — we just
+      // require the submitter is on the @microflexfilm.com side.
+      allow create: if companyUser();
       allow update: if isManagement(); // resolve
     }
 
@@ -706,9 +831,81 @@ match /systemHealth/{docId} {
 
     // AI config (controlConfigs/aiAgents) already covered by controlConfigs match
 
-    match /{document=**} {
+    // ═══ ADDITIONAL COLLECTIONS — explicit rules so the floor can be deny-all ═══
+
+    // CAPA AI suggestions
+    match /capaSuggestions/{docId} {
       allow read: if companyUser();
-      allow write: if false;
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    // AI chat bridge messages
+    match /chatMessages/{docId} {
+      allow read, write: if canEditCollaboration();
+    }
+
+    // Root-level messages collection (chat.js daily-feed)
+    match /messages/{docId} {
+      allow read, write: if canEditCollaboration();
+    }
+
+    // Document distribution lists
+    match /distributions/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    // Logistics drivers
+    match /drivers/{docId} {
+      allow read: if companyUser();
+      allow write: if companyUser() && (deptIsAny(['logistics','operations','production']) || isManagement());
+    }
+
+    // FSQMS module data — mirror sqf* rules
+    match /fsqmsSanitation/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+    match /fsqmsQuality/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+    match /fsqmsMaterials/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    // Vendor receiving queue — same trust as vendorPOs
+    match /receivingQueue/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPurchasing();
+    }
+
+    // SQF additional collections
+    match /sqfDailyDigests/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+    match /sqfEscalations/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+    match /sqfQualityRecords/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+    match /sqfReleasePackets/{docId} {
+      allow read: if companyUser();
+      allow write: if canEditPPD() || isManagement();
+    }
+
+    // ═══ FAIL-SECURE FLOOR ═══
+    // Any collection not explicitly matched above is denied by default.
+    // To enable a new collection, add an explicit `match /<name>/{id}` block above this floor.
+    // Server-only collections accessed via admin SDK (agentApprovals, capas, statusHistory)
+    // bypass rules entirely — no explicit allow needed for those.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

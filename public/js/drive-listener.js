@@ -40,7 +40,7 @@ MFX.on('quote.sent', function(d) {
             qq.clientFolderLink = result.clientLink;
             qq.driveSavedAt = new Date().toISOString();
             if (typeof DB !== 'undefined' && DB.saveQ) DB.saveQ(DB.quotes());
-            if (typeof S !== 'undefined' && S.etab === 13 && typeof renderWorkflow === 'function') renderWorkflow();
+            if (typeof S !== 'undefined' && S.etab === 14 && typeof renderWorkflow === 'function') renderWorkflow();
           }
         }
       }).catch(function(err) {
@@ -67,7 +67,7 @@ MFX.on('quote.sent', function(d) {
         if (!qq.workflow) qq.workflow = {};
         qq.workflow.registryUpdated = true;
         if (typeof DB !== 'undefined' && DB.saveQ) DB.saveQ(DB.quotes());
-        if (typeof S !== 'undefined' && S.etab === 13 && typeof renderWorkflow === 'function') renderWorkflow();
+        if (typeof S !== 'undefined' && S.etab === 14 && typeof renderWorkflow === 'function') renderWorkflow();
       }
     }
   }, 2500);
@@ -193,7 +193,7 @@ if (typeof fbDb !== 'undefined') {
 
         if (changed) {
           if (typeof DB !== 'undefined' && DB.saveQ) DB.saveQ(DB.quotes());
-          if (typeof S !== 'undefined' && S.view === 'editor' && S.etab === 13) {
+          if (typeof S !== 'undefined' && S.view === 'editor' && S.etab === 14) {
             if (typeof renderWorkflow === 'function') renderWorkflow();
             if (typeof renderConnections === 'function') renderConnections();
           }
@@ -203,30 +203,43 @@ if (typeof fbDb !== 'undefined') {
     }, function(err){ console.warn('drive-listener listener:', err.message); });
 }
 
-// ─── so.approved → trigger passport creation via backend ───
+// ─── so.approved → auto-create Job Passport + Job Tickets + provision PPD folders ───
+// Prefer the client-side path because it populates SKUs, auto-confirms, generates
+// tickets, and calls provisionPPDWorkspace. Backend createPassport is kept as a
+// fallback (it creates the passport doc but no tickets).
 MFX.on('so.approved', function(d) {
   if (!d || !d.soId) return;
-  // Route to backend passport creation (server generates JP number atomically)
-  if (typeof MFX_API !== 'undefined' && MFX_API.postJSON) {
-    setTimeout(function() {
+  // Guard against double-fires (event bus + manual trigger)
+  if (window._passportCreationInFlight && window._passportCreationInFlight[d.soId]) return;
+  window._passportCreationInFlight = window._passportCreationInFlight || {};
+  window._passportCreationInFlight[d.soId] = true;
+  setTimeout(function(){ delete window._passportCreationInFlight[d.soId]; }, 15000);
+
+  setTimeout(function() {
+    if (typeof createPassportFromSO === 'function') {
+      try {
+        createPassportFromSO(d.soId, { autoTickets: true });
+      } catch (err) {
+        console.warn('createPassportFromSO failed, trying backend:', err && err.message);
+        if (typeof MFX_API !== 'undefined' && MFX_API.postJSON) {
+          MFX_API.postJSON('/api/createPassport', { soId: d.soId }).then(function(result) {
+            if (result && result.jpNum && typeof toast === 'function') {
+              toast('📋 Job Passport ' + result.jpNum + ' created', 'ok');
+            }
+            if (result && typeof MFX !== 'undefined' && MFX.emit) {
+              MFX.emit('passport.created', { passportId: result.passportId, jpNum: result.jpNum, soId: d.soId });
+            }
+          }).catch(function(e){ console.warn('Backend createPassport failed:', e.message); });
+        }
+      }
+    } else if (typeof MFX_API !== 'undefined' && MFX_API.postJSON) {
       MFX_API.postJSON('/api/createPassport', { soId: d.soId }).then(function(result) {
-        if (result && result.jpNum) {
+        if (result && result.jpNum && typeof toast === 'function') {
           toast('📋 Job Passport ' + result.jpNum + ' created', 'ok');
-          if (typeof MFX !== 'undefined' && MFX.emit) {
-            MFX.emit('passport.created', { passportId: result.passportId, jpNum: result.jpNum, soId: d.soId });
-          }
         }
-      }).catch(function(err) {
-        console.warn('Backend passport creation failed, trying client fallback:', err.message);
-        // Fallback to client-side
-        if (typeof createPassportFromSO === 'function') {
-          createPassportFromSO(d.soId);
-        }
-      });
-    }, 1000);
-  } else if (typeof createPassportFromSO === 'function') {
-    setTimeout(function() { createPassportFromSO(d.soId); }, 1000);
-  }
+      }).catch(function(e){ console.warn('Backend createPassport failed:', e.message); });
+    }
+  }, 1200);
 });
 
 // Store unsub for cleanup on logout

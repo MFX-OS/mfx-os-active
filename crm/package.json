@@ -1,0 +1,33 @@
+{
+  "name": "microflex-crm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Microflex CRM — wired to MFX-OS Firebase project mfx-2026",
+  "workspaces": [
+    "apps/*",
+    "functions"
+  ],
+  "scripts": {
+    "dev":              "npm --prefix apps/web run dev",
+    "build:web":        "npm --prefix apps/web run build",
+    "build:functions":  "npm --prefix functions run build",
+    "build":            "npm run build:functions && npm run build:web",
+    "lint":             "npm --prefix apps/web run lint && npm --prefix functions run lint",
+    "typecheck":        "npm --prefix apps/web run typecheck && npm --prefix functions run typecheck",
+    "test":             "npm --prefix functions test",
+    "emu":              "firebase emulators:start --import=./.emulator-data --export-on-exit",
+    "seed":             "tsx scripts/seed-dev.ts",
+    "deploy:hosting":   "npm run build:web && firebase deploy --only hosting:crm",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:rules":     "firebase deploy --only firestore:rules,firestore:indexes,storage:rules",
+    "deploy":           "npm run build && firebase deploy"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

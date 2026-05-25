@@ -1,0 +1,186 @@
+rules_version = '2';
+
+// ============================================================
+// Microflex CRM — Firestore security rules
+// Default-deny + role-aware writes. Audit log + system collections
+// are admin-SDK only (never writable from clients).
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn()        { return request.auth != null; }
+    function uid()             { return request.auth.uid; }
+    function role()            { return request.auth.token.role; }
+    function hasRole(roles)    { return signedIn() && role() in roles; }
+    function isAdmin()         { return hasRole(['admin']); }
+    function isOwner(data)     { return signedIn() && uid() in data.owners; }
+
+    // Block any read/write that isn't explicitly allowed below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------- users ----------
+    match /users/{userId} {
+      // Anyone signed in can read the directory
+      allow read: if signedIn();
+      // Only admin can create/update/delete user records
+      allow write: if isAdmin();
+
+      // Per-user private subcollection (e.g. encrypted OAuth tokens)
+      // Never readable from the client — only by Functions via admin SDK.
+      match /private/{doc} {
+        allow read, write: if false;
+      }
+    }
+
+    // ---------- companies (clients + vendors) ----------
+    match /companies/{companyId} {
+      allow read: if hasRole(['admin','sales_mgr','sales','cs','art','buyer','planner','qc','shipping','finance','exec'])
+                     && (isAdmin() || hasRole(['sales_mgr','exec','finance','cs','planner']) || isOwner(resource.data));
+      allow create: if hasRole(['admin','sales_mgr','sales','cs','buyer']);
+      allow update: if hasRole(['admin','sales_mgr'])
+                    || (hasRole(['sales','cs','buyer']) && isOwner(resource.data));
+      allow delete: if isAdmin();
+
+      // Subcollections inherit company-level access
+      match /contacts/{contactId} {
+        allow read, write: if hasRole(['admin','sales_mgr','sales','cs','buyer']);
+      }
+      match /activities/{activityId} {
+        allow read:  if signedIn();
+        allow create: if signedIn();
+        allow update, delete: if isAdmin() || (signedIn() && resource.data.owner_id == uid());
+      }
+      match /documents/{docId} {
+        allow read: if signedIn();
+        allow write: if hasRole(['admin','sales_mgr','sales','cs','art','planner']);
+      }
+      match /notes/{noteId} {
+        allow read, create: if signedIn();
+        allow update, delete: if isAdmin() || (signedIn() && resource.data.author_id == uid());
+      }
+    }
+
+    // ---------- products / raw_materials / art_files ----------
+    match /products/{productId} {
+      allow read:  if signedIn();
+      allow write: if hasRole(['admin','planner']);
+    }
+    match /raw_materials/{materialId} {
+      allow read:  if signedIn();
+      allow write: if hasRole(['admin','buyer','planner']);
+    }
+    match /art_files/{artId} {
+      allow read:  if signedIn();
+      allow write: if hasRole(['admin','art','sales_mgr','sales','cs']);
+    }
+
+    // ---------- opportunities + quotes (Intake Flow stages 1-2) ----------
+    match /opportunities/{oppId} {
+      allow read:   if signedIn();
+      allow create: if hasRole(['admin','sales_mgr','sales','cs']);
+      allow update: if hasRole(['admin','sales_mgr'])
+                   || (hasRole(['sales','cs']) && resource.data.owner_id == uid());
+      allow delete: if isAdmin();
+
+      match /quotes/{quoteId} {
+        allow read:   if signedIn();
+        allow write:  if hasRole(['admin','sales_mgr','sales','cs']);
+      }
+      match /activities/{actId} {
+        allow read, create: if signedIn();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ---------- intake flows (the value-loop tracker) ----------
+    match /intake_flows/{flowId} {
+      allow read:  if signedIn();
+      allow create: if hasRole(['admin','sales_mgr','sales','cs']);
+      allow update: if hasRole(['admin','sales_mgr','sales','cs','planner','art']);
+      allow delete: if isAdmin();
+    }
+
+    // ---------- sales orders + passports + tickets + production ----------
+    match /sales_orders/{orderId} {
+      allow read:   if signedIn();
+      allow create: if hasRole(['admin','sales_mgr','sales','cs','planner']);
+      allow update: if hasRole(['admin','sales_mgr','planner','cs']);
+      allow delete: if isAdmin();
+    }
+
+    match /job_passports/{passportId} {
+      allow read:   if signedIn();
+      allow create: if hasRole(['admin','planner']);
+      allow update: if hasRole(['admin','planner']);
+      allow delete: if isAdmin();
+
+      match /tickets/{ticketId} {
+        allow read:   if signedIn();
+        allow create: if hasRole(['admin','planner']);
+        allow update: if hasRole(['admin','planner','operator','qc']);
+        allow delete: if isAdmin();
+
+        match /operations/{opId} {
+          allow read:   if signedIn();
+          allow create: if hasRole(['admin','planner']);
+          allow update: if hasRole(['admin','planner','operator']);
+          allow delete: if isAdmin();
+        }
+      }
+    }
+
+    match /production_jobs/{jobId} {
+      allow read:   if signedIn();
+      allow create: if hasRole(['admin','planner']);
+      allow update: if hasRole(['admin','planner','operator']);
+      allow delete: if isAdmin();
+    }
+
+    // ---------- purchasing + shipping + invoicing ----------
+    match /purchase_orders/{poId} {
+      allow read:   if hasRole(['admin','buyer','planner','finance','exec']);
+      allow create: if hasRole(['admin','buyer']);
+      allow update: if hasRole(['admin','buyer']);
+      allow delete: if isAdmin();
+    }
+
+    match /shipments/{shipmentId} {
+      allow read:   if signedIn();
+      allow create: if hasRole(['admin','shipping','planner']);
+      allow update: if hasRole(['admin','shipping']);
+      allow delete: if isAdmin();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read:  if hasRole(['admin','finance','sales_mgr','exec']);
+      allow write: if hasRole(['admin','finance']);
+    }
+
+    // ---------- tasks ----------
+    match /tasks/{taskId} {
+      allow read:   if signedIn();
+      allow create: if signedIn();
+      allow update: if isAdmin()
+                    || (signedIn() && (resource.data.assignee_id == uid() || resource.data.created_by == uid()));
+      allow delete: if isAdmin();
+    }
+
+    // ---------- audit log + system + secrets ----------
+    // Admin SDK only — Cloud Functions write these. Clients can never write.
+    match /audit_log/{eventId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+    match /system_config/{doc} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+    match /secrets/{doc} {
+      allow read, write: if false;
+    }
+  }
+}

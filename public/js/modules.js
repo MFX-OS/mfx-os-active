@@ -469,7 +469,7 @@ h+='<div style="flex:1;background:var(--srf);border:1px solid var(--bdr);border-
 h+='<div style="flex:1;background:var(--srf);border:1px solid var(--bdr);border-radius:6px;padding:8px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--or)">'+myDrafts.length+'</div>Drafts</div>';
 h+='<div style="flex:1;background:var(--srf);border:1px solid var(--bdr);border-radius:6px;padding:8px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--gn)">'+myWon.length+'</div>Won</div></div>';
 if(myMentions.length){h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span class="ttl">@Mentions ('+myMentions.length+')</span><span class="arr">▾</span></div><div class="scard-b open">';
-myMentions.forEach(m=>{h+='<div style="padding:6px 0;border-bottom:1px solid var(--bdr);font-size:11px;cursor:pointer" onclick="openEditor(\''+m.q.id+'\');setTimeout(()=>{S.etab=12;renderEditor()},100)"><strong style="color:var(--ac)">'+m.q.quoteNum+'</strong> — <span style="color:var(--tx2)">'+m.n.by+'</span>: '+m.n.text.substring(0,80)+(m.n.text.length>80?'...':'')+'</div>'});h+='</div></div>'}
+myMentions.forEach(m=>{h+='<div style="padding:6px 0;border-bottom:1px solid var(--bdr);font-size:11px;cursor:pointer" onclick="openEditor(\''+m.q.id+'\');setTimeout(()=>{S.etab=13;renderEditor()},100)"><strong style="color:var(--ac)">'+m.q.quoteNum+'</strong> — <span style="color:var(--tx2)">'+m.n.by+'</span>: '+m.n.text.substring(0,80)+(m.n.text.length>80?'...':'')+'</div>'});h+='</div></div>'}
 if(myApprovals.length){h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span class="ttl">Submitted for Approval</span><span class="arr">▾</span></div><div class="scard-b open">';
 myApprovals.forEach(q=>{h+='<div style="padding:6px 0;border-bottom:1px solid var(--bdr);font-size:11px;cursor:pointer" onclick="openEditor(\''+q.id+'\')"><strong>'+q.quoteNum+'</strong> — '+(q.fields.custCo||'—')+' <span class="pill pill-approval" style="font-size:8px;padding:0 4px">pending</span></div>'});h+='</div></div>'}
 h+='<div class="scard"><div class="scard-h" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span><span class="ttl">My Drafts ('+myDrafts.length+')</span><span class="arr">▾</span></div><div class="scard-b">';
@@ -542,7 +542,7 @@ function closeTicket(tid){fbDb.collection('support').doc(tid).update({status:'cl
 
 function openVendors(){S.view='vendors';document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));$('v-vendors').classList.add('active');$('mainTabs').style.display='none';$('hdrBack').style.display='block';$('hdrBack').onclick=()=>goView('templates');$('hdrTitle').textContent='Vendors';$('hdrActions').innerHTML='<button class="btn btn-pr btn-sm" onclick="addVendor()">+ Add</button>';renderVendors()}
 
-function renderVendors(){const vendors=JSON.parse(localStorage.getItem('mfx_vendors')||'[]');
+function renderVendors(){/* PERF-15 fix: ensure mats chunk loaded before rendering vendor catalog */ if((!MATS||!MATS.length)&&typeof loadChunk==='function'){loadChunk('mats').then(function(){renderVendors()}).catch(function(e){console.warn('mats chunk load:',e&&e.message)});return} const vendors=JSON.parse(localStorage.getItem('mfx_vendors')||'[]');
 const mats=MATS||[];const vendorNames=[...new Set(mats.map(m=>m.v))];const qs=DB.quotes();
 const vRatings=JSON.parse(localStorage.getItem('mfx_vendor_ratings')||'{}');
 let h='<div style="display:flex;gap:6px;margin-bottom:10px;font-size:11px">';
@@ -569,7 +569,7 @@ function delVendor(vid){if(!confirm('Delete vendor?'))return;const vendors=JSON.
 function addVendor(){const name=prompt('Vendor name:');if(!name)return;const vendors=JSON.parse(localStorage.getItem('mfx_vendors')||'[]');vendors.push({id:'vn'+Date.now(),name:name.trim(),contact:'',phone:'',notes:''});localStorage.setItem('mfx_vendors',JSON.stringify(vendors));renderVendors();toast('Added','ok')}
 function editVendor(vid){const vendors=JSON.parse(localStorage.getItem('mfx_vendors')||'[]');const v=vendors.find(x=>x.id===vid);if(!v)return;const name=prompt('Name:',v.name);if(name)v.name=name;v.contact=prompt('Contact:',v.contact)||'';v.phone=prompt('Phone:',v.phone)||'';v.notes=prompt('Notes:',v.notes)||'';localStorage.setItem('mfx_vendors',JSON.stringify(vendors));renderVendors();toast('Updated','ok')}
 
-function openMatProfile(specId){const mat=MATS.find(m=>m.s===specId);
+function openMatProfile(specId){/* PERF-15 fix: ensure mats chunk loaded before profile lookup */ if((!MATS||!MATS.length)&&typeof loadChunk==='function'){loadChunk('mats').then(function(){openMatProfile(specId)}).catch(function(e){console.warn('mats chunk load:',e&&e.message)});return} const mat=MATS.find(m=>m.s===specId);
 if(!mat)return toast('Material not found','err');
 const qs=DB.quotes();const used=qs.filter(q=>q.fields.faceStock===specId||q.fields.lamination===specId);
 const wonUsed=used.filter(q=>q.status==='won');const totalFt=used.reduce((a,q)=>{const f=q.fields;const rp=(parseFloat(f.sar)||0)+(parseFloat(f.gar)||0);return a+q.qtys.reduce((s,qty)=>s+(qty*rp/12),0)},0);
@@ -619,7 +619,7 @@ if(window._allTeamUsers&&window._allTeamUsers.length){window._allTeamUsers.forEa
 // Also pull from quotes (covers historical users)
 const qs=DB.quotes();qs.forEach(q=>{if(q.createdBy)users.add(q.createdBy);(q.internalNotes||[]).forEach(n=>{if(n.by)users.add(n.by);(n.replies||[]).forEach(r=>{if(r.by)users.add(r.by)})})});return[...users].sort()}
 // Listen for all authenticated users in Firestore
-if(fbDb){fbDb.collection('users').onSnapshot(function(snap){window._allTeamUsers=snap.docs.map(function(d){var data=d.data();return data.displayName||data.email||''}).filter(Boolean)}, function(err){ console.warn('modules users listener:', err.message); })}
+if(fbDb){/* PERF-04 fix (2026-05-24): bound to 200 users — team cache doesn't need all-of-time */ fbDb.collection('users').limit(200).onSnapshot(function(snap){window._allTeamUsers=snap.docs.map(function(d){var data=d.data();return data.displayName||data.email||''}).filter(Boolean)}, function(err){ console.warn('modules users listener:', err.message); })}
 
 function checkAtMention(el){const dd=$('mentionDropdown');if(!dd)return;const val=el.value;const cursor=el.selectionStart;const before=val.substring(0,cursor);const atMatch=before.match(/@(\w*)$/);if(atMatch){const partial=atMatch[1].toLowerCase();const users=getTeamUsers().filter(u=>u.toLowerCase().includes(partial));if(users.length){dd.style.display='block';dd.innerHTML=users.map(u=>'<div style="padding:8px 12px;cursor:pointer;font-size:12px;color:var(--tx);border-bottom:1px solid var(--bdr)" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'none\'" onclick="insertNoteMention(\''+u+'\')"><span style="color:var(--ac);font-weight:600">@'+u+'</span></div>').join('')}else{dd.style.display='none'}}else{dd.style.display='none'}}
 
@@ -954,7 +954,7 @@ qs.forEach(q=>{(q.internalNotes||[]).forEach(n=>{if(n.text&&n.text.includes('@'+
 const ap=qs.filter(q=>q.status==='approval').length;
 const rfqCount=window._rfqPending||0;
 const el=$('alertBanner');if(el){const parts=[];if(mentionCount>0)parts.push('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> '+mentionCount+' @mention'+(mentionCount>1?'s':''));if(ap>0)parts.push('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> '+ap+' pending approval'+(ap>1?'s':''));if(parts.length){el.className='alert-banner show';el.innerHTML=parts.join(' · ')+' — tap to view';el.dataset.qids=JSON.stringify(qids)}else{el.className='alert-banner'}}}
-function goToMentions(){const el=$('alertBanner');if(!el)return;el.className='alert-banner';try{const qids=JSON.parse(el.dataset.qids||'[]');if(qids.length>0){openEditor(qids[0]);setTimeout(()=>{S.etab=12;renderEditor()},100)}else{openCEOPortal()}}catch(e){}}
+function goToMentions(){const el=$('alertBanner');if(!el)return;el.className='alert-banner';try{const qids=JSON.parse(el.dataset.qids||'[]');if(qids.length>0){openEditor(qids[0]);setTimeout(()=>{S.etab=13;renderEditor()},100)}else{openCEOPortal()}}catch(e){}}
 _moduleInterval3 = setInterval(checkAlerts,5000);
 
 function updateBottomBar(view){const bar=$('bottomBar');if(!bar)return;bar.style.display='flex';const map={chat:0,supportboard:0,notifications:1,dashboard:3,quotes:3,calendar:4};bar.querySelectorAll('.bb-btn').forEach((b,i)=>{b.classList.toggle('active',i===(map[view]!==undefined?map[view]:-1))})}
@@ -1042,6 +1042,8 @@ if(data.id){toast('Calendar event created!','ok')}else{toast('Calendar error: '+
 }).catch(function(e){toast('Calendar error: '+e.message,'err')})})}
 
 function sendGmail(to,subject,bodyHtml,fromAddr){
+/* EMAIL_GUARD wrap (2026-05-24): bail if customer emails are blocked */
+if(window.MFX_EMAIL_GUARD && window.MFX_EMAIL_GUARD.blockIfDisabled('sendGmail', to)) return;
 getGoogleToken().then(function(token){if(!token)return toast('Google auth required','err');
 var raw=(fromAddr?'From: '+fromAddr+'\r\n':'')+'To: '+to+'\r\nSubject: '+subject+'\r\nContent-Type: text/html; charset=utf-8\r\n\r\n'+bodyHtml;
 var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -1405,10 +1407,61 @@ else{posEl.style.display='none'}}
 var rl=$('hamUserRole');if(rl){var pts=p.score;var pv=typeof pts==='object'?pts.pts:pts;
 rl.innerHTML='<span style="color:'+(isLeadership?'#00e5ff':'var(--tx3)')+'">'+role+'</span> · <span style="color:'+avatarColor+'">'+userDept+'</span> · '+(pv||0).toFixed(1)+' pts'}}
 
-function openUserProfile(){var p=getMFXProfile();var me=getUserName();var fn=p.displayName||me.split(' ')[0];var h='<div class="modal-title">My Profile</div><div style="text-align:center;margin-bottom:12px"><div style="width:56px;height:56px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#000;margin:0 auto">'+me.split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase()+'</div><div style="font-size:14px;font-weight:700;color:var(--tx);margin-top:6px">'+me+'</div><div style="font-size:10px;color:var(--tx3)">'+(CURRENT_USER?CURRENT_USER.email:'')+'</div></div><div class="fg"><label>Full Name (locked)</label><input value="'+me+'" disabled style="opacity:.5"></div><div class="fg"><label>Email (locked)</label><input value="'+(CURRENT_USER?CURRENT_USER.email:'')+'" disabled style="opacity:.5"></div><div class="fg"><label>Display Name (@ tag) <span style="color:var(--or)">Admin</span></label><input id="up-name" value="'+fn+'" disabled style="opacity:.5"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-name\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Flex ID <span style="color:var(--or)">Admin</span></label><input id="up-flexid" value="'+(p.flexId||'')+'" disabled style="opacity:.5"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-flexid\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Position / Title <span style="color:var(--or)">Admin</span></label><input id="up-position" value="'+(p.position||'')+'" disabled style="opacity:.5" placeholder="e.g. Director of Digital & Operations"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-position\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Role <span style="color:var(--or)">Admin</span></label><input id="up-role" value="'+(p.role||'')+'" disabled style="opacity:.5"><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-role\')" style="margin-top:4px">🔓</button></div><div class="fg"><label>Department <span style="color:var(--or)">Admin</span></label><select id="up-dept" disabled style="opacity:.5"><option value="">—</option>';['Operations','Estimation','Pre-Press','Production','Quality','Accounting','Sales','Administration'].forEach(function(d){h+='<option'+(p.dept===d?' selected':'')+'>'+d+'</option>'});h+='</select><button class="btn btn-ghost btn-xs" onclick="unlockField(\'up-dept\')" style="margin-top:4px">🔓</button></div><button class="btn btn-pr" onclick="saveUserProfile()" style="width:100%;margin-top:10px">Save</button><button class="btn btn-ghost" onclick="closeModal()" style="width:100%;margin-top:6px">Cancel</button>';openModal(h)}
+function openUserProfile(){
+  // UX-05 fix (2026-05-24): unlock buttons (🔓) are now only rendered for users
+  // whose role is in the admin set. Non-admins see plain locked inputs without
+  // a frustrating "unlock then deny" interaction. Firestore rules also block
+  // self-update of role/dept regardless (users/{userId} rule), so this is UI
+  // polish on top of an already-enforced server constraint.
+  var p=getMFXProfile();
+  var me=getUserName();
+  var fn=p.displayName||me.split(' ')[0];
+  var _isAdmin=['ceo','admin','administrator','owner','operations manager','manager'].includes((p.role||'').toLowerCase());
+  function lockBtn(id){return _isAdmin?'<button class="btn btn-ghost btn-xs" onclick="unlockField(\''+id+'\')" style="margin-top:4px">🔓</button>':'';}
+  function adminTag(){return _isAdmin?'<span style="color:var(--or)">Admin</span>':'<span style="color:var(--tx3)" title="Locked — request admin to change">Locked</span>';}
+  var h='<div class="modal-title">My Profile</div>'+
+    '<div style="text-align:center;margin-bottom:12px"><div style="width:56px;height:56px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#000;margin:0 auto">'+me.split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase()+'</div><div style="font-size:14px;font-weight:700;color:var(--tx);margin-top:6px">'+me+'</div><div style="font-size:10px;color:var(--tx3)">'+(CURRENT_USER?CURRENT_USER.email:'')+'</div></div>'+
+    '<div class="fg"><label>Full Name (locked)</label><input value="'+me+'" disabled style="opacity:.5"></div>'+
+    '<div class="fg"><label>Email (locked)</label><input value="'+(CURRENT_USER?CURRENT_USER.email:'')+'" disabled style="opacity:.5"></div>'+
+    '<div class="fg"><label>Display Name (@ tag) '+adminTag()+'</label><input id="up-name" value="'+fn+'" disabled style="opacity:.5">'+lockBtn('up-name')+'</div>'+
+    '<div class="fg"><label>Flex ID '+adminTag()+'</label><input id="up-flexid" value="'+(p.flexId||'')+'" disabled style="opacity:.5">'+lockBtn('up-flexid')+'</div>'+
+    '<div class="fg"><label>Position / Title '+adminTag()+'</label><input id="up-position" value="'+(p.position||'')+'" disabled style="opacity:.5" placeholder="e.g. Director of Digital & Operations">'+lockBtn('up-position')+'</div>'+
+    '<div class="fg"><label>Role '+adminTag()+'</label><input id="up-role" value="'+(p.role||'')+'" disabled style="opacity:.5">'+lockBtn('up-role')+'</div>'+
+    '<div class="fg"><label>Department '+adminTag()+'</label><select id="up-dept" disabled style="opacity:.5"><option value="">—</option>';
+  ['Operations','Estimation','Pre-Press','Production','Quality','Accounting','Sales','Administration'].forEach(function(d){h+='<option'+(p.dept===d?' selected':'')+'>'+d+'</option>'});
+  h+='</select>'+lockBtn('up-dept')+'</div>'+
+    '<button class="btn btn-pr" onclick="saveUserProfile()" style="width:100%;margin-top:10px">Save</button>'+
+    '<button class="btn btn-ghost" onclick="closeModal()" style="width:100%;margin-top:6px">Cancel</button>';
+  openModal(h);
+}
 // unlockField: UI-only gate. Firestore rules enforce that non-management users
 // cannot write role/dept fields (see users/{userId} rule — self-update blocked).
-function unlockField(id){var _pu=getMFXProfile();var _ru=(_pu.role||'').toLowerCase();if(['ceo','admin','administrator','owner','operations manager','manager'].includes(_ru)){var el=$(id);if(el){el.disabled=false;el.style.opacity='1'}}else{toast('Unauthorized — admin role required','err')}}
+function unlockField(id){
+  // UX-16 fix (2026-05-24): also un-mute the parent .fg wrapper (which has its
+  // own inline opacity), focus the input, and add a subtle 'unlocked' style so
+  // the change is visually obvious. Server-side rule still gates the write.
+  var _pu=getMFXProfile();
+  var _ru=(_pu.role||'').toLowerCase();
+  if(!['ceo','admin','administrator','owner','operations manager','manager'].includes(_ru)){
+    toast('Unauthorized — admin role required','err');
+    return;
+  }
+  var el=$(id);
+  if(!el) return;
+  el.disabled=false;
+  el.style.opacity='1';
+  el.style.borderColor='var(--ac)';
+  // Walk up to the .fg wrapper and reset its opacity
+  var parent = el.parentElement;
+  while(parent && parent !== document.body){
+    if(parent.classList && parent.classList.contains('fg')){
+      parent.style.opacity='1';
+      break;
+    }
+    parent = parent.parentElement;
+  }
+  try { el.focus(); el.select && el.select(); } catch(e){}
+}
 function saveUserProfile(){var f={displayName:($('up-name')||{}).value||'',flexId:($('up-flexid')||{}).value||'',position:($('up-position')||{}).value||'',role:($('up-role')||{}).value||'',dept:($('up-dept')||{}).value||''};Object.keys(f).forEach(function(k){saveMFXProfile(k,f[k])});if(typeof syncUserAccessProfile==='function')syncUserAccessProfile();closeModal();toast('Saved!','ok');populateHamUser()}
 
 // Send-as email aliases for the org
@@ -1430,19 +1483,27 @@ return[
 
 function fillSendTpl(){var i=parseInt(($('send-tpl')||{}).value||0);var q=getQ(S.editId);if(!q)return;var tpls=getSendTemplates(q);if(tpls[i]){if($('send-subj'))$('send-subj').value=tpls[i].subject;if($('send-body'))$('send-body').value=tpls[i].body}}
 
-function renderSendPane(){var el=$('sendPaneContent');if(!el)return;var q=getQ(S.editId);if(!q)return;var h='';
+function renderSendPane(){
+// 2026-05-24: New Communications hub takes over this pane when available.
+// MFX_COMMS provides full composer + templates + history timeline.
+if(window.MFX_COMMS && typeof MFX_COMMS.renderPane==='function'){
+  return MFX_COMMS.renderPane(S.editId);
+}
+// Legacy fallback (kept for any boot-race where comms module hasn't loaded)
+var el=$('sendPaneContent');if(!el)return;var q=getQ(S.editId);if(!q)return;var h='';
 // Status-specific header
 if(q.status==='draft'){
 h+='<div style="text-align:center;padding:20px"><div style="font-size:40px;margin-bottom:10px">📤</div><div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:6px">Submit Quote</div><div style="font-size:11px;color:var(--tx3);margin-bottom:16px">'+q.quoteNum+' Rev '+q.rev+'</div>';
-h+='<button onclick="submitForApproval(\''+q.id+'\')" style="width:100%;padding:14px;font-size:13px;font-weight:700;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:10px;cursor:pointer;margin-bottom:8px">🔒 Submit for Approval</button>';
-h+='<button onclick="markReadyDirect(\''+q.id+'\')" style="width:100%;padding:12px;font-size:12px;font-weight:600;background:var(--bg3);color:var(--ac);border:1px solid var(--ac);border-radius:10px;cursor:pointer">✓ Mark Ready (Skip Approval)</button></div>';
+/* APPROVAL REMOVAL (2026-05-24): purple Submit-for-Approval button removed */
+h+='<button onclick="markReadyDirect(\''+q.id+'\')" style="width:100%;padding:14px;font-size:13px;font-weight:700;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border:none;border-radius:10px;cursor:pointer">✓ Mark Ready to Send</button></div>';
 }else if(q.status==='approval'){
 h+='<div style="text-align:center;padding:20px"><div style="font-size:40px;margin-bottom:10px">⏳</div><div style="font-size:14px;font-weight:700;color:#c4b5fd">Pending Approval</div><div style="font-size:11px;color:var(--tx3);margin:6px 0 16px">Waiting for CEO approval</div>';
 h+='<button onclick="quickApprove(\''+q.id+'\')" style="width:100%;padding:14px;font-size:13px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:10px;cursor:pointer;margin-bottom:8px">✓ Approve</button>';
 h+='<button onclick="setQStatus(\''+q.id+'\',\'rejected\')" style="width:100%;padding:12px;font-size:12px;font-weight:600;background:transparent;color:var(--rd);border:1px solid var(--rd);border-radius:10px;cursor:pointer">✕ Reject</button></div>';
 }else if(q.status==='rejected'){
 h+='<div style="text-align:center;padding:20px"><div style="font-size:40px">❌</div><div style="color:var(--rd);font-weight:700;margin:8px 0">Rejected</div>';
-h+='<button onclick="submitForApproval(\''+q.id+'\')" style="width:100%;padding:12px;font-size:12px;font-weight:600;background:var(--bg3);color:var(--ac);border:1px solid var(--ac);border-radius:10px;cursor:pointer">📤 Resubmit for Approval</button></div>';
+/* APPROVAL REMOVAL (2026-05-24): Resubmit-for-Approval re-routed to Mark Ready */
+h+='<button onclick="markReadyDirect(\''+q.id+'\')" style="width:100%;padding:12px;font-size:12px;font-weight:600;background:var(--bg3);color:var(--ac);border:1px solid var(--ac);border-radius:10px;cursor:pointer">✓ Mark Ready to Send</button></div>';
 }else if(q.status==='ready'||q.status==='sent'){
 // Verify customer email
 var custEmail=q.fields.custEmail||'';
@@ -1495,6 +1556,10 @@ h+='</div>';}
 
 // Send to Me helper — sends quote PDF to the logged-in user's email
 function sendQuoteToMe(){
+// UX-10 fix (2026-05-24): guard on missing deps so the button can't silently throw
+if(typeof _doSendWithOverride!=='function'||typeof getSendTemplates!=='function'){
+  return toast('Send helper not loaded — refresh the page and retry','err');
+}
 var q=getQ(S.editId);if(!q)return;
 var myEmail=getUserEmail();if(!myEmail)return toast('No email found — sign out and back in','err');
 // Set up hidden send fields for sendFromTab
@@ -1505,6 +1570,10 @@ _doSendWithOverride();
 
 // Send to Customer helper
 function sendQuoteToCustomer(){
+// UX-10 fix (2026-05-24): guard on missing deps so the button can't silently throw
+if(typeof _doSendWithOverride!=='function'||typeof getSendTemplates!=='function'){
+  return toast('Send helper not loaded — refresh the page and retry','err');
+}
 var q=getQ(S.editId);if(!q)return;
 var custEmail=(document.getElementById('send-cust-email')||{}).value||q.fields.custEmail||'';
 if(!custEmail||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(custEmail))return toast('Enter a valid customer email','err');
@@ -1632,7 +1701,9 @@ MFX.emit('quote.sent',{quote:q,pdf:pdf,token:token,to:allTo,cc:cc,bcc:bcc,from:f
 }else{window._mfxSending=false;toast('Error: '+(data.error?data.error.message:''),'err')}
 }).catch(function(e){window._mfxSending=false;toast(e.message,'err')})})}).catch(function(e){window._mfxSending=false;toast('PDF: '+e,'err')})},500)}
 
-function emailViaMailto(){var to=($('send-to')||{}).value||'';if(to==='custom')to=prompt('Email:');var subj=encodeURIComponent(($('send-subj')||{}).value||'');var body=encodeURIComponent(($('send-body')||{}).value||'');window.open('https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(to)+'&su='+subj+'&body='+body,'_blank')}
+function emailViaMailto(){var to=($('send-to')||{}).value||'';if(to==='custom')to=prompt('Email:');
+/* EMAIL_GUARD wrap (2026-05-24): bail if customer emails are blocked */
+if(window.MFX_EMAIL_GUARD && window.MFX_EMAIL_GUARD.blockIfDisabled('emailViaMailto', to)) return;var subj=encodeURIComponent(($('send-subj')||{}).value||'');var body=encodeURIComponent(($('send-body')||{}).value||'');window.open('https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(to)+'&su='+subj+'&body='+body,'_blank')}
 
 // ═══════════════════════════════════════
 // MISSING GLOBALS & FUNCTIONS

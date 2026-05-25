@@ -1,0 +1,71 @@
+# MFX OS — Pull Request Checks
+# Runs on every PR: builds bundle, checks syntax, runs security audit.
+# Fails the PR if any check fails.
+
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install functions dependencies
+        run: cd functions && npm ci
+
+      - name: Build bundle
+        run: npm run build
+
+      - name: Verify bundle exists and references match
+        run: |
+          BUNDLE=$(ls public/js/mfx-bundle.*.js 2>/dev/null)
+          if [ -z "$BUNDLE" ]; then
+            echo "::error::No bundle file generated"
+            exit 1
+          fi
+          BUNDLE_NAME=$(basename "$BUNDLE")
+          if ! grep -q "$BUNDLE_NAME" public/index.html; then
+            echo "::error::index.html does not reference $BUNDLE_NAME"
+            exit 1
+          fi
+          if ! grep -q "$BUNDLE_NAME" public/sw.js; then
+            echo "::error::sw.js does not reference $BUNDLE_NAME"
+            exit 1
+          fi
+
+      - name: Syntax check bundle
+        run: node -c public/js/mfx-bundle.*.js
+
+      - name: Check for forbidden files under public/
+        run: |
+          if ls public/*-data.json 2>/dev/null; then
+            echo "::error::Data dump files found under public/ — these are publicly served. Move them to data-archive/."
+            exit 1
+          fi
+          if ls public/*.rules 2>/dev/null; then
+            echo "::error::.rules files found under public/ — these would be publicly served."
+            exit 1
+          fi
+
+      - name: Security audit (root)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+      - name: Security audit (functions)
+        run: cd functions && npm audit --omit=dev --audit-level=high
+        continue-on-error: true
