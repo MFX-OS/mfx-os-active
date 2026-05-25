@@ -1357,10 +1357,10 @@ return h})()}
 
 <div class="epane ${S.etab===2?'active':''}" id="ep-mats">
 <div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🧱</span><span class="ttl">Materials</span><span class="arr">▾</span></div><div class="scard-b open">
-<div class="fg"><label>Face Stock <button class="btn btn-ghost btn-xs" onclick="showSpecManager('labels')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=faceStock]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><select data-field="faceStock" id="ed-fs" onchange="edMat('faceStock',true)"></select><span class="mat-msi" id="msi-faceStock"></span></div></div>
-<div class="fg"><label>Lamination <button class="btn btn-ghost btn-xs" onclick="showSpecManager('films')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=lamination]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><select data-field="lamination" id="ed-lam" onchange="edMat('lamination')"></select><span class="mat-msi" id="msi-lamination"></span></div></div>
-<div class="row2"><div class="fg"><label>Liner</label><select data-field="liner" oninput="asave()">${mkOpts(['NA','40# Liner','40# CK Liner','50# Liner','Kraft Liner','CUSTOM'],f.liner)}</select></div><div class="fg"><label>Adhesive</label><select data-field="adhesive" oninput="asave()">${mkOpts(['NA','C2500','S100R Permanent','AT20 All-Temp','751 Permanent','531 Removable','CUSTOM'],f.adhesive)}</select></div></div>
-<div class="row2"><div class="fg"><label>Coating / Varnish <button class="btn btn-ghost btn-xs" onclick="showSpecManager('varnishes')" style="float:right;font-size:9px">⚙ Manage</button></label><select data-field="coating" id="ed-coat" oninput="asave()"></select></div><div class="fg"><label>Other</label><select data-field="otherMat" oninput="asave()">${mkOpts(['NA','CUSTOM'],f.otherMat)}</select></div></div>
+<div class="fg"><label>Face Stock <button class="btn btn-ghost btn-xs" onclick="showSpecManager('labels')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=faceStock]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><input data-field="faceStock" id="ed-fs" list="ed-fs-dl" autocomplete="off" placeholder="Type to search…" onchange="edMat('faceStock',true)" oninput="edMatInput('faceStock')"><datalist id="ed-fs-dl"></datalist><span class="mat-msi" id="msi-faceStock"></span></div></div>
+<div class="fg"><label>Lamination <button class="btn btn-ghost btn-xs" onclick="showSpecManager('films')" style="float:right;font-size:9px">⚙ Manage</button><button class="btn btn-ghost btn-xs" onclick="openMatProfile(document.querySelector('[data-field=lamination]').value)" style="float:right;font-size:9px;margin-right:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button></label><div class="mat-wrap"><input data-field="lamination" id="ed-lam" list="ed-lam-dl" autocomplete="off" placeholder="Type to search…" onchange="edMat('lamination')" oninput="edMatInput('lamination')"><datalist id="ed-lam-dl"></datalist><span class="mat-msi" id="msi-lamination"></span></div></div>
+<div class="row2"><div class="fg"><label>Liner</label><input data-field="liner" list="ed-liner-dl" autocomplete="off" placeholder="Type to search…" value="${f.liner||''}" oninput="asave()"><datalist id="ed-liner-dl">${['NA','40# Liner','40# CK Liner','50# Liner','Kraft Liner','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div><div class="fg"><label>Adhesive</label><input data-field="adhesive" list="ed-adh-dl" autocomplete="off" placeholder="Type to search…" value="${f.adhesive||''}" oninput="asave()"><datalist id="ed-adh-dl">${['NA','C2500','S100R Permanent','AT20 All-Temp','751 Permanent','531 Removable','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
+<div class="row2"><div class="fg"><label>Coating / Varnish <button class="btn btn-ghost btn-xs" onclick="showSpecManager('varnishes')" style="float:right;font-size:9px">⚙ Manage</button></label><input data-field="coating" id="ed-coat" list="ed-coat-dl" autocomplete="off" placeholder="Type to search…" oninput="asave()"><datalist id="ed-coat-dl"></datalist></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
 <div class="fg"><label>Notes <span style="font-weight:400;color:var(--tx3)">(custom per quote)</span></label><textarea data-field="notes" placeholder="Add any job-specific notes here..." oninput="asave()">${f.notes}</textarea></div>
 <div class="fg"><label>Custom Note for PDF <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label><textarea data-field="customNote" placeholder="Customer requested expedited delivery..." oninput="asave()">${f.customNote||''}</textarea></div>
 <div class="fg"><label>Note Tags <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label>
@@ -2088,10 +2088,19 @@ var platesEl = document.querySelector('[data-field="nPlates"]');
 if (platesEl && colors > 0) { platesEl.value = colors; }
 asave()}
 
-function buildVarnishSelect(def){const sel=$('ed-coat');if(!sel)return;const list=getSpecList('varnishes');sel.innerHTML='<option value="NA">NA</option>';
-list.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;if(v===def)o.selected=true;sel.appendChild(o)});
-const oC=document.createElement('option');oC.value='CUSTOM';oC.textContent='- Custom -';sel.appendChild(oC);
-if(def&&def!=='NA'&&!list.includes(def)){const oD=document.createElement('option');oD.value=def;oD.textContent=def;oD.selected=true;sel.appendChild(oD)}}
+// Datalist-based combobox replacement for the coating/varnish picker.
+// Same input contract: user can type to filter, picks from dropdown, or types custom.
+function buildVarnishSelect(def){
+  const input=$('ed-coat');const dl=$('ed-coat-dl');
+  if(!input||!dl)return;
+  const list=getSpecList('varnishes');
+  dl.innerHTML='';
+  ['NA','CUSTOM'].concat(list).forEach(function(v){
+    var o=document.createElement('option');o.value=v;dl.appendChild(o);
+  });
+  // Seed input with current value (preserves custom typed-in values too)
+  if(def!=null)input.value=def;
+}
 
 function renderTermsEditor(){const q=getQ(S.editId);if(!q)return;
 if(!q.terms)q.terms=[...DEFAULT_TERMS];
@@ -2462,11 +2471,65 @@ if(existing){existing.contact=q.fields.custAttn||existing.contact;existing.phone
 else{saveCust({id:'c'+Date.now(),company:q.fields.custCo,contact:q.fields.custAttn||'',phone:q.fields.custPhone||'',email:q.fields.custEmail||'',industry:q.fields.industry||'',address:q.fields.cityState||'',notes:[],zohoId:''})}}
 function viewCustFromQ(){saveQ();const q=getQ(S.editId);if(!q||!q.fields.custCo)return toast('No customer','err');const c=DB.customers().find(x=>x.company.toLowerCase()===q.fields.custCo.toLowerCase());if(c){S.profileId=c.id;openProfile(c.id)}else{toast('Customer not saved yet','err')}}
 // MATERIALS
-function buildMS(id,def){const sel=$(id);if(!sel)return;sel.innerHTML='';const oC=document.createElement('option');oC.value='CUSTOM';oC.textContent='- Custom -';sel.appendChild(oC);const oN=document.createElement('option');oN.value='NA';oN.textContent='NA';sel.appendChild(oN);
-/* PERF-15 fix: if mats chunk not loaded yet, kick it off and re-render */ if((!MATS||!MATS.length)&&typeof loadChunk==='function'){loadChunk('mats').then(function(){buildMS(id,def)}).catch(function(e){console.warn('mats chunk load:',e&&e.message)});return} const vs=[...new Set(MATS.map(m=>m.v))];for(const v of vs){const og=document.createElement('optgroup');og.label=v;MATS.filter(m=>m.v===v).forEach(m=>{const o=document.createElement('option');o.value=m.s;o.textContent=m.s+' - '+m.d;if(m.m!=null)o.dataset.m=m.m;if(m.mk!=null)o.dataset.mk=m.mk;if(m.s===def)o.selected=true;og.appendChild(o)});sel.appendChild(og)}}
-function edMat(field,fromChange){const selId=field==='faceStock'?'ed-fs':'ed-lam';const sel=$(selId);if(!sel)return;const opt=sel.options[sel.selectedIndex];const badge=$('msi-'+field);
-const q=getQ(S.editId);
-if(opt&&opt.dataset.m){const msi=parseFloat(opt.dataset.m);badge.textContent='MSI $'+msi.toFixed(3);badge.style.display='inline';if(field==='faceStock'&&fromChange&&!(q&&q.pricingLocked)){const mf=document.querySelector('[data-field="msiCost"]');if(mf)mf.value=msi.toFixed(4);if(opt.dataset.mk){const mk=document.querySelector('[data-field="mkupPct"]');if(mk)mk.value=(parseFloat(opt.dataset.mk)*100).toFixed(1)}}}else{badge.style.display='none'}asave()}
+// Populate the <datalist> for a material input. Replaces the old <select>+optgroup
+// model — datalist has no optgroup support so we prefix each option label with the
+// vendor/category for in-list grouping. The input's value is the SKU (m.s); the
+// label shown in the dropdown is "SKU - description (vendor)".
+function buildMS(id,def){
+  const dl=$(id+'-dl');const input=$(id);
+  if(!dl||!input)return;
+  dl.innerHTML='';
+  // PERF-15: lazy-load mats chunk if not present
+  if((!MATS||!MATS.length)&&typeof loadChunk==='function'){
+    loadChunk('mats').then(function(){buildMS(id,def)}).catch(function(e){console.warn('mats chunk load:',e&&e.message)});
+    return;
+  }
+  // Seed with CUSTOM + NA so user can pick those even without MATS data
+  ['NA','CUSTOM'].forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});
+  // Index by vendor (m.v) for label grouping
+  const vs=[...new Set(MATS.map(m=>m.v))];
+  for(const v of vs){
+    MATS.filter(m=>m.v===v).forEach(m=>{
+      var o=document.createElement('option');
+      o.value=m.s;                                    // what gets stored
+      o.label=m.s+' — '+m.d+' ('+v+')';               // what's shown in dropdown
+      dl.appendChild(o);
+    });
+  }
+  // Seed the input with the current value
+  if(def!=null)input.value=def;
+}
+// Lookup helper — find a MATS entry by SKU. Used by edMat after user picks from
+// the datalist or types in a SKU.
+function _findMatBySku(sku){
+  if(!sku||!MATS||!MATS.length)return null;
+  return MATS.find(function(m){return m.s===sku;});
+}
+// Fired on every keystroke. Just persists; the MSI badge update is debounced by
+// the 'change' handler edMat (fires when input loses focus or user picks from datalist).
+function edMatInput(field){
+  if(typeof asave==='function')asave();
+}
+window.edMatInput=edMatInput;
+function edMat(field,fromChange){
+  const selId=field==='faceStock'?'ed-fs':'ed-lam';
+  const input=$(selId);if(!input)return;
+  const badge=$('msi-'+field);
+  const q=getQ(S.editId);
+  const mat=_findMatBySku(input.value);
+  if(mat&&mat.m!=null){
+    const msi=parseFloat(mat.m);
+    badge.textContent='MSI $'+msi.toFixed(3);
+    badge.style.display='inline';
+    if(field==='faceStock'&&fromChange&&!(q&&q.pricingLocked)){
+      const mf=document.querySelector('[data-field="msiCost"]');if(mf)mf.value=msi.toFixed(4);
+      if(mat.mk!=null){const mk=document.querySelector('[data-field="mkupPct"]');if(mk)mk.value=(parseFloat(mat.mk)*100).toFixed(1);}
+    }
+  } else {
+    badge.style.display='none';
+  }
+  asave();
+}
 
 
 function emailQuote(){var q=getQ(S.editId);if(!q)return;
@@ -2695,10 +2758,20 @@ headers:{'Authorization':'Bearer '+token}
 return(data.files&&data.files.length)?data.files[0].id:null})
 }).catch(function(e){console.warn('findQuotesFolder:',e);return null})}
 
-function saveQuoteToDrive(){
+// kind: 'internal' (default — full details for the team archive) or 'external' (client-facing copy).
+// Defaults to internal because this function lives behind the "Save to Drive" button which is
+// an internal action; the client-facing copy gets generated by the send flow which calls
+// generateQuotePDF after explicitly setting mode='external'.
+function saveQuoteToDrive(kind){
 var q=getQ(S.editId);if(!q)return;
+// Pin the PDF mode for this save so the rendered quotePage matches the kind we're saving.
+// Restore the user's previous preview-tab choice when we're done.
+var _prevMode=window._quotePreviewMode;
+window._quotePreviewMode=(kind==='external'?'external':'internal');
 toast('Generating PDF...','ok');
 generateQuotePDF(q).then(function(pdf){
+// Restore preview mode now that the canvas capture is done
+window._quotePreviewMode=_prevMode;
 getGoogleToken().then(function(token){if(!token)return toast('Sign out and back in','err');
 findOrCreateSharedFolder(token,'MFX Master Quotes').then(function(folderId){
 if(!folderId)console.warn('[Drive] No shared folder found — will save to My Drive root');
@@ -2710,6 +2783,23 @@ headers:{'Authorization':'Bearer '+token}
 }).then(function(r){return r.json()}).then(function(searchData){
 var existingId=(searchData.files&&searchData.files.length>0)?searchData.files[0].id:null;
 
+// Helper — store the Drive URL on the quote so the Workflow tab can show it.
+function _saveDriveLinkOnQuote(qid, fileId, kind){
+  if(!fileId) return;
+  var url='https://drive.google.com/file/d/'+fileId+'/view';
+  var all=DB.quotes();var q=all.find(function(x){return x.id===qid});
+  if(!q) return;
+  q.driveLink=url;
+  q.driveFileId=fileId;
+  if(!q.workflow)q.workflow={};
+  q.workflow.driveSaved=true;
+  q.workflow.driveUrl=url;
+  q.workflow.driveSavedAt=new Date().toISOString();
+  q.workflow.driveSavedKind=kind||'internal'; // 'internal' or 'external'
+  DB.saveQ(all,qid);
+  if(typeof renderWorkflow==='function')try{renderWorkflow()}catch(_){}
+}
+
 if(existingId){
 // UPDATE existing file
 var form=new FormData();
@@ -2720,6 +2810,7 @@ method:'PATCH',headers:{'Authorization':'Bearer '+token},body:form
 }).then(function(r){return r.json()}).then(function(data){
 if(data.id){toast('PDF updated in MFX Master Quotes!','ok');
 upsertRegistryRow(S.editId,'PDF updated on Drive');
+_saveDriveLinkOnQuote(S.editId, data.id, window._quotePreviewMode==='external'?'external':'internal');
 logDriveActivity(q,pdf.filename,'Updated');logClientActivity(q.fields.custCo,'☁ PDF saved: '+pdf.filename)}
 else{toast('Drive update error','err')}}).catch(function(e){toast(e.message,'err')})}
 
@@ -2735,6 +2826,7 @@ method:'POST',headers:{'Authorization':'Bearer '+token},body:form
 }).then(function(r){return r.json()}).then(function(data){
 if(data.id){toast('PDF saved to MFX Master Quotes!','ok');
 upsertRegistryRow(S.editId,'PDF saved to Drive');
+_saveDriveLinkOnQuote(S.editId, data.id, window._quotePreviewMode==='external'?'external':'internal');
 logDriveActivity(q,pdf.filename,'Created');logClientActivity(q.fields.custCo,'☁ PDF saved: '+pdf.filename)}
 else{toast('Drive error','err')}}).catch(function(e){toast(e.message,'err')})}
 }).catch(function(e){toast(e.message,'err')})})})

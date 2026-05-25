@@ -162,13 +162,17 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['status','soNum'])
         && request.resource.data.status is string;
       allow update, delete: if canEditCommercial() || isManagement();
-      // Portal clients: can read SO linked to their quote email, and sign/approve it
+      // Portal clients: can read SO linked to their quote email, and sign/approve it.
+      // 2026-05-25 fix: case-insensitive email match — same pattern as the quotes rule.
+      // Firebase Auth normalizes emails to lowercase but sales reps may type SO.email
+      // with mixed case (John.Smith@... vs john.smith@...), which blocked the client
+      // from accessing their own SO before this fix.
       allow get, list: if signedIn()
         && request.auth.token.email != null
-        && resource.data.get('email', '') == request.auth.token.email;
+        && resource.data.get('email', '').lower() == request.auth.token.email.lower();
       allow update: if signedIn()
         && request.auth.token.email != null
-        && resource.data.get('email', '') == request.auth.token.email
+        && resource.data.get('email', '').lower() == request.auth.token.email.lower()
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['clientSignature','clientSignedAt','clientEmail','clientApproved']);
     }

@@ -1582,7 +1582,8 @@ var custEmail=(document.getElementById('send-cust-email')||{}).value||q.fields.c
 if(!custEmail||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(custEmail))return toast('Enter a valid customer email','err');
 q.fields.custEmail=custEmail;
 var tpls=getSendTemplates(q);
-window._sendOverride={to:custEmail,from:'',subject:tpls[0].subject,body:tpls[0].body,cc:'',bcc:'quotes@microflexfilm.com'};
+// BCC the internal distro AND the quotes archive — team@ gets every client send for visibility.
+window._sendOverride={to:custEmail,from:'',subject:tpls[0].subject,body:tpls[0].body,cc:'',bcc:'team@microflexfilm.com, quotes@microflexfilm.com'};
 _doSendWithOverride();
 }
 
@@ -1621,7 +1622,8 @@ var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/
 fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({raw:encoded})}).then(function(r){return r.json()}).then(function(data){
 window._mfxSending=false;
 if(data.id){toast('Sent to '+ov.to+'!','ok');window._lastSentTo=ov.to;
-if(q){setQStatus(q.id,'sent');q=getQ(S.editId);if(q){q.sentAt=q.sentAt||new Date().toISOString();if(!q.workflow)q.workflow={};q.workflow.emailSent=true;q.workflow.registryUpdated=true;if(!q.internalNotes)q.internalNotes=[];q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+ov.to+' with PDF attached',by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});logQuoteEvent(q,'email','Emailed to '+ov.to);upsertRegistryRow(q.id,'Emailed to '+ov.to);var all=DB.quotes();DB.saveQ(all,q.id);MFX.emit('quote.sent',{quote:q,pdf:pdf,token:token,to:ov.to,cc:ov.cc||'',bcc:ov.bcc||'',from:ov.from||''});setTimeout(function(){if(typeof saveQuoteToDrive==='function')saveQuoteToDrive()},500)}}
+if(q){setQStatus(q.id,'sent');q=getQ(S.editId);if(q){q.sentAt=q.sentAt||new Date().toISOString();if(!q.workflow)q.workflow={};q.workflow.emailSent=true;q.workflow.registryUpdated=true;if(!q.internalNotes)q.internalNotes=[];q.internalNotes.push({id:'n'+Date.now(),text:'📧 Emailed to '+ov.to+' with PDF attached',by:getUserName(),at:new Date().toISOString(),mentions:[],replies:[]});logQuoteEvent(q,'email','Emailed to '+ov.to);upsertRegistryRow(q.id,'Emailed to '+ov.to);var all=DB.quotes();DB.saveQ(all,q.id);MFX.emit('quote.sent',{quote:q,pdf:pdf,token:token,to:ov.to,cc:ov.cc||'',bcc:ov.bcc||'',from:ov.from||''});// Archive the EXTERNAL (client-facing) PDF that matches what the client just received in email.
+setTimeout(function(){if(typeof saveQuoteToDrive==='function')saveQuoteToDrive('external')},500)}}
 renderSendPane();if(typeof renderWorkflow==='function')renderWorkflow()}
 else{toast('Email error: '+(data.error&&data.error.message||'Unknown'),'err')}
 }).catch(function(e){window._mfxSending=false;toast('Send failed: '+e.message,'err')})
