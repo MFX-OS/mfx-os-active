@@ -3267,13 +3267,28 @@ raw+='Content-Transfer-Encoding: base64\r\n\r\n';
 raw+=pdf.base64+'\r\n';
 raw+='--'+boundary+'--';
 var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-// forceFresh=true — see the same note in modules.js _doSendWithOverride.
-getGoogleToken(true).then(function(token){if(!token)return toast('Gmail auth cancelled — click Re-authorize Gmail to retry','err');
-fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{
-method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-body:JSON.stringify({raw:encoded})
-}).then(function(r){
-  return r.json().then(function(data){return {ok:r.ok, status:r.status, data:data};});
+// Use cached token first (fast, no popup). If Gmail rejects with 401/403,
+// _attempt() automatically forces a fresh OAuth and retries once.
+function _attempt(token, isRetry){
+  return fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{
+    method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({raw:encoded})
+  }).then(function(r){
+    return r.json().then(function(data){return {ok:r.ok, status:r.status, data:data, isRetry:isRetry};});
+  });
+}
+getGoogleToken().then(function(token){if(!token)return toast('Gmail not connected — click Re-authorize Gmail','err');
+_attempt(token, false).then(function(resp){
+  // Auto-retry once if token rejected
+  if(!resp.ok && (resp.status===401 || resp.status===403) && !resp.isRetry){
+    console.warn('[sendQuoteEmail] auth rejected, forcing fresh OAuth and retrying');
+    if(typeof toast==='function')toast('Gmail token expired — refreshing…','ok');
+    return getGoogleToken(true).then(function(freshToken){
+      if(!freshToken){toast('Gmail re-auth failed — click "Re-authorize Gmail"','err');return resp;}
+      return _attempt(freshToken, true);
+    });
+  }
+  return resp;
 }).then(function(resp){
 if(resp.ok && resp.data && resp.data.id){
   toast('Email sent ✓ BCC: team@ + quotes@ — verify in Sent folder','ok');closeModal();updateRegistry(S.editId,'Emailed');

@@ -1639,15 +1639,13 @@ var ov=window._sendOverride;if(!ov||!ov.to)return;
 var _prevMode=window._quotePreviewMode;window._quotePreviewMode='external';
 if(typeof edPreview==='function')edPreview();
 window._quotePreviewMode=_prevMode;
-window._mfxSending=true;toast('Generating PDF & re-authorizing Gmail (popup may appear)…','ok');
+window._mfxSending=true;toast('Generating PDF & sending…','ok');
 setTimeout(function(){
-// forceFresh=true — bypass the session-cached token. This is the fix for the
-// "worked yesterday but not today, Sent folder empty" symptom. A token cached
-// from a previous session can be missing the gmail.send scope while still
-// being accepted by the Drive API, so file saves work but email is silently
-// dropped. Forcing a fresh OAuth grants all current scopes and lets the user
-// re-pick the right Google account if they have multiple signed in.
-generateQuotePDF(q).then(function(pdf){getGoogleToken(true).then(function(token){if(!token){window._mfxSending=false;return toast('Gmail auth cancelled — click Re-authorize Gmail to retry','err')}
+// Default to the cached token (fast, no popup). If the Gmail API actually
+// rejects it later with 401/403, _gmailSend will auto-clear the cache and
+// retry with a fresh OAuth token. This keeps normal sends popup-free while
+// still self-healing the "stale token missing gmail.send" failure mode.
+generateQuotePDF(q).then(function(pdf){getGoogleToken().then(function(token){if(!token){window._mfxSending=false;return toast('Gmail auth required — click Re-authorize Gmail','err')}
 var boundary='mfx'+Date.now();
 var qn=q.quoteNum||'';var portalLink='https://os.microflexfilm.com/portal?id='+q.id+'&q='+qn;
 var htmlBody='<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#060d14;border-radius:8px;overflow:hidden">'
@@ -1688,8 +1686,12 @@ function _buildSendRaw(opts){
   r+='--'+b+'--';
   return btoa(unescape(encodeURIComponent(r))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-function _gmailSend(rawEncoded, token, label){
-  // Returns a Promise resolving to {ok, status, data, label}
+function _gmailSend(rawEncoded, token, label, retryWithFresh){
+  // Returns a Promise resolving to {ok, status, data, label}.
+  // Self-heal: if the API returns 401 (unauth) or 403 (forbidden), assume
+  // the cached token is stale or missing the gmail.send scope, force-fresh
+  // OAuth, and retry ONCE. retryWithFresh=true on the retry call prevents
+  // an infinite loop.
   console.log('[Gmail send] '+label+' — POST to API');
   return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
     method:'POST',
@@ -1700,6 +1702,18 @@ function _gmailSend(rawEncoded, token, label){
       var result={ok:r.ok, status:r.status, data:data, label:label};
       if(!r.ok || !(data && data.id)){
         console.error('[Gmail send] '+label+' FAILED', result);
+        // Auto-retry once with a fresh token if this looks like an auth issue
+        if(!retryWithFresh && (r.status===401 || r.status===403)){
+          console.warn('[Gmail send] '+label+' — auth rejected, forcing fresh OAuth and retrying');
+          if(typeof toast==='function')toast('Gmail token expired — refreshing…','ok');
+          return getGoogleToken(true).then(function(freshToken){
+            if(!freshToken){
+              if(typeof toast==='function')toast('Gmail re-auth failed. Click "Re-authorize Gmail" and try Send again.','err');
+              return result; // bubble the original failure
+            }
+            return _gmailSend(rawEncoded, freshToken, label, true);
+          });
+        }
       } else {
         console.log('[Gmail send] '+label+' OK — message id', data.id);
       }
