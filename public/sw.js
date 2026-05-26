@@ -1,7 +1,8 @@
-var CACHE_NAME = 'mfx-mpluigvb';
+var CACHE_NAME = 'mfx-mplw434p';
 var STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/offline.html',
   '/css/theme.css',
   '/js/mfx-core.2a3f578a.js',
   '/js/mfx-chat.b5fff599.js',
@@ -11,7 +12,7 @@ var STATIC_ASSETS = [
 ];
 
 // CDN resources to cache on first use
-var CDN_CACHE = 'mfx-cdn-mpluigvb';
+var CDN_CACHE = 'mfx-cdn-mplw434p';
 var CDN_PATTERNS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
@@ -132,18 +133,16 @@ self.addEventListener('fetch', function(e) {
         }
         return response;
       }).catch(function() {
-        // Offline — serve cached index.html (SPA routing)
+        // Network failed. Try cached index.html first (SPA routing still works
+        // because the app shell can boot offline and show whatever it cached
+        // from Firestore). If that's also unavailable, fall back to the
+        // standalone offline page which has a Retry button and auto-detects
+        // when the connection comes back.
         return caches.match('/index.html').then(function(cached) {
-          return cached || new Response(
-            '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MFX OS — Offline</title>' +
-            '<style>body{background:#060d14;color:#e0f2fe;font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}' +
-            '.c{text-align:center}.h{font-size:24px;color:#00e5ff;margin-bottom:12px}.p{color:#94a3b8;font-size:14px}' +
-            '.b{margin-top:20px;padding:10px 24px;background:#00e5ff;color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px}</style></head>' +
-            '<body><div class="c"><div class="h">MFX OS — Offline</div>' +
-            '<div class="p">You appear to be offline. Your data is safe.<br>Reconnect to continue working.</div>' +
-            '<button class="b" onclick="location.reload()">Retry</button></div></body></html>',
-            { status: 200, headers: { 'Content-Type': 'text/html' } }
-          );
+          if (cached) return cached;
+          return caches.match('/offline.html').then(function(off) {
+            return off || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+          });
         });
       })
     );

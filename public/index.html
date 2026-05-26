@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes,viewport-fit=cover">
 <meta name="theme-color" content="#060d14">
 <title>MFX OS</title>
 <link rel="manifest" href="/manifest.json">
@@ -93,9 +93,9 @@
 
 <!-- TOP BAR -->
 <header class="topbar" role="banner">
-<div id="logoBtn" style="cursor:pointer;display:flex;align-items:center;gap:6px" onclick="toggleHamburger()">
-<div id="logoImg" style="font-size:16px;color:#00e5ff">☰</div>
-<div style="font-size:14px;font-weight:800;color:#00e5ff;text-shadow:0 0 10px rgba(0,229,255,.3)">MFX</div>
+<div id="logoBtn" style="cursor:pointer;display:flex;align-items:center;gap:6px" onclick="toggleHamburger()" role="button" aria-label="Open main menu" tabindex="0">
+<div id="logoImg" style="font-size:16px;color:#00e5ff" aria-hidden="true">☰</div>
+<div style="font-size:14px;font-weight:800;color:#00e5ff;text-shadow:0 0 10px rgba(0,229,255,.3)" aria-hidden="true">MFX</div>
 </div>
 <div style="display:flex;align-items:center;gap:8px;margin-left:6px">
 <div id="topDeptBadge" class="topbar-dept" style="background:var(--dept-ops);color:#000">OPS</div>
@@ -331,8 +331,8 @@
 <div style="width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#0099cc);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
 <span id="icTitle" style="font-size:15px;font-weight:800;color:#fff;flex:1;letter-spacing:-.2px">Messages</span>
 <span id="icOnlineCount" style="font-size:9px;color:#2ee89e;font-weight:600;background:rgba(46,232,158,.1);padding:3px 8px;border-radius:10px"></span>
-<span onclick="icShowList()" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:4px 10px;background:rgba(255,255,255,.05);border-radius:8px;font-weight:600">Refresh</span>
-<span onclick="toggleInstantChat()" style="cursor:pointer;color:var(--tx3);font-size:18px;padding:0 2px;line-height:1">&times;</span>
+<span onclick="icShowList()" role="button" tabindex="0" aria-label="Refresh chat list" style="cursor:pointer;font-size:10px;color:var(--tx3);padding:4px 10px;background:rgba(255,255,255,.05);border-radius:8px;font-weight:600">Refresh</span>
+<span onclick="toggleInstantChat()" role="button" tabindex="0" aria-label="Close chat" style="cursor:pointer;color:var(--tx3);font-size:18px;padding:0 2px;line-height:1">&times;</span>
 </div>
 <!-- IC Presence Bar -->
 <div id="icPresenceBar" style="padding:4px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;height:28px;flex-shrink:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap">
@@ -368,11 +368,11 @@
 <span onclick="icToggleMobileSidebar()" class="ic-mobile-menu-btn" style="display:none;cursor:pointer;font-size:16px;padding:4px">&#9776;</span>
 <span id="icConvoTitle" style="font-size:14px;font-weight:700;color:#fff;flex:1"></span>
 <span id="icMemberCount" style="font-size:9px;color:rgba(255,255,255,.3)"></span>
-<span onclick="icAddPeople()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3);border-radius:6px" title="Add people to chat">👥+</span>
-<span onclick="icToggleSearch()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Search">🔍</span>
-<span onclick="icShowPinnedMessages()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Pinned">📌</span>
-<span onclick="icPopOutChat(IC.activeChat, document.getElementById('icConvoTitle').textContent)" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" title="Pop out to window">&#8599;&#65039;</span>
-<span onclick="icMuteChannel()" style="cursor:pointer;font-size:13px;padding:3px;color:var(--tx3)" id="icMuteBtn" title="Mute">🔔</span>
+<span onclick="icAddPeople()" role="button" tabindex="0" aria-label="Add people to chat" style="cursor:pointer;font-size:13px;padding:6px;color:var(--tx3);border-radius:6px;min-width:32px;display:inline-flex;align-items:center;justify-content:center" title="Add people to chat">👥+</span>
+<span onclick="icToggleSearch()" role="button" tabindex="0" aria-label="Search messages" style="cursor:pointer;font-size:13px;padding:6px;color:var(--tx3);min-width:32px;display:inline-flex;align-items:center;justify-content:center" title="Search">🔍</span>
+<span onclick="icShowPinnedMessages()" role="button" tabindex="0" aria-label="Show pinned messages" style="cursor:pointer;font-size:13px;padding:6px;color:var(--tx3);min-width:32px;display:inline-flex;align-items:center;justify-content:center" title="Pinned">📌</span>
+<span onclick="icPopOutChat(IC.activeChat, document.getElementById('icConvoTitle').textContent)" role="button" tabindex="0" aria-label="Pop out chat to its own window" style="cursor:pointer;font-size:13px;padding:6px;color:var(--tx3);min-width:32px;display:inline-flex;align-items:center;justify-content:center" title="Pop out to window">&#8599;&#65039;</span>
+<span onclick="icMuteChannel()" role="button" tabindex="0" aria-label="Mute channel" style="cursor:pointer;font-size:13px;padding:6px;color:var(--tx3);min-width:32px;display:inline-flex;align-items:center;justify-content:center" id="icMuteBtn" title="Mute">🔔</span>
 </div>
 <div id="icTabBar" style="display:none;padding:0 14px;background:rgba(0,0,0,.15);border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:0;overflow-x:auto;flex-shrink:0"></div>
 <div id="icSearchBar" style="display:none;padding:6px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.04)"><input id="icSearchInput" placeholder="Search messages..." oninput="icSearchMessages(this.value)" style="width:100%;padding:6px 10px;font-size:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:#fff;outline:none;font-family:inherit"></div>
@@ -403,11 +403,11 @@
 </div>
 
 <div class="bottom-bar" id="bottomBar" role="navigation" aria-label="Quick actions" style="color:#00e5ff">
-<button class="bb-btn" onclick="goView('quotes')"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Quotes</button>
-<button class="bb-btn" onclick="goView('jobtracker')"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Kanban</button>
-<button class="bb-btn" onclick="toggleInstantChat()" style="position:relative" id="instantChatBtn"><span class="bb-ico" style="background:#00e5ff;color:#000;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:-14px;box-shadow:0 0 20px rgba(0,229,255,.3)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span id="icUnreadBadge" style="display:none;position:absolute;top:-2px;right:calc(50% - 22px);min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;padding:0 4px;line-height:16px;text-align:center">0</span></button>
-<button class="bb-btn" onclick="openTeamChat()"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Chat</button>
-<button class="bb-btn" onclick="openTasksView()"><span class="bb-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg></span>Tasks</button>
+<button class="bb-btn" onclick="goView('quotes')" aria-label="Open Quotes"><span class="bb-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Quotes</button>
+<button class="bb-btn" onclick="goView('jobtracker')" aria-label="Open Kanban board"><span class="bb-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Kanban</button>
+<button class="bb-btn" onclick="toggleInstantChat()" style="position:relative" id="instantChatBtn" aria-label="Open instant chat"><span class="bb-ico" style="background:#00e5ff;color:#000;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:-14px;box-shadow:0 0 20px rgba(0,229,255,.3)" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span id="icUnreadBadge" style="display:none;position:absolute;top:-2px;right:calc(50% - 22px);min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;align-items:center;justify-content:center;padding:0 4px;line-height:16px;text-align:center" aria-live="polite">0</span></button>
+<button class="bb-btn" onclick="openTeamChat()" aria-label="Open team chat"><span class="bb-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>Chat</button>
+<button class="bb-btn" onclick="openTasksView()" aria-label="Open tasks"><span class="bb-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg></span>Tasks</button>
 </div>
 
 <!-- ALERT STRIP — sits above bottom bar, hidden by default -->

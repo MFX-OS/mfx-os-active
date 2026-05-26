@@ -206,8 +206,10 @@ button:focus-visible,.btn:focus-visible,.card:focus-visible,a:focus-visible,[tab
 .fg{margin-bottom:8px}
 .fg label{display:block;font-size:10px;font-weight:600;color:var(--tx2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
 
-/* Bottom bar */
-.bottom-bar{position:fixed;bottom:0;left:0;right:0;height:56px;background:linear-gradient(0deg,var(--bg),var(--bg2));border-top:1px solid var(--bdr);display:flex;padding:0 4px;z-index:var(--z-bar)}
+/* Bottom bar — safe-area-inset so iPhone home-indicator doesn't tuck under
+   the last button. Total height grows by env() on devices that need it,
+   stays 56px elsewhere. */
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;height:calc(56px + env(safe-area-inset-bottom, 0px));padding-bottom:env(safe-area-inset-bottom, 0px);background:linear-gradient(0deg,var(--bg),var(--bg2));border-top:1px solid var(--bdr);display:flex;padding-left:4px;padding-right:4px;padding-top:0;z-index:var(--z-bar)}
 .bb-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 0;cursor:pointer;color:#64748b;font-size:11px;font-weight:600;background:none;border:none;transition:all .15s}
 .bb-btn:active{opacity:.7}
 .bb-btn .bb-ico{font-size:20px}
@@ -1500,4 +1502,55 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
   border-right-color:transparent;
   border-radius:50%;
   animation:mfx-spin .6s linear infinite;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOBILE / TOUCH FIXES — 2026-05-25
+   Touch devices don't trigger :hover, so any UI that hides actions behind
+   :hover is invisible to phone/tablet users. These rules use the
+   pointer:coarse media query (true for touch-primary devices) and a
+   max-width:768px fallback to guarantee actions are reachable.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Always-visible action buttons on touch — chat message hover actions,
+   materials picker row Edit/Delete buttons. opacity:0 → 1 with a softer
+   look (no aggressive fade-in so the layout stays calm). */
+@media (pointer:coarse), (max-width:768px){
+  .chat-msg-actions,
+  .chat-msg-grouped .chat-msg-actions,
+  .ic-dm-actions,
+  .mat-combo-rowact{opacity:1 !important}
+  /* Reduce ic-dm-actions intensity when always-on to avoid clutter */
+  .ic-dm-actions{opacity:.7 !important}
+  .ic-dm-row:active .ic-dm-actions,
+  .ic-dm-row:focus-within .ic-dm-actions{opacity:1 !important}
+}
+/* Keyboard-focus fallback for desktop too (covers tab-through) */
+.chat-msg:focus-within .chat-msg-actions,
+.chat-msg-grouped:focus-within .chat-msg-actions,
+.mat-combo-item:focus-within .mat-combo-rowact{opacity:1}
+
+/* ── Touch target sizing ──────────────────────────────────────────────
+   iOS HIG + Material both require 44×44 minimum tap targets. .btn-xs and
+   the tiny chip-style buttons were below that. Bump padding on touch
+   without affecting desktop density. */
+@media (pointer:coarse){
+  .btn-xs{padding:8px 10px !important;min-height:36px}
+  .btn-sm{padding:10px 12px !important;min-height:40px}
+  .mat-combo-rowbtn{width:36px !important;height:36px !important;font-size:14px !important}
+  .ev-file-chip,.ev-sig-badge,.ev-retention{padding:6px 9px !important;font-size:11px !important;min-height:28px;display:inline-flex;align-items:center}
+}
+
+/* ── Visible :active state for touch devices ──────────────────────────
+   Without :hover, users need a visual cue the tap registered. */
+@media (pointer:coarse){
+  button:active,.btn:active,.tab:active,.bb-btn:active,
+  [onclick]:active{transform:scale(.97);transition:transform .05s}
+}
+
+/* ── Save indicator — bump contrast so phone users see "Saving…" — keep
+   the JS-driven state colors (orange dirty, gray saving, green saved, red error),
+   just make the weight bolder and font slightly larger on phones. */
+#saveIndicator{font-weight:700 !important;letter-spacing:.2px}
+@media (max-width:500px){
+  #saveIndicator{font-size:11px !important;padding:2px 8px !important;border-radius:4px;background:rgba(255,255,255,.04)}
 }

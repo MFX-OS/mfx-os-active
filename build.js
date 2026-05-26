@@ -176,6 +176,7 @@ function patchSW(coreFilename, chunkBuilds) {
   const newAssets = `var STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/offline.html',
   '/css/theme.css',
   '/js/${coreFilename}',
 ${chunkLines}
