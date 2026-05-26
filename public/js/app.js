@@ -1363,8 +1363,11 @@ return h})()}
 <div class="row2"><div class="fg"><label>Coating / Varnish</label><div class="mat-picker mat-suggest-wrap"><input data-field="coating" id="ed-coat" autocomplete="off" placeholder="Type a name, or click Browse →" oninput="matSuggestFilter('coating')" onkeydown="matSuggestKey(event,'coating')" onblur="matSuggestBlur('coating')" onchange="renderMatDetail('coating');asave()"><button type="button" class="mat-picker-btn" onclick="openMatPicker('coating')">🔍 Browse</button><div class="mat-suggest" id="sug-coating" role="listbox"></div></div><div class="mat-detail" id="detail-coating"></div></div><div class="fg"><label>Other</label><input data-field="otherMat" list="ed-other-dl" autocomplete="off" placeholder="Type to search…" value="${f.otherMat||''}" oninput="asave()"><datalist id="ed-other-dl">${['NA','CUSTOM'].map(o=>`<option value="${o}">`).join('')}</datalist></div></div>
 <div class="fg"><label>Notes <span style="font-weight:400;color:var(--tx3)">(custom per quote)</span></label><textarea data-field="notes" placeholder="Add any job-specific notes here..." oninput="asave()">${f.notes}</textarea></div>
 <div class="fg"><label>Custom Note for PDF <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label><textarea data-field="customNote" placeholder="Customer requested expedited delivery..." oninput="asave()">${f.customNote||''}</textarea></div>
-<div class="fg"><label>Note Tags <span style="font-weight:400;color:var(--tx3)">(shown on quote)</span></label>
-<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${['Print-Ready Art','Digital Proof','Roll Pack-Out','FDA Compliant','Press Proof','Custom Core','PMS Match','Stability Test'].map(function(t){return '<label style="display:flex;align-items:center;gap:3px;padding:4px 8px;background:var(--bg3);border-radius:4px;font-size:10px;cursor:pointer"><input type="checkbox" data-tag="'+t+'" '+(((f.notesTags||[]).indexOf(t)>-1)?'checked':'')+' onchange="toggleNoteTag(this)">'+t+'</label>'}).join('')}</div></div>
+<!-- Note Tags section removed per user request (2026-05-25). Existing
+     notesTags data on saved quotes still renders on the PDF (see
+     modules.js:299), but the editor checkbox grid is gone. toggleNoteTag()
+     in modules.js remains as a no-op-safe shim in case any legacy caller
+     still references it. -->
 </div></div></div>
 
 <div class="epane ${S.etab===3?'active':''}" id="ep-pricing">
@@ -1393,10 +1396,13 @@ return h})()}
 <div class="var-row"><span class="var-lbl">Die Charge</span><input class="var-inp" data-field="dieChg" type="number" value="${f.dieChg}" oninput="asave()"><span class="var-unit">$</span></div>
 <div class="var-row"><span class="var-lbl">Shipping (Est.)</span><input class="var-inp" data-field="shipping" type="number" value="${f.shipping||''}" oninput="asave()"><span class="var-unit">$</span></div>
 <div class="var-row"><span class="var-lbl">Plate Cost</span><input class="var-inp" data-field="plCost" type="number" value="${f.plCost}" oninput="asave()"><span class="var-unit">$</span></div>
-<div class="vsec">PDF Display Options <span style="font-size:8px;color:var(--tx3)">Toggle what clients see on quote — all data still recorded internally</span></div>
-<div class="var-row"><span class="var-lbl">Show Setup Costs</span><label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-field="showSetupOnPDF" ${f.showSetupOnPDF?'checked':''} onchange="asave()"><span style="font-size:10px;color:var(--tx3)">Include per-SKU setup breakdown on PDF</span></label></div>
-<div class="var-row"><span class="var-lbl">Show Shipping</span><label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-field="showShippingOnPDF" ${f.showShippingOnPDF?'checked':''} onchange="asave()"><span style="font-size:10px;color:var(--tx3)">Show shipping estimate on PDF</span></label></div>
-<div class="var-row"><span class="var-lbl">Show Plate Cost</span><label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-field="showPlateOnPDF" ${f.showPlateOnPDF?'checked':''} onchange="asave()"><span style="font-size:10px;color:var(--tx3)">Show plate/die charges on PDF</span></label></div>
+<div class="vsec">PDF Display Options</div>
+<div style="font-size:9px;color:var(--tx3);margin:-2px 0 8px;line-height:1.4">Toggle what clients see on the quote PDF. All values stay recorded internally.</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--tx);transition:all .15s" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bdr)'"><input type="checkbox" data-field="showSetupOnPDF" ${f.showSetupOnPDF?'checked':''} onchange="asave()" style="margin:0;flex-shrink:0">Setup costs</label>
+<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--tx);transition:all .15s" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bdr)'"><input type="checkbox" data-field="showShippingOnPDF" ${f.showShippingOnPDF?'checked':''} onchange="asave()" style="margin:0;flex-shrink:0">Shipping</label>
+<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--tx);transition:all .15s" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bdr)'"><input type="checkbox" data-field="showPlateOnPDF" ${f.showPlateOnPDF?'checked':''} onchange="asave()" style="margin:0;flex-shrink:0">Plate / die</label>
+</div>
 <div class="vsec">Sales Commission</div>
 <div class="var-row"><span class="var-lbl">Rep %</span><input class="var-inp hi" data-field="repPct" type="number" value="${f.repPct||0}" step="0.5" oninput="asave()"><span class="var-unit">%</span></div>
 <div class="cbox" id="priceBox"></div></div></div>
