@@ -1333,15 +1333,23 @@ function buildSOPrintHTML(so){
   var statusColor={'pending':'#f59e0b','approved':'#16a34a','sent':'#00bcd4','completed':'#16a34a','cancelled':'#dc2626'}[so.status]||'#94a3b0';
   var statusLabel=(so.status||'pending').toUpperCase();
 
-  // Production timeline stages
-  var stages=[
-    {k:'created',l:'SO Created',done:!!so.createdAt,at:so.createdAt},
-    {k:'approved',l:'CEO Approved',done:!!so.approvedAt,at:so.approvedAt},
-    {k:'sent',l:'Sent to Client',done:!!so.sentAt,at:so.sentAt},
-    {k:'signed',l:'Client Signed',done:!!so.clientSignedAt,at:so.clientSignedAt},
-    {k:'production',l:'In Production',done:so.status==='completed'||!!so.productionStartedAt,at:so.productionStartedAt},
-    {k:'shipped',l:'Shipped',done:!!so.shippedAt,at:so.shippedAt}
-  ];
+  // Helper for section headers — numbered per SOA spec
+  var _section=function(num,title,color){
+    color=color||'#00BCD4';
+    return '<div style="padding:14px 24px 8px 24px;border-top:1px solid #e8ecf0">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +'<span style="background:'+color+';color:#fff;font-size:9px;font-weight:900;padding:3px 8px;border-radius:3px;letter-spacing:1px">'+num+'</span>'
+      +'<span style="font-size:10px;color:'+color+';font-weight:800;letter-spacing:2px;text-transform:uppercase">'+title+'</span>'
+      +'</div></div>';
+  };
+  // Helper for a labelled cell
+  var _field=function(label,value,opts){
+    opts=opts||{};
+    return '<div style="'+(opts.style||'')+'">'
+      +'<div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px">'+esc(label)+'</div>'
+      +'<div style="font-size:'+(opts.size||10)+'px;font-weight:'+(opts.weight||'700')+';color:#0a2030;line-height:1.4">'+(value==null||value===''?'<span style="color:#cbd5e1;font-weight:500">—</span>':esc(String(value)))+'</div>'
+      +'</div>';
+  };
 
   return '<div style="max-width:800px;margin:0 auto;font-family:Outfit,Arial,sans-serif;background:#fff;color:#0a2030">'
 
@@ -1382,98 +1390,172 @@ function buildSOPrintHTML(so){
     +'</div>'
     +'</div></div>'
 
-    // ═══ BILL TO / SHIP TO / CONTACT — 3-column ═══
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid #e8ecf0">'
-    // BILL TO
-    +'<div style="padding:12px 16px;border-right:1px solid #edf0f2">'
-    +'<div style="font-size:7px;color:#00BCD4;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:4px">'
-    +'<span style="display:inline-block;width:12px;height:1.5px;background:#00BCD4"></span>Bill To</div>'
-    +'<div style="font-size:12px;font-weight:800;color:#0a2030;line-height:1.3">'+esc(so.company||'—')+'</div>'
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 1 — CUSTOMER & COMPANY INFORMATION
+    // ═══════════════════════════════════════════════════════════════
+    +_section('1','Customer & Company Information','#00BCD4')
+    // Microflex (printer) + Bill To / Ship To / CSR rep — 4-col grid
+    +'<div style="padding:0 24px 12px 24px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">'
+    // Printer (Microflex)
+    +'<div style="border-left:3px solid #00BCD4;padding-left:10px">'
+    +'<div style="font-size:8px;color:#00BCD4;font-weight:800;letter-spacing:1.5px;margin-bottom:4px">PRINTER</div>'
+    +'<div style="font-size:11px;font-weight:800;color:#0a2030">Microflex Film Corp.</div>'
+    +'<div style="font-size:9px;color:#555;line-height:1.5;margin-top:3px">4130 Garner Rd<br>Riverside, CA 92501</div>'
+    +'<div style="font-size:9px;color:#00838f;margin-top:2px">(909) 360-9066</div>'
+    +'<div style="font-size:9px;color:#00838f">Orders@MicroflexFilm.com</div>'
+    +(so.taxId?'<div style="font-size:8px;color:#94a3b0;margin-top:3px">Tax ID: '+esc(so.taxId)+'</div>':'')
+    +'</div>'
+    // Bill To
+    +'<div style="border-left:3px solid #16a34a;padding-left:10px">'
+    +'<div style="font-size:8px;color:#16a34a;font-weight:800;letter-spacing:1.5px;margin-bottom:4px">BILL TO</div>'
+    +'<div style="font-size:11px;font-weight:800;color:#0a2030">'+esc(so.company||'—')+'</div>'
     +'<div style="font-size:9px;color:#555;line-height:1.5;margin-top:3px">'+esc(so.contact||'')+'</div>'
-    +'<div style="font-size:9px;color:#00838f;line-height:1.5">'+esc(so.email||'')+'</div>'
-    +'<div style="font-size:9px;color:#555;line-height:1.5">'+esc(so.phone||'')+'</div>'
+    +'<div style="font-size:9px;color:#00838f">'+esc(so.email||'')+'</div>'
+    +'<div style="font-size:9px;color:#555">'+esc(so.phone||'')+'</div>'
+    +(so.billToAddress?'<div style="font-size:9px;color:#555;margin-top:3px;white-space:pre-wrap">'+esc(so.billToAddress)+'</div>':'')
     +'</div>'
-    // SHIP TO
-    +'<div style="padding:12px 16px;border-right:1px solid #edf0f2;background:#fafcfd">'
-    +'<div style="font-size:7px;color:#ea580c;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:4px">'
-    +'<span style="display:inline-block;width:12px;height:1.5px;background:#ea580c"></span>Ship To</div>'
+    // Ship To
+    +'<div style="border-left:3px solid #ea580c;padding-left:10px">'
+    +'<div style="font-size:8px;color:#ea580c;font-weight:800;letter-spacing:1.5px;margin-bottom:4px">SHIP TO</div>'
     +'<div style="font-size:10px;color:#0a2030;font-weight:700;line-height:1.5;white-space:pre-wrap">'+esc(so.shipTo||so.company||'—')+'</div>'
+    +'<div style="font-size:8px;color:#94a3b0;margin-top:6px">PO #</div>'
+    +'<div style="font-size:11px;font-weight:800;color:#0a2030">'+esc(so.poNumber||'—')+'</div>'
     +'</div>'
-    // SOLD BY
-    +'<div style="padding:12px 16px">'
-    +'<div style="font-size:7px;color:#16a34a;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:4px">'
-    +'<span style="display:inline-block;width:12px;height:1.5px;background:#16a34a"></span>Sold By</div>'
-    +'<div style="font-size:10px;font-weight:700;color:#0a2030">'+esc(so.estimator||'—')+'</div>'
-    +(so.salesRep?'<div style="font-size:9px;color:#555;margin-top:2px">Sales Rep: '+esc(so.salesRep)+'</div>':'')
-    +'<div style="font-size:9px;color:#00838f;margin-top:2px">Orders@MicroflexFilm.com</div>'
+    // CSR / Prepress Rep
+    +'<div style="border-left:3px solid #a855f7;padding-left:10px">'
+    +'<div style="font-size:8px;color:#a855f7;font-weight:800;letter-spacing:1.5px;margin-bottom:4px">CSR / PREPRESS REP</div>'
+    +'<div style="font-size:10px;font-weight:700;color:#0a2030">'+esc(so.csrName||so.estimator||'—')+'</div>'
+    +(so.csrEmail||so.estimator?'<div style="font-size:9px;color:#00838f;margin-top:2px">'+esc(so.csrEmail||'Orders@MicroflexFilm.com')+'</div>':'')
+    +(so.csrPhone?'<div style="font-size:9px;color:#555">'+esc(so.csrPhone)+'</div>':'')
+    +(so.salesRep?'<div style="font-size:8px;color:#94a3b0;margin-top:4px">Sales Rep</div><div style="font-size:9px;font-weight:700;color:#0a2030">'+esc(so.salesRep)+'</div>':'')
     +'</div>'
     +'</div>'
 
-    // ═══ ORDER ITEM — big confirmation block (different from quote's pricing matrix) ═══
-    +'<div style="padding:16px 24px;background:#f7fafc">'
-    +'<div style="font-size:8px;color:#00BCD4;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Confirmed Order</div>'
-
-    // Job description card
-    +'<div style="background:#fff;border:1px solid #e8ecf0;border-left:4px solid #00e5ff;border-radius:6px;padding:12px 14px;margin-bottom:10px">'
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 2 — JOB SPECIFICATIONS & TECHNICAL DETAILS
+    // ═══════════════════════════════════════════════════════════════
+    +_section('2','Job Specifications & Technical Details','#0ea5e9')
+    +'<div style="padding:0 24px 12px 24px">'
+    // Item & description card
+    +'<div style="background:#fff;border:1px solid #e8ecf0;border-left:4px solid #0ea5e9;border-radius:6px;padding:12px 14px;margin-bottom:10px">'
+    +'<div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px">Item & Description</div>'
     +'<div style="font-size:13px;font-weight:800;color:#0a2030;line-height:1.3">'+esc(so.jobDesc||'—')+'</div>'
-    // Spec chips
     +'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">'
     +(so.sizeA||so.sizeB?'<span style="background:#d9f99d;color:#365314;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">SIZE '+esc(so.sizeA||'?')+'" × '+esc(so.sizeB||'?')+'"</span>':'')
     +(so.shapeType?'<span style="background:#bfdbfe;color:#1e3a8a;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">SHAPE '+esc(so.shapeType)+'</span>':'')
     +(so.colors?'<span style="background:#fde68a;color:#78350f;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">COLORS '+esc(String(so.colors))+'</span>':'')
     +(so.jobType?'<span style="background:#c7d2fe;color:#3730a3;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">'+esc(so.jobType.toUpperCase())+'</span>':'')
-    +(so.face||so.faceStock?'<span style="background:#fed7aa;color:#7c2d12;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">FACE '+esc(so.face||so.faceStock)+'</span>':'')
-    +(so.laminate||so.lamination?'<span style="background:#fed7aa;color:#7c2d12;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">LAM '+esc(so.laminate||so.lamination)+'</span>':'')
-    +(so.adhesive?'<span style="background:#fed7aa;color:#7c2d12;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">ADH '+esc(so.adhesive)+'</span>':'')
-    +(so.coating?'<span style="background:#fed7aa;color:#7c2d12;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">COAT '+esc(so.coating)+'</span>':'')
-    +(so.windDir?'<span style="background:#e9d5ff;color:#581c87;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">WIND '+esc(so.windDir)+'</span>':'')
-    +(so.labRoll?'<span style="background:#bbf7d0;color:#14532d;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">'+esc(String(so.labRoll))+'/ROLL</span>':'')
+    +(so.gauge||so.thickness?'<span style="background:#bae6fd;color:#075985;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">'+esc(so.gauge||so.thickness)+' MIL</span>':'')
     +'</div>'
     +(skuRows?'<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #e8ecf0">'+skuRows+'</div>':'')
     +'</div>'
+    // Material structure + quantity / overrun
+    +'<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-bottom:10px">'
+    +'<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px">'
+    +'<div style="font-size:7px;color:#c2410c;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">MATERIAL STRUCTURE</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px">'
+    +_field('Face Stock',so.face||so.faceStock,{size:10})
+    +_field('Lamination',so.laminate||so.lamination,{size:10})
+    +_field('Adhesive',so.adhesive,{size:10})
+    +_field('Coating',so.coating,{size:10})
+    +(so.liner?_field('Liner',so.liner,{size:10}):'')
+    +(so.materialStructure?'<div style="grid-column:1/-1">'+_field('Structure',so.materialStructure,{size:10})+'</div>':'')
+    +'</div></div>'
+    +'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px">'
+    +'<div style="font-size:7px;color:#15803d;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">QUANTITY & TOLERANCE</div>'
+    +'<div style="font-size:18px;font-weight:900;color:#0a2030;line-height:1">'+_fN(confQty)+'</div>'
+    +'<div style="font-size:9px;color:#15803d;font-weight:700;margin-top:2px">units ordered</div>'
+    +'<div style="font-size:8px;color:#64748b;margin-top:6px">Over/Under-run allowance:</div>'
+    +'<div style="font-size:11px;font-weight:800;color:#0a2030">±'+esc(so.overUnderPct||'10')+'% (industry standard)</div>'
+    +'</div></div>'
+    // Artwork details
+    +'<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;padding:10px 12px">'
+    +'<div style="font-size:7px;color:#7c3aed;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">ARTWORK DETAILS</div>'
+    +'<div style="display:grid;grid-template-columns:2fr 1fr 2fr;gap:8px 14px">'
+    +_field('File Name',so.artworkFileName||(so.artFiles&&so.artFiles[0]&&so.artFiles[0].name)||null,{size:10})
+    +_field('Version',so.artworkVersion,{size:10})
+    +_field('PMS / CMYK Colors',so.pmsColors,{size:10})
+    +'</div>'
+    +(so.windDir||so.labRoll||so.gussetType||so.zipperType||so.tearNotch?'<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #ddd6fe;display:flex;flex-wrap:wrap;gap:4px">'
+      +(so.windDir?'<span style="background:#e9d5ff;color:#581c87;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">WIND '+esc(so.windDir)+'</span>':'')
+      +(so.labRoll?'<span style="background:#e9d5ff;color:#581c87;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">'+esc(String(so.labRoll))+'/ROLL</span>':'')
+      +(so.gussetType?'<span style="background:#e9d5ff;color:#581c87;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">GUSSET '+esc(so.gussetType)+'</span>':'')
+      +(so.zipperType?'<span style="background:#e9d5ff;color:#581c87;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">ZIPPER '+esc(so.zipperType)+'</span>':'')
+      +(so.tearNotch?'<span style="background:#e9d5ff;color:#581c87;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">TEAR NOTCH</span>':'')
+      +(so.degassingValve?'<span style="background:#e9d5ff;color:#581c87;font-size:8px;font-weight:700;padding:2px 8px;border-radius:3px">DEGAS VALVE</span>':'')
+      +'</div>':'')
+    +'</div>'
+    +'</div>'
 
-    // Confirmed Qty / PPU / Total — HERO block (signature SO layout)
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 3 — PROOFING & SETUP PARAMETERS
+    // ═══════════════════════════════════════════════════════════════
+    +_section('3','Proofing & Setup Parameters','#f59e0b')
+    +'<div style="padding:0 24px 12px 24px">'
+    +'<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 14px">'
+    +_field('Proofing Type',so.proofingType||'Digital PDF Proof',{size:10})
+    +_field('Approval Deadline',so.approvalDeadline?_fD(so.approvalDeadline):null,{size:10})
+    +_field('Required In-Hand',so.poRequiredDate?_fD(so.poRequiredDate):null,{size:10})
+    +'</div>'
+    +'</div>'
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 4 — FINANCIALS & PRICING
+    // ═══════════════════════════════════════════════════════════════
+    +_section('4','Financials & Pricing','#0a2e3e')
+    +'<div style="padding:0 24px 14px 24px">'
+    // Hero (Qty / PPU / Total)
     +'<div style="display:grid;grid-template-columns:1.2fr 1fr 1.3fr;gap:0;background:#0a2e3e;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(10,46,62,.15)">'
     +'<div style="padding:14px 16px;text-align:center;border-right:1px solid #1a4a5f">'
     +'<div style="font-size:7px;color:#00e5ff;font-weight:800;letter-spacing:2px;margin-bottom:2px">QUANTITY</div>'
     +'<div style="font-size:22px;font-weight:900;color:#fff;line-height:1">'+_fN(confQty)+'</div>'
-    +'<div style="font-size:8px;color:#7ec6d1;margin-top:2px">units</div>'
     +'</div>'
     +'<div style="padding:14px 16px;text-align:center;border-right:1px solid #1a4a5f">'
     +'<div style="font-size:7px;color:#00e5ff;font-weight:800;letter-spacing:2px;margin-bottom:2px">PRICE / UNIT</div>'
     +'<div style="font-size:16px;font-weight:900;color:#fff;line-height:1">$'+(confPPU||0).toFixed(4)+'</div>'
     +'</div>'
     +'<div style="padding:14px 16px;text-align:center;background:linear-gradient(135deg,#00e5ff 0%,#00bcd4 100%)">'
-    +'<div style="font-size:7px;color:#0a2e3e;font-weight:800;letter-spacing:2px;margin-bottom:2px">ORDER TOTAL</div>'
+    +'<div style="font-size:7px;color:#0a2e3e;font-weight:800;letter-spacing:2px;margin-bottom:2px">GRAND TOTAL</div>'
     +'<div style="font-size:22px;font-weight:900;color:#0a2e3e;line-height:1">'+_f$(confTotal)+'</div>'
     +(so.payTerms?'<div style="font-size:8px;color:#0a2e3e;margin-top:2px;font-weight:700">'+esc(so.payTerms)+'</div>':'')
     +'</div>'
     +'</div>'
-
-    // Pricing ladder (if multiple qtys)
+    // Itemized Costs (only if any are set)
+    +((so.plateFee||so.dieFee||so.setupFee||so.designCharge||so.taxAmount)?'<div style="margin-top:10px;background:#fff;border:1px solid #e8ecf0;border-radius:6px;overflow:hidden">'
+      +'<div style="padding:6px 10px;background:#fafcfd;border-bottom:1px solid #e8ecf0;font-size:7px;color:#94a3b0;font-weight:800;letter-spacing:2px">ITEMIZED COSTS</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:10px">'
+      +(so.plateFee?'<tr><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#555">Plates / Tooling</td><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;text-align:right;color:#0a2030;font-weight:700">'+_f$(so.plateFee)+'</td></tr>':'')
+      +(so.dieFee?'<tr><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#555">Die / Cutting</td><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;text-align:right;color:#0a2030;font-weight:700">'+_f$(so.dieFee)+'</td></tr>':'')
+      +(so.setupFee?'<tr><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#555">Setup / Make-Ready</td><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;text-align:right;color:#0a2030;font-weight:700">'+_f$(so.setupFee)+'</td></tr>':'')
+      +(so.designCharge?'<tr><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#555">Design / Art</td><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;text-align:right;color:#0a2030;font-weight:700">'+_f$(so.designCharge)+'</td></tr>':'')
+      +(so.taxAmount?'<tr><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#555">Tax</td><td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;text-align:right;color:#0a2030;font-weight:700">'+_f$(so.taxAmount)+'</td></tr>':'')
+      +'</table></div>':'')
+    // Pricing ladder
     +(ladderRows?'<div style="margin-top:10px;background:#fff;border:1px solid #e8ecf0;border-radius:6px;overflow:hidden">'
       +'<div style="padding:6px 10px;background:#fafcfd;border-bottom:1px solid #e8ecf0;font-size:7px;color:#94a3b0;font-weight:800;letter-spacing:2px">PRICING LADDER</div>'
       +'<table style="width:100%;border-collapse:collapse">'
       +'<tr style="background:#f7fafc"><th style="padding:5px 10px;font-size:7px;color:#94a3b0;font-weight:800;text-align:left;letter-spacing:1.5px">QTY</th><th style="padding:5px 10px;font-size:7px;color:#94a3b0;font-weight:800;text-align:right;letter-spacing:1.5px">PRICE/UNIT</th><th style="padding:5px 10px;font-size:7px;color:#94a3b0;font-weight:800;text-align:right;letter-spacing:1.5px">TOTAL</th></tr>'
       +ladderRows+'</table></div>':'')
+    // Payment terms strip
+    +'<div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'
+    +_field('Payment Terms',so.payTerms||'Net 30',{size:11,style:'background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:8px 10px'})
+    +_field('Deposit Required',so.depositRequired?_f$(so.depositAmount||0):'None',{size:11,style:'background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:8px 10px'})
+    +_field('Preferred Method',so.paymentMethod,{size:11,style:'background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:8px 10px'})
+    +'</div>'
+    +'</div>'
 
-    +'</div>' // /Confirmed Order section
-
-    // ═══ PRODUCTION TIMELINE (unique to SO) ═══
-    +'<div style="padding:14px 24px;border-top:1px solid #e8ecf0">'
-    +'<div style="font-size:8px;color:#00BCD4;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Order Lifecycle</div>'
-    +'<div style="display:flex;justify-content:space-between;position:relative">'
-    +'<div style="position:absolute;top:11px;left:8%;right:8%;height:2px;background:#e8ecf0;z-index:0"></div>'
-    +stages.map(function(s){
-      var bg=s.done?'#16a34a':'#e8ecf0';
-      var color=s.done?'#fff':'#94a3b0';
-      return '<div style="flex:1;text-align:center;position:relative;z-index:1">'
-        +'<div style="width:22px;height:22px;border-radius:50%;background:'+bg+';color:'+color+';display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;border:2px solid #fff">'+(s.done?'✓':'○')+'</div>'
-        +'<div style="font-size:7px;color:'+(s.done?'#16a34a':'#94a3b0')+';font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.5px">'+s.l+'</div>'
-        +(s.done&&s.at?'<div style="font-size:6px;color:#94a3b0;margin-top:1px">'+_fD(s.at)+'</div>':'')
-        +'</div>';
-    }).join('')
-    +'</div></div>'
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 5 — FULFILLMENT & LOGISTICS
+    // ═══════════════════════════════════════════════════════════════
+    +_section('5','Fulfillment & Logistics','#16a34a')
+    +'<div style="padding:0 24px 14px 24px">'
+    +'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px 14px">'
+    +_field('Lead Time',so.leadTimeDays?(so.leadTimeDays+' business days from artwork approval'):'10–15 business days',{size:10})
+    +_field('Estimated Ship Date',so.estimatedShipDate?_fD(so.estimatedShipDate):null,{size:10})
+    +_field('Shipping Method',so.shippingMethod||so.shippingCarrier,{size:10})
+    +_field('FOB Terms',so.fobTerms,{size:10})
+    +'</div>'
+    +'</div>'
 
     // ═══ INSTRUCTIONS + DEPOSIT (side by side) ═══
     +(so.poInstructions||so.depositRequired?'<div style="display:flex;gap:0;border-top:1px solid #e8ecf0">'
@@ -1487,7 +1569,24 @@ function buildSOPrintHTML(so){
         +'</div>':'')
       +'</div>':'')
 
-    // ═══ APPROVAL & SIGNATURES ═══
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 6 — TERMS & CONDITIONS · SIGNATURES
+    // ═══════════════════════════════════════════════════════════════
+    +_section('6','Terms & Conditions','#dc2626')
+    // Disclaimer block
+    +'<div style="padding:0 24px 12px 24px">'
+    +'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px 12px;font-size:9px;color:#7f1d1d;line-height:1.6">'
+    +'<strong style="color:#991b1b">This Sales Order is binding</strong> upon CEO approval and client signature, and is governed by Microflex Film Corporation\'s standard Terms & Conditions. '
+    +'Payment terms: <strong>'+esc(so.payTerms||'Net 30')+'</strong>. '
+    +'Standard industry over/under-run tolerance of <strong>±'+esc(so.overUnderPct||'10')+'%</strong> applies. '
+    +'Color variance up to ΔE 3.0 between proof and press is industry-acceptable. '
+    +'Production begins after deposit (if required), approved art files, and final specs are received. '
+    +'Cancellations after approval are subject to charges for incurred costs. '
+    +'Claims must be filed within 30 days of receipt. '
+    +'All plates, dies, and tooling remain Microflex property until paid in full. '
+    +'Full terms at <span style="text-decoration:underline">MicroflexFilm.com/Terms</span>.'
+    +'</div></div>'
+    // Signature blocks
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid #e8ecf0">'
     // CEO Approval block
     +'<div style="padding:14px 24px;border-right:1px solid #e8ecf0;background:'+(so.approvedBy?'#f0fdf4':'#fafcfd')+'">'
@@ -1496,7 +1595,7 @@ function buildSOPrintHTML(so){
       +'<div style="font-size:9px;color:#16a34a;margin-top:2px;font-weight:700">✓ APPROVED '+_fD(so.approvedAt)+'</div>'
       :'<div style="font-size:10px;color:#94a3b0;font-style:italic">Pending CEO approval</div>'
       +'<div style="border-bottom:1.5px solid #cbd5e1;margin-top:18px;width:70%"></div>'
-      +'<div style="font-size:6px;color:#94a3b0;margin-top:2px">Signature</div>')
+      +'<div style="font-size:6px;color:#94a3b0;margin-top:2px">Signature · Date</div>')
     +'</div>'
     // Client signature block
     +'<div style="padding:14px 24px;background:'+(so.clientSignature?'#f0fdf4':'#fafcfd')+'">'
@@ -1508,18 +1607,6 @@ function buildSOPrintHTML(so){
       +'<div style="font-size:6px;color:#94a3b0;margin-top:2px">Signature · Date</div>')
     +'</div>'
     +'</div>'
-
-    // ═══ TERMS FOOTER ═══
-    +'<div style="padding:10px 24px;background:#f7fafc;border-top:1px solid #e8ecf0">'
-    +'<div style="font-size:6px;color:#94a3b0;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Terms & Conditions</div>'
-    +'<div style="font-size:7px;color:#64748b;line-height:1.6">'
-    +'This Sales Order confirms production commitment upon CEO approval and client signature. '
-    +'Payment terms: '+esc(so.payTerms||'Net 30')+'. '
-    +'Standard industry overrun/underrun tolerance of ±10% applies. '
-    +'Production begins after deposit (if required), approved art files, and final specs are received. '
-    +'Changes after approval may incur additional charges and delay delivery. '
-    +'All materials remain Microflex property until payment in full is received.'
-    +'</div></div>'
 
     // ═══ BOTTOM NAVY BAR ═══
     +'<div style="padding:6px 24px;background:#0a2e3e;text-align:center">'
