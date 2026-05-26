@@ -1195,9 +1195,28 @@ function loadMessages(){
     snap.docs.forEach(function(doc){
       var m=doc.data();
       var isClient=m.from==='client';
+      var isSystem=m.from==='system';
       var div=document.createElement('div');
-      div.className='msg '+(isClient?'client':'mfx');
-      div.innerHTML='<div class="msg-meta"><b>'+escPortal(m.name)+'</b> · '+(isClient?'Client':'Microflex')+' · '+(m.timestamp?new Date(m.timestamp.toDate()).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'')+'</div>'+escPortal(m.text);
+      div.className='msg '+(isSystem?'system':(isClient?'client':'mfx'));
+      var who=isSystem?'System':(isClient?'Client':'Microflex');
+      var time=m.timestamp?new Date(m.timestamp.toDate()).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
+      if(isSystem){
+        // Compact, distinct rendering for automated events (file drops, signing, etc.)
+        div.style.cssText='background:rgba(0,229,255,.06);border:1px dashed rgba(0,229,255,.3);border-radius:6px;padding:8px 12px;margin:6px 0;font-size:11px;color:var(--sub)';
+        div.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1.5px;margin-bottom:3px">SYSTEM · '+escPortal(time)+'</div>'+escPortal(m.text);
+        // If it's a folder_drop, render file names as a compact list
+        if(m.type==='folder_drop'&&Array.isArray(m.fileNames)&&m.fileNames.length){
+          var list='<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">';
+          m.fileNames.slice(0,8).forEach(function(n){
+            list+='<span style="background:rgba(0,229,255,.1);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:3px">📄 '+escPortal(n)+'</span>';
+          });
+          if(m.fileNames.length>8)list+='<span style="font-size:10px;color:var(--sub);padding:2px 4px">+'+(m.fileNames.length-8)+' more</span>';
+          list+='</div>';
+          div.innerHTML+=list;
+        }
+      }else{
+        div.innerHTML='<div class="msg-meta"><b>'+escPortal(m.name)+'</b> · '+who+' · '+escPortal(time)+'</div>'+escPortal(m.text);
+      }
       el.appendChild(div);
     });
     el.scrollTop=el.scrollHeight;

@@ -3507,6 +3507,186 @@ exports.scheduledSendOutstandingReminders = onSchedule(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════
+// PORTAL DRIVE FOLDER — file-drop detection + comms
+// When clients use the >50MB Drive-folder drop link, files appear in
+// Drive but not in our Firestore quote record. This cron polls each
+// shared folder, syncs newly-arrived files to quote.poFiles[] /
+// quote.artFiles[], posts a portalMessage so the comms thread shows
+// the activity, and notifies internal sales/ops.
+// ═══════════════════════════════════════════════════════════════════
+
+async function listFolderFiles(drive, folderId) {
+  if (!folderId) return [];
+  const q = `'${folderId}' in parents and trashed=false`;
+  const r = await drive.files.list({
+    q,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    corpora: "allDrives",
+    fields: "files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,owners(emailAddress,displayName))",
+    pageSize: 200,
+    orderBy: "createdTime"
+  });
+  return r.data.files || [];
+}
+
+// Whether a Drive file looks like a client-uploaded artifact (vs created
+// internally via uploadToDrive). We treat the folder's known file ID set
+// as the source of truth; anything new = client added it.
+async function syncFolderFilesForQuote(drive, quoteId, quoteData, folderKind /* 'PO' | 'Art' */) {
+  const folderObj = folderKind === "PO" ? quoteData.poUploadFolder : quoteData.artUploadFolder;
+  if (!folderObj || !folderObj.folderId) return { added: 0, files: [] };
+  const folderId = folderObj.folderId;
+
+  // Build a set of file IDs we already know about (from the array of files
+  // already on the quote + any IDs we explicitly tracked on the folder obj).
+  const existingArr = folderKind === "PO" ? (quoteData.poFiles || []) : (quoteData.artFiles || []);
+  const knownIds = new Set();
+  for (const f of existingArr) {
+    if (f && f.driveId) knownIds.add(f.driveId);
+  }
+  for (const id of (folderObj.knownFileIds || [])) knownIds.add(id);
+
+  const driveFiles = await listFolderFiles(drive, folderId);
+  const newFiles = driveFiles.filter(f => !knownIds.has(f.id));
+  if (newFiles.length === 0) return { added: 0, files: [] };
+
+  const toAppend = newFiles.map(f => ({
+    name: f.name,
+    url: f.webViewLink || `https://drive.google.com/file/d/${f.id}`,
+    driveId: f.id,
+    driveLink: f.webViewLink || `https://drive.google.com/file/d/${f.id}`,
+    uploadedAt: f.createdTime || nowIso(),
+    skuIndex: null,
+    viaSharedFolder: true,
+    uploadedByEmail: (f.owners && f.owners[0] && f.owners[0].emailAddress) || null,
+    sizeBytes: f.size ? Number(f.size) : null
+  }));
+
+  const updates = {
+    updatedAt: nowIso()
+  };
+  if (folderKind === "PO") {
+    updates.poFiles = (quoteData.poFiles || []).concat(toAppend);
+    updates["poUploadFolder.knownFileIds"] = Array.from(knownIds).concat(newFiles.map(f => f.id));
+    updates["poUploadFolder.lastSyncedAt"] = nowIso();
+  } else {
+    updates.artFiles = (quoteData.artFiles || []).concat(toAppend);
+    updates["artUploadFolder.knownFileIds"] = Array.from(knownIds).concat(newFiles.map(f => f.id));
+    updates["artUploadFolder.lastSyncedAt"] = nowIso();
+  }
+  await db.collection("quotes").doc(quoteId).update(updates);
+  return { added: newFiles.length, files: toAppend };
+}
+
+// Post a portalMessages entry so the client + staff see the activity in
+// the comms thread. Server-written with from='system'.
+async function postFolderDropPortalMessage(quoteId, folderKind, addedFiles) {
+  const names = addedFiles.map(f => f.name).slice(0, 5).join(", ");
+  const more = addedFiles.length > 5 ? ` (+${addedFiles.length - 5} more)` : "";
+  const noun = addedFiles.length === 1 ? "file" : "files";
+  const text = `📎 ${addedFiles.length} new ${folderKind} ${noun} added to your shared Drive folder: ${names}${more}`;
+  await db.collection("quotes").doc(quoteId).collection("portalMessages").add({
+    text,
+    name: "Microflex",
+    from: "system",
+    type: "folder_drop",
+    folderKind,
+    fileCount: addedFiles.length,
+    fileNames: addedFiles.map(f => f.name),
+    timestamp: FieldValue.serverTimestamp()
+  });
+}
+
+// Post internal notification so sales/ops sees the client activity.
+async function postFolderDropInternalNotif(quoteId, quoteData, folderKind, addedFiles) {
+  const company = (quoteData.fields && quoteData.fields.custCo) || "Client";
+  const quoteNum = quoteData.quoteNum || quoteId;
+  const noun = addedFiles.length === 1 ? "file" : "files";
+  const mgmtSnap = await db.collection("users")
+    .where("role", "in", ["CEO", "ceo", "Admin", "admin", "Operations Manager", "Sales", "sales"]).limit(8).get();
+  if (mgmtSnap.empty) return;
+  const batch = db.batch();
+  mgmtSnap.docs.forEach(u => {
+    batch.set(db.collection("notifications").doc(), {
+      type: "info",
+      title: `${company} uploaded ${folderKind} ${noun}`,
+      body: `${quoteNum} · ${addedFiles.length} new ${noun}: ${addedFiles.map(f => f.name).slice(0, 3).join(", ")}${addedFiles.length > 3 ? "..." : ""}`,
+      icon: "📎",
+      from: "System",
+      userId: u.id,
+      sourceView: "quotes",
+      sourceId: quoteId,
+      read: false, dismissed: false,
+      priority: "normal",
+      timestamp: FieldValue.serverTimestamp()
+    });
+  });
+  await batch.commit();
+}
+
+// Scheduled poll: every 30 min, sync each portal-shared Drive folder
+// and detect newly-dropped files.
+exports.scheduledPollPortalDriveFolders = onSchedule(
+  { schedule: "every 30 minutes", timeZone: "America/Chicago", memory: "256MiB", timeoutSeconds: 300 },
+  async () => {
+    try {
+      // We want quotes that have ANY upload folder. Firestore can't OR two
+      // != null where clauses, so we do two passes and dedupe.
+      const [poSnap, artSnap] = await Promise.all([
+        db.collection("quotes").where("poUploadFolder.folderId", "!=", null).limit(200).get().catch(() => ({ docs: [] })),
+        db.collection("quotes").where("artUploadFolder.folderId", "!=", null).limit(200).get().catch(() => ({ docs: [] }))
+      ]);
+      const byId = new Map();
+      for (const d of poSnap.docs) byId.set(d.id, d);
+      for (const d of artSnap.docs) byId.set(d.id, d);
+      if (byId.size === 0) {
+        console.log("scheduledPollPortalDriveFolders: no quotes with shared folders");
+        return;
+      }
+
+      const drive = await getDriveClient();
+      const results = { quotesChecked: 0, foldersChecked: 0, filesFound: 0, messagesPosted: 0, errors: 0 };
+
+      for (const [quoteId, d] of byId) {
+        const quoteData = d.data();
+        results.quotesChecked++;
+        try {
+          for (const kind of ["PO", "Art"]) {
+            const folder = kind === "PO" ? quoteData.poUploadFolder : quoteData.artUploadFolder;
+            if (!folder || !folder.folderId) continue;
+            results.foldersChecked++;
+            const sync = await syncFolderFilesForQuote(drive, quoteId, quoteData, kind);
+            if (sync.added > 0) {
+              results.filesFound += sync.added;
+              await postFolderDropPortalMessage(quoteId, kind, sync.files);
+              await postFolderDropInternalNotif(quoteId, quoteData, kind, sync.files);
+              results.messagesPosted++;
+              await logServerEvent("portal.folder.drop_detected", {
+                quoteId, quoteNum: quoteData.quoteNum || "",
+                folderKind: kind, fileCount: sync.added,
+                fileNames: sync.files.map(f => f.name)
+              });
+              // Refresh in-memory copy so the second pass (Art) sees updated state
+              const fresh = await db.collection("quotes").doc(quoteId).get();
+              if (fresh.exists) Object.assign(quoteData, fresh.data());
+            }
+          }
+        } catch (err) {
+          results.errors++;
+          console.warn(`scheduledPollPortalDriveFolders: quote ${quoteId} failed:`, err.message);
+        }
+      }
+
+      await logServerEvent("portal.folder.poll_summary", results);
+      console.log(`scheduledPollPortalDriveFolders: ${JSON.stringify(results)}`);
+    } catch (err) {
+      console.error("scheduledPollPortalDriveFolders error:", err);
+    }
+  }
+);
+
 // Scheduled poll: every 15 min check SOs that have a signing Doc but no
 // recorded signature. For each, ask the Docs API what's in the doc — if
 // the "Signed by:" line has real text, mark the SO as signed, post an
