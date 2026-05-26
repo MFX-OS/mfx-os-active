@@ -1832,7 +1832,17 @@ h+='<div class="fg"><label>Email</label><input id="so-email" type="email" value=
 h+='<div class="fg"><label>Phone</label><input id="so-phone" value="'+esc(_s.phone||f.custPhone||'')+'" '+_soSave('phone')+'></div>';
 h+='<div class="fg"><label>Ship To</label><input id="so-shipTo" value="'+esc(_s.shipTo||qq.poShipTo||f.shipTo||f.cityState||'')+'" '+_soSave('shipTo')+'></div>';
 h+='<div class="fg"><label>Industry</label><input id="so-industry" value="'+esc(_s.industry||f.industry||'')+'" '+_soSave('industry')+'></div>';
-h+='</div></div></div>';
+h+='<div class="fg" style="grid-column:1/-1"><label>Bill To Address (override Ship To if different)</label><input id="so-billToAddress" value="'+esc(_s.billToAddress||'')+'" placeholder="e.g., Accts Payable, 1234 Main St, Anytown CA 90001" '+_soSave('billToAddress')+'></div>';
+h+='<div class="fg"><label>Tax ID (optional)</label><input id="so-taxId" value="'+esc(_s.taxId||'')+'" placeholder="Microflex or client tax ID" '+_soSave('taxId')+'></div>';
+h+='</div>';
+// CSR / Prepress Rep group
+h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr)"><div style="font-size:9px;color:#a78bfa;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">CSR / PREPRESS REP CONTACT</div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
+h+='<div class="fg"><label>Rep Name</label><input id="so-csrName" value="'+esc(_s.csrName||'')+'" placeholder="e.g., Maria Chen" '+_soSave('csrName')+'></div>';
+h+='<div class="fg"><label>Rep Email</label><input id="so-csrEmail" type="email" value="'+esc(_s.csrEmail||'')+'" placeholder="csr@microflexfilm.com" '+_soSave('csrEmail')+'></div>';
+h+='<div class="fg"><label>Rep Phone</label><input id="so-csrPhone" value="'+esc(_s.csrPhone||'')+'" placeholder="(909) 555-0123" '+_soSave('csrPhone')+'></div>';
+h+='</div></div>';
+h+='</div></div>';
 // Product specs
 h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🏷️</span><span class="ttl">Product Specifications</span><span class="arr">▾</span></div><div class="scard-b open">';
 var _jd=_s.jobDesc||((f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo'));
@@ -1853,7 +1863,46 @@ h+='<div class="fg"><label>Wind Dir</label><input value="'+esc(_s.windDir||f.win
 h+='<div class="fg"><label>Labels/Roll</label><input value="'+esc(_s.labRoll||f.labRoll||'')+'" readonly></div>';
 h+='</div>';
 if(qq.description){h+='<div class="fg" style="margin-top:6px"><label>Description</label><input value="'+esc(_s.description||qq.description||'')+'" readonly></div>'}
+// SOA quantity tolerance + gauge + material structure
+h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr)"><div style="font-size:9px;color:#16a34a;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">QUANTITY TOLERANCE & MATERIAL DETAIL</div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px">';
+h+='<div class="fg"><label>Over/Under-Run %</label><input id="so-overUnderPct" type="number" step="0.1" value="'+esc(_s.overUnderPct||'10')+'" placeholder="10" '+_soSave('overUnderPct')+'></div>';
+h+='<div class="fg"><label>Gauge / Mil</label><input id="so-gauge" value="'+esc(_s.gauge||_s.thickness||'')+'" placeholder="e.g., 2.0 mil" '+_soSave('gauge')+'></div>';
+h+='<div class="fg"><label>Material Structure</label><input id="so-materialStructure" value="'+esc(_s.materialStructure||'')+'" placeholder="e.g., PET/ALU/PE" '+_soSave('materialStructure')+'></div>';
 h+='</div></div>';
+// Artwork details
+h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr)"><div style="font-size:9px;color:#a855f7;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">ARTWORK DETAILS</div>';
+h+='<div style="display:grid;grid-template-columns:2fr 1fr 2fr;gap:8px">';
+h+='<div class="fg"><label>Artwork File Name</label><input id="so-artworkFileName" value="'+esc(_s.artworkFileName||'')+'" placeholder="e.g., JazminPouch_v3.ai" '+_soSave('artworkFileName')+'></div>';
+h+='<div class="fg"><label>Version</label><input id="so-artworkVersion" value="'+esc(_s.artworkVersion||'')+'" placeholder="e.g., v3" '+_soSave('artworkVersion')+'></div>';
+h+='<div class="fg"><label>PMS / CMYK Colors</label><input id="so-pmsColors" value="'+esc(_s.pmsColors||'')+'" placeholder="e.g., PMS 286, CMYK Black" '+_soSave('pmsColors')+'></div>';
+h+='</div></div>';
+// Finishing & converting
+h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr)"><div style="font-size:9px;color:#ea580c;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">FINISHING & CONVERTING</div>';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
+h+='<div class="fg"><label>Gusset Type</label><input id="so-gussetType" value="'+esc(_s.gussetType||'')+'" placeholder="e.g., Stand-up, Side, K-seal" '+_soSave('gussetType')+'></div>';
+h+='<div class="fg"><label>Zipper Type</label><input id="so-zipperType" value="'+esc(_s.zipperType||'')+'" placeholder="e.g., Press-to-close" '+_soSave('zipperType')+'></div>';
+h+='<div class="fg"><label>Wind Direction</label><input id="so-windDir2" value="'+esc(_s.windDir||f.windDir||'')+'" '+_soSave('windDir')+'></div>';
+h+='</div>';
+h+='<div style="display:flex;gap:16px;margin-top:8px;font-size:11px">';
+h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="so-tearNotch" '+(_s.tearNotch?'checked':'')+' '+(linkedSO?'onchange="saveSOField(\''+so.id+'\',\'tearNotch\',this.checked)"':'')+'> Tear Notch</label>';
+h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="so-degassingValve" '+(_s.degassingValve?'checked':'')+' '+(linkedSO?'onchange="saveSOField(\''+so.id+'\',\'degassingValve\',this.checked)"':'')+'> Degassing Valve</label>';
+h+='</div></div>';
+h+='</div></div>';
+// SOA Section 3 — Proofing & Setup Parameters
+if(linkedSO){
+  h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🔍</span><span class="ttl">Proofing & Setup Parameters</span><span class="arr">▾</span></div><div class="scard-b open">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
+  h+='<div class="fg"><label>Proofing Type</label><select id="so-proofingType" '+_soSave('proofingType')+'>';
+  var _ptype=_s.proofingType||'Digital PDF Proof';
+  ['Digital PDF Proof','Physical Press Proof','Color-Match Proof','Reprint As-Is'].forEach(function(opt){
+    h+='<option'+(opt===_ptype?' selected':'')+'>'+opt+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div class="fg"><label>Approval Deadline</label><input id="so-approvalDeadline" type="date" value="'+esc(_s.approvalDeadline||'')+'" '+_soSave('approvalDeadline')+'></div>';
+  h+='<div class="fg"><label>Required In-Hand Date</label><input id="so-poRequiredDate" type="date" value="'+esc(_s.poRequiredDate||'')+'" '+_soSave('poRequiredDate')+'></div>';
+  h+='</div></div></div>';
+}
 // Line items / Pricing
 h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="ttl">Line Items & Pricing</span><span class="arr">▾</span></div><div class="scard-b open">';
 // All quantities as line items
@@ -1891,11 +1940,38 @@ h+='<div style="text-align:center"><div style="font-size:8px;color:var(--tx3);fo
 h+='</div>';
 h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
 h+='<div class="fg"><label>Payment Terms</label><input id="so-payTerms" value="'+esc(_s.payTerms||f.payTerms||'Net 30')+'" '+(linkedSO?_soSave('payTerms'):'readonly')+'></div>';
+h+='<div class="fg"><label>Preferred Payment Method</label><input id="so-paymentMethod" value="'+esc(_s.paymentMethod||'')+'" placeholder="e.g., ACH, Check, Wire" '+(linkedSO?_soSave('paymentMethod'):'readonly')+'></div>';
 h+='<div class="fg"><label>Estimator</label><input id="so-estimator" value="'+esc(_s.estimator||f.estimator||'')+'" '+(linkedSO?_soSave('estimator'):'readonly')+'></div>';
 h+='<div class="fg"><label>Sales Rep</label><input id="so-salesRep" value="'+esc(_s.salesRep||f.salesRep||'')+'" '+(linkedSO?_soSave('salesRep'):'readonly')+'></div>';
-h+='<div class="fg"><label>PO Instructions</label><input id="so-poInstructions" value="'+esc(_s.poInstructions||qq.poInstructions||'')+'" '+(linkedSO?_soSave('poInstructions'):'readonly')+'></div>';
+h+='<div class="fg" style="grid-column:1/-1"><label>PO Instructions / Special Notes</label><input id="so-poInstructions" value="'+esc(_s.poInstructions||qq.poInstructions||'')+'" '+(linkedSO?_soSave('poInstructions'):'readonly')+'></div>';
 h+='</div>';
+// Itemized cost lines — appear on the PDF when populated
+if(linkedSO){
+  h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr)"><div style="font-size:9px;color:var(--ac);font-weight:800;letter-spacing:1.5px;margin-bottom:6px">ITEMIZED COSTS (OPTIONAL — APPEAR ON SO PDF)</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
+  h+='<div class="fg"><label>Plates / Tooling</label><input id="so-plateFee" type="number" step="0.01" value="'+(_s.plateFee||'')+'" placeholder="0.00" onchange="saveSOField(\''+so.id+'\',\'plateFee\',parseFloat(this.value)||0)"></div>';
+  h+='<div class="fg"><label>Die / Cutting</label><input id="so-dieFee" type="number" step="0.01" value="'+(_s.dieFee||'')+'" placeholder="0.00" onchange="saveSOField(\''+so.id+'\',\'dieFee\',parseFloat(this.value)||0)"></div>';
+  h+='<div class="fg"><label>Setup / Make-Ready</label><input id="so-setupFee" type="number" step="0.01" value="'+(_s.setupFee||'')+'" placeholder="0.00" onchange="saveSOField(\''+so.id+'\',\'setupFee\',parseFloat(this.value)||0)"></div>';
+  h+='<div class="fg"><label>Design / Art</label><input id="so-designCharge" type="number" step="0.01" value="'+(_s.designCharge||'')+'" placeholder="0.00" onchange="saveSOField(\''+so.id+'\',\'designCharge\',parseFloat(this.value)||0)"></div>';
+  h+='<div class="fg"><label>Tax</label><input id="so-taxAmount" type="number" step="0.01" value="'+(_s.taxAmount||'')+'" placeholder="0.00" onchange="saveSOField(\''+so.id+'\',\'taxAmount\',parseFloat(this.value)||0)"></div>';
+  h+='</div></div>';
+}
 h+='</div></div>';
+// SOA Section 5 — Fulfillment & Logistics
+if(linkedSO){
+  h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">📦</span><span class="ttl">Fulfillment & Logistics</span><span class="arr">▾</span></div><div class="scard-b open">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h+='<div class="fg"><label>Lead Time (business days)</label><input id="so-leadTimeDays" type="number" value="'+esc(_s.leadTimeDays||'')+'" placeholder="e.g., 15" '+_soSave('leadTimeDays')+'></div>';
+  h+='<div class="fg"><label>Estimated Ship Date</label><input id="so-estimatedShipDate" type="date" value="'+esc(_s.estimatedShipDate||'')+'" '+_soSave('estimatedShipDate')+'></div>';
+  h+='<div class="fg"><label>Shipping Method / Carrier</label><input id="so-shippingMethod" value="'+esc(_s.shippingMethod||_s.shippingCarrier||'')+'" placeholder="e.g., FedEx Freight, Local Delivery" '+_soSave('shippingMethod')+'></div>';
+  h+='<div class="fg"><label>FOB Terms</label><select id="so-fobTerms" '+_soSave('fobTerms')+'>';
+  var _fob=_s.fobTerms||'';
+  ['','FOB Origin','FOB Destination','EXW','DDP','DAP'].forEach(function(opt){
+    h+='<option value="'+esc(opt)+'"'+(opt===_fob?' selected':'')+'>'+(opt||'— select —')+'</option>';
+  });
+  h+='</select></div>';
+  h+='</div></div></div>';
+}
 // SO Timeline
 if(linkedSO&&so.notes&&so.notes.length){
   h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">📜</span><span class="ttl">SO Timeline ('+so.notes.length+')</span><span class="arr">▾</span></div><div class="scard-b open">';

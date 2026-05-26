@@ -1028,13 +1028,9 @@ function buildPortalSOHTML(so,soId){
   var statusLabel=(so.status||'pending').toUpperCase();
   var jobDesc=escPortal(so.jobDesc||((so.sizeA||'?')+'x'+(so.sizeB||'?')+'" '+(so.shapeType||'')+' - '+(so.colors||'?')+'C '+(so.jobType||'Flexo')));
 
-  // Lifecycle stages — approvals removed
-  var stages=[
-    {l:'SO Created',done:!!so.createdAt,at:so.createdAt},
-    {l:'Sent to Client',done:!!so.sentAt,at:so.sentAt},
-    {l:'In Production',done:so.status==='completed'||!!so.productionStartedAt,at:so.productionStartedAt},
-    {l:'Shipped',done:!!so.shippedAt,at:so.shippedAt}
-  ];
+  // Dynamic SOA fields with sensible defaults
+  var overUnderPct=so.overUnderPct||'10';
+  var leadTimeLabel=so.leadTimeDays?(so.leadTimeDays+' business days'):'10–15 business days';
 
   var h='<div style="background:#fff;color:#0a2030;font-family:Outfit,Arial,sans-serif;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.25)">';
 
@@ -1079,7 +1075,7 @@ function buildPortalSOHTML(so,soId){
    +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px;gap:10px"><span style="color:#94a3b0;font-weight:600">Job</span><span style="color:#0a2030;font-weight:700;text-align:right">'+jobDesc+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
    +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Quote Ref</span><span style="color:#0a2030;font-weight:700">'+escPortal(so.quoteNum||'—')+' Rev '+escPortal(so.quoteRev||'A')+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
    +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">PO Number</span><span style="color:#0a2030;font-weight:800">'+escPortal(so.poNumber||'—')+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
-   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Lead Time</span><span style="color:#0a2030;font-weight:700">15 working days</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
+   +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Lead Time</span><span style="color:#0a2030;font-weight:700">'+escPortal(leadTimeLabel)+'</span></div><div style="height:1px;background:#edf0f2;margin:2px 0"></div>'
    +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px"><span style="color:#94a3b0;font-weight:600">Terms</span><span style="color:#0a2030;font-weight:700">'+escPortal(so.payTerms||'Net 30')+'</span></div>'
    +'</div>'
    // Flex Team (purple card)
@@ -1114,24 +1110,26 @@ function buildPortalSOHTML(so,soId){
   h+='<div style="flex:1;min-width:220px;border:1.5px solid #d0d8e0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column"><div style="padding:5px 10px;background:#f5f7f9;border-bottom:1px solid #d0d8e0;display:flex;justify-content:space-between;align-items:center"><span style="font-size:7px;font-weight:800;color:#2a3a4a;letter-spacing:1.5px;text-transform:uppercase">Terms & Conditions</span><span style="font-size:12px;font-weight:900;color:#0a2e3e">'+escPortal(so.payTerms||'Net 30')+'</span></div>'
    +'<div style="padding:5px 10px;flex:1;font-size:9px;color:#4a5a68;line-height:1.5">'
    +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>Payment terms: '+escPortal(so.payTerms||'Net 30')+'</div>'
-   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>±10% quantity tolerance applies</div>'
-   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>Lead time: 15 working days from proof sign-off</div>'
+   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>±'+escPortal(overUnderPct)+'% quantity tolerance applies</div>'
+   +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>Lead time: '+escPortal(leadTimeLabel)+' from proof sign-off</div>'
    +'<div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0"><div style="width:5px;height:5px;border:1.5px solid #00BCD4;border-radius:50%;flex-shrink:0;margin-top:3px"></div>Changes after approval may incur additional charges</div>'
    +'</div></div></div>';
 
-  // Order Lifecycle timeline
-  h+='<div style="padding:14px 24px;border-bottom:1px solid #e8ecf0">'
-   +'<div style="font-size:7px;color:#00BCD4;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px">Order Lifecycle</div>'
-   +'<div style="display:flex;justify-content:space-between;position:relative;gap:4px">'
-   +'<div style="position:absolute;top:12px;left:8%;right:8%;height:2px;background:#e8ecf0;z-index:0"></div>'
-   +stages.map(function(s){
-     var bg=s.done?'#16a34a':'#e8ecf0';var color=s.done?'#fff':'#94a3b0';
-     return '<div style="flex:1;text-align:center;position:relative;z-index:1">'
-      +'<div style="width:26px;height:26px;border-radius:50%;background:'+bg+';color:'+color+';display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;border:2px solid #fff">'+(s.done?'✓':'○')+'</div>'
-      +'<div style="font-size:8px;color:'+(s.done?'#16a34a':'#94a3b0')+';font-weight:700;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">'+s.l+'</div>'
-      +(s.done&&s.at?'<div style="font-size:7px;color:#94a3b0;margin-top:1px">'+_fD(s.at)+'</div>':'')
-      +'</div>';}).join('')
-   +'</div></div>';
+  // Order Lifecycle removed per SOA layout — status is now carried by the
+  // sentAt/signedAt timestamps shown in the signature cards + the
+  // "ACTION REQUIRED — SIGN YOUR SALES ORDER" CTA elsewhere on this card.
+
+  // Fulfillment & Logistics — only renders if any of the new SOA fields are set
+  if(so.estimatedShipDate||so.shippingMethod||so.shippingCarrier||so.fobTerms||so.leadTimeDays){
+    h+='<div style="padding:14px 24px;border-bottom:1px solid #e8ecf0">'
+     +'<div style="font-size:7px;color:#16a34a;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:8px">Fulfillment & Logistics</div>'
+     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px 14px;font-size:10px">'
+     +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Lead Time</div><div style="color:#0a2030;font-weight:700;margin-top:2px">'+escPortal(leadTimeLabel)+'</div></div>'
+     +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Est. Ship Date</div><div style="color:#0a2030;font-weight:700;margin-top:2px">'+(so.estimatedShipDate?_fD(so.estimatedShipDate):'—')+'</div></div>'
+     +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Shipping Method</div><div style="color:#0a2030;font-weight:700;margin-top:2px">'+escPortal(so.shippingMethod||so.shippingCarrier||'—')+'</div></div>'
+     +'<div><div style="font-size:7px;color:#94a3b0;font-weight:700;text-transform:uppercase;letter-spacing:.5px">FOB Terms</div><div style="color:#0a2030;font-weight:700;margin-top:2px">'+escPortal(so.fobTerms||'—')+'</div></div>'
+     +'</div></div>';
+  }
 
   // Deposit CTA (if provided)
   if(so.depositRequired&&so.depositLink){
