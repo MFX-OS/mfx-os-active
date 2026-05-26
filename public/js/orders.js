@@ -1673,6 +1673,117 @@ window.openPortalMessages=openPortalMessages;
 window.sendStaffPortalMsg=sendStaffPortalMsg;
 window.fD=fD;
 
+// ═══════════════════════════════════════
+// SO SHIP PANE — inline send-flow inside the quote editor (tab 11,
+// id=ep-so-send). The pane references three globals that were never
+// defined, which is why the PDF stayed stuck on "Loading PDF…", the
+// Subject and Body were empty, and Send Email would have thrown.
+// ═══════════════════════════════════════
+function _getEditorLinkedSO(){
+  if(typeof S==='undefined'||!S||!S.editId)return null;
+  if(typeof getQ!=='function'||typeof getSalesOrders!=='function')return null;
+  var qq=getQ(S.editId);if(!qq)return null;
+  var sos=getSalesOrders();if(!sos)return null;
+  return sos.find(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum})||null;
+}
+
+function initSOShipPane(){
+  var so=_getEditorLinkedSO();if(!so)return;
+  // 1. Trigger the PDF preview (fast HTML srcdoc path — instant render)
+  if(window.loadSendPDFPreview)loadSendPDFPreview(so.id,false,'shipPdfWrap');
+  // 2. Populate the email composer with the default Confirmation template
+  _loadShipTemplate();
+}
+window.initSOShipPane=initSOShipPane;
+
+function _loadShipTemplate(){
+  var sel=document.getElementById('shipTplSelect');
+  if(!sel)return;
+  var key=sel.value||'confirmation';
+  var tpl=SO_EMAIL_TEMPLATES.find(function(t){return t.key===key});
+  if(!tpl)return;
+  var so=_getEditorLinkedSO();if(!so)return;
+  // Prefer saved override (raw template, run through interpolator)
+  var override=SO_TEMPLATE_OVERRIDES[key]||{};
+  var subj=override.subject?_interpolateTemplate(override.subject,so):tpl.subject(so);
+  var body=override.body?_interpolateTemplate(override.body,so):tpl.build(so);
+  var subjEl=document.getElementById('shipSubject');
+  var bodyEl=document.getElementById('shipBody');
+  if(subjEl)subjEl.value=subj;
+  if(bodyEl)bodyEl.value=body;
+}
+window._loadShipTemplate=_loadShipTemplate;
+
+// Send button on the ship pane. Reads the composer's live values
+// (so any edits stick), generates the PDF, sends via Gmail with PDF
+// attachment + BCC team@/quotes@, then saves the PDF to Drive via
+// /api/saveSalesOrderPDF (server-side, service-account auth).
+function shipSOFromPane(soId){
+  var so=getSO(soId);if(!so)return toast('SO not found','err');
+  var to=((document.getElementById('shipTo')||{}).value||so.email||'').trim();
+  var subj=((document.getElementById('shipSubject')||{}).value||'').trim();
+  var body=((document.getElementById('shipBody')||{}).value||'').trim();
+  var sel=document.getElementById('shipTplSelect');
+  var tplKey=sel?sel.value:'confirmation';
+  if(!to)return toast('No recipient email','err');
+  if(!subj||!body)return toast('Subject/body empty — pick a template first','err');
+
+  toast('Generating PDF & sending...','ok');
+  generateSOPDF(so).then(function(pdf){
+    var finalSubj=_interpolateTemplate(subj,so);
+    var finalBody=_interpolateTemplate(body,so);
+
+    getGoogleToken().then(function(token){
+      if(!token)return toast('Gmail auth required — sign out and back in','err');
+
+      // Multipart MIME: HTML body + PDF attachment. BCC matches the
+      // other SO send paths.
+      var boundary='----=mfx_so_ship_'+Date.now();
+      var raw=''
+        +'From: MFX OS <info@microflexfilm.com>\r\n'
+        +'To: '+to+'\r\n'
+        +'Bcc: team@microflexfilm.com, quotes@microflexfilm.com\r\n'
+        +'Reply-To: quotes@microflexfilm.com\r\n'
+        +'Subject: '+finalSubj+'\r\n'
+        +'MIME-Version: 1.0\r\n'
+        +'Content-Type: multipart/mixed; boundary="'+boundary+'"\r\n\r\n'
+        +'--'+boundary+'\r\n'
+        +'Content-Type: text/html; charset=utf-8\r\n\r\n'
+        +finalBody+'\r\n\r\n'
+        +'--'+boundary+'\r\n'
+        +'Content-Type: application/pdf; name="'+pdf.filename+'"\r\n'
+        +'Content-Disposition: attachment; filename="'+pdf.filename+'"\r\n'
+        +'Content-Transfer-Encoding: base64\r\n\r\n'
+        +pdf.base64+'\r\n\r\n'
+        +'--'+boundary+'--';
+      var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+
+      fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{
+        method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify({raw:encoded})
+      }).then(function(r){return r.json()}).then(function(data){
+        if(!data.id){toast('Email send failed — check Google auth','err');return}
+        toast('Email sent to '+to,'ok');
+
+        // Server-side Drive save (mirrors executeSendSO)
+        var payload={soId:so.id,soNum:so.soNum,quoteNum:so.quoteNum,company:so.company,filename:pdf.filename,pdfBase64:pdf.base64};
+        var p=(typeof MFX_API!=='undefined'&&MFX_API.postJSON)
+          ? MFX_API.postJSON('/api/saveSalesOrderPDF',payload)
+          : fetch('/api/saveSalesOrderPDF',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json()});
+        p.then(function(resp){
+          var link=resp&&resp.success?(resp.masterLink||resp.clientLink):null;
+          if(!link)console.warn('saveSalesOrderPDF returned no link:',resp);
+          finalizeSO(so,link,tplKey);
+        }).catch(function(e){
+          console.warn('saveSalesOrderPDF failed:',e);
+          finalizeSO(so,null,tplKey);
+        });
+      }).catch(function(e){toast('Email error: '+e.message,'err')});
+    });
+  }).catch(function(e){toast('PDF error: '+(e.message||e),'err')});
+}
+window.shipSOFromPane=shipSOFromPane;
+
 // ─── Init on load ───
 if(typeof fbDb!=='undefined'){
   setTimeout(startSOListeners,1000);
