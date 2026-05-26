@@ -713,6 +713,8 @@ function getAuthToken(){
   return user.getIdToken();
 }
 
+// Server cap on the Cloud Function — keep in sync with functions/index.js:347
+var MAX_UPLOAD_BYTES=50*1024*1024;
 function handleFiles(files,type,skuIdx){
   // skuIdx is optional — only for per-SKU art uploads
   var listId=type==='po'?'poFileList':(skuIdx?'artFileList_sku'+skuIdx:'artFileList');
@@ -722,9 +724,28 @@ function handleFiles(files,type,skuIdx){
   if(type==='art'&&skuIdx){
     if(!UPLOADED_ART_BY_SKU[skuIdx])UPLOADED_ART_BY_SKU[skuIdx]=[];
   }
+  // Pre-flight: reject files over the 50MB Cloud-Function cap immediately
+  // with a clear message instead of letting the upload fail mid-stream.
+  var oversize=[];
+  for(var pi=0;pi<files.length;pi++){if(files[pi].size>MAX_UPLOAD_BYTES)oversize.push(files[pi]);}
+  if(oversize.length){
+    var names=oversize.map(function(f){return f.name+' ('+Math.round(f.size/1024/1024)+'MB)';}).join(', ');
+    var msg='File too large (max 50MB per file): '+names
+      +'. For larger files, email your sales rep — they can give you a Drive folder link to upload directly.';
+    if(list){
+      var warn=document.createElement('div');
+      warn.style.cssText='background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#ef4444;font-size:11px;padding:10px 12px;border-radius:6px;margin-bottom:8px';
+      warn.textContent=msg;
+      list.appendChild(warn);
+    } else {
+      alert(msg);
+    }
+    // Filter out the oversize files but continue with any that fit
+    files=Array.prototype.filter.call(files,function(f){return f.size<=MAX_UPLOAD_BYTES;});
+    if(!files.length)return;
+  }
   for(var i=0;i<files.length;i++){
     (function(f){
-      if(f.size>25*1024*1024){alert(f.name+' is too large (max 25MB)');return}
       var size=f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB';
       var itemId='file_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
       var div=document.createElement('div');
@@ -750,12 +771,13 @@ function handleFiles(files,type,skuIdx){
       var progInterval=setInterval(function(){if(pct<85){pct+=Math.random()*8;if(bar)bar.style.width=Math.round(pct)+'%';var st=document.querySelector('#'+itemId+' .upload-status');if(st)st.textContent='Uploading to Drive... '+Math.round(pct)+'%'}},400);
 
       // Upload to shared Drive via Cloud Function
+      var httpStatus=0;
       getAuthToken().then(function(token){
         return fetch('/api/uploadToDrive',{method:'POST',headers:{'Authorization':'Bearer '+token},body:formData});
-      }).then(function(r){return r.json()})
+      }).then(function(r){httpStatus=r.status;return r.json().catch(function(){return {success:false,error:'Server returned non-JSON response (HTTP '+r.status+')'}})})
       .then(function(data){
         clearInterval(progInterval);
-        if(data.success){
+        if(data&&data.success){
           if(bar)bar.style.width='100%';
           var st=document.querySelector('#'+itemId+' .upload-status');
           if(st){st.innerHTML='<span style="color:#22c55e">✓ Saved to Drive</span>'}
@@ -768,13 +790,18 @@ function handleFiles(files,type,skuIdx){
           arr.push(fileObj);
           if(type==='art'&&skuIdx&&UPLOADED_ART_BY_SKU[skuIdx])UPLOADED_ART_BY_SKU[skuIdx].push(fileObj);
         }else{
+          var driveErr=(data&&data.error)?data.error:('HTTP '+httpStatus);
+          console.warn('Drive upload failed for '+f.name+':',driveErr,data);
           var st2=document.querySelector('#'+itemId+' .upload-status');
-          if(st2){st2.innerHTML='<span style="color:var(--accent)">Saving...</span>'}
+          if(st2){st2.innerHTML='<span style="color:var(--accent)">Drive unavailable ('+escPortal(driveErr)+') — using backup storage…</span>'}
           fallbackStorageUpload(f,type,itemId,arr,skuIdx);
         }
       })
       .catch(function(err){
         clearInterval(progInterval);
+        console.error('Drive upload error for '+f.name+':',err);
+        var st3=document.querySelector('#'+itemId+' .upload-status');
+        if(st3){st3.innerHTML='<span style="color:var(--accent)">Network issue ('+escPortal(err&&err.message?err.message:'unknown')+') — retrying via backup storage…</span>'}
         fallbackStorageUpload(f,type,itemId,arr,skuIdx);
       });
     })(files[i]);
@@ -791,28 +818,45 @@ function fallbackStorageUpload(f,type,itemId,arr,skuIdx){
   var qid=QUOTE_DATA&&QUOTE_DATA.id?QUOTE_DATA.id:'unknown';
   if(qid==='unknown'){
     var st=document.querySelector('#'+itemId+' .upload-status');
-    if(st)st.innerHTML='<span style="color:#ef4444">Upload failed: quote not loaded</span>';
+    if(st)st.innerHTML='<span style="color:#ef4444">Upload failed: quote not loaded. Refresh the page and try again.</span>';
+    return;
+  }
+  if(typeof storage==='undefined'||!storage){
+    var st0=document.querySelector('#'+itemId+' .upload-status');
+    if(st0)st0.innerHTML='<span style="color:#ef4444">Upload failed: storage unavailable. Email the file to your sales rep.</span>';
     return;
   }
   var folder=type==='po'?'PO':(skuIdx?'Art/SKU'+skuIdx:'Art');
   var path='portal-uploads/quotes/'+qid+'/'+folder+'/'+Date.now()+'_'+f.name;
-  var ref=storage.ref(path);
-  var task=ref.put(f);
-  task.on('state_changed',function(snap){
-    var pct=Math.round((snap.bytesTransferred/snap.totalBytes)*100);
-    var bar=document.getElementById('bar_'+itemId);if(bar)bar.style.width=pct+'%';
-    var st=document.querySelector('#'+itemId+' .upload-status');if(st)st.textContent='Uploading... '+pct+'%';
-  },function(err){
-    var st=document.querySelector('#'+itemId+' .upload-status');if(st)st.innerHTML='<span style="color:#ef4444">Upload failed: '+err.message+'</span>';
-  },function(){
-    task.snapshot.ref.getDownloadURL().then(function(url){
-      var st=document.querySelector('#'+itemId+' .upload-status');if(st){st.innerHTML='<span style="color:#22c55e">✓ Uploaded</span>'}
-      var barWrap=document.querySelector('#'+itemId+' .upload-bar');if(barWrap)barWrap.style.display='none';
-      var fileObj={name:f.name,url:url,path:path,type:type,uploadedAt:new Date().toISOString(),skuIndex:skuIdx||null};
-      arr.push(fileObj);
-      if(type==='art'&&skuIdx&&UPLOADED_ART_BY_SKU[skuIdx]){UPLOADED_ART_BY_SKU[skuIdx].push(fileObj)}
+  try{
+    var ref=storage.ref(path);
+    var task=ref.put(f);
+    task.on('state_changed',function(snap){
+      var pct=Math.round((snap.bytesTransferred/snap.totalBytes)*100);
+      var bar=document.getElementById('bar_'+itemId);if(bar)bar.style.width=pct+'%';
+      var st=document.querySelector('#'+itemId+' .upload-status');if(st)st.textContent='Uploading (backup)... '+pct+'%';
+    },function(err){
+      console.error('Storage fallback failed for '+f.name+':',err);
+      var st=document.querySelector('#'+itemId+' .upload-status');
+      if(st)st.innerHTML='<span style="color:#ef4444">Upload failed: '+escPortal(err&&err.message?err.message:'unknown error')+'. Try again or email the file to your sales rep.</span>';
+    },function(){
+      task.snapshot.ref.getDownloadURL().then(function(url){
+        var st=document.querySelector('#'+itemId+' .upload-status');if(st){st.innerHTML='<span style="color:#22c55e">✓ Uploaded (backup storage)</span>'}
+        var barWrap=document.querySelector('#'+itemId+' .upload-bar');if(barWrap)barWrap.style.display='none';
+        var fileObj={name:f.name,url:url,path:path,type:type,uploadedAt:new Date().toISOString(),skuIndex:skuIdx||null};
+        arr.push(fileObj);
+        if(type==='art'&&skuIdx&&UPLOADED_ART_BY_SKU[skuIdx]){UPLOADED_ART_BY_SKU[skuIdx].push(fileObj)}
+      }).catch(function(err){
+        console.error('getDownloadURL failed:',err);
+        var st=document.querySelector('#'+itemId+' .upload-status');
+        if(st)st.innerHTML='<span style="color:#ef4444">Uploaded but link unavailable: '+escPortal(err&&err.message?err.message:'unknown')+'</span>';
+      });
     });
-  });
+  }catch(e){
+    console.error('Storage init failed:',e);
+    var stE=document.querySelector('#'+itemId+' .upload-status');
+    if(stE)stE.innerHTML='<span style="color:#ef4444">Upload failed: '+escPortal(e&&e.message?e.message:'storage error')+'</span>';
+  }
 }
 
 // ─── Per-SKU Art Upload Zones ───
@@ -840,7 +884,7 @@ function renderPerSkuArtZones(q){
     h+='<div class="dropzone" onclick="document.getElementById(\''+inputId+'\').click()" style="padding:16px">';
     h+='<svg viewBox="0 0 24 24" style="width:24px;height:24px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
     h+='<p style="font-size:11px">Drop art files for <b>'+escPortal(skuLabel)+'</b>, or <b>browse</b></p>';
-    h+='<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 25MB each</small>';
+    h+='<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 50MB each. Larger files? Email your sales rep for a Drive link.</small>';
     h+='</div>';
     h+='<input type="file" id="'+inputId+'" multiple style="display:none" onchange="handleFiles(this.files,\'art\','+sk+')">';
     h+='<div class="file-list" id="artFileList_sku'+sk+'"></div>';
@@ -1264,7 +1308,7 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 <div class="dropzone" onclick="document.getElementById('poFileInput').click()">
 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 <p>Drop your PO document here, or <b>browse</b></p>
-<small>PDF, DOCX — Max 25MB</small>
+<small>PDF, DOCX — Max 50MB. For larger files, email your sales rep for a Drive upload link.</small>
 </div>
 <input type="file" id="poFileInput" multiple style="display:none" onchange="handleFiles(this.files,'po')">
 <div class="file-list" id="poFileList"></div>
@@ -1277,7 +1321,7 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 <div class="dropzone" onclick="document.getElementById('artFileInput').click()">
 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 <p>Drop your art/design files here, or <b>browse</b></p>
-<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 25MB each</small>
+<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 50MB each. Larger files? Email your sales rep for a Drive link.</small>
 </div>
 <input type="file" id="artFileInput" multiple style="display:none" onchange="handleFiles(this.files,'art')">
 <div class="file-list" id="artFileList"></div>
