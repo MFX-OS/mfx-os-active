@@ -721,6 +721,11 @@ function handleFiles(files,type,skuIdx){
   // skuIdx is optional — only for per-SKU art uploads
   var listId=type==='po'?'poFileList':(skuIdx?'artFileList_sku'+skuIdx:'artFileList');
   var list=document.getElementById(listId);
+  // Fallback: in single-SKU mode renderPerSkuArtZones rewrites the input
+  // handler to pass skuIdx=1, but the default HTML only defines
+  // #artFileList (no _sku1 suffix). Without this fallback art uploads
+  // would proceed silently with no UI feedback because list===null.
+  if(!list&&type==='art')list=document.getElementById('artFileList');
   var arr=type==='po'?UPLOADED_PO_FILES:UPLOADED_ART_FILES;
   // Also track per-SKU
   if(type==='art'&&skuIdx){
