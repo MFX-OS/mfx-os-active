@@ -1554,3 +1554,61 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
 @media (max-width:500px){
   #saveIndicator{font-size:11px !important;padding:2px 8px !important;border-radius:4px;background:rgba(255,255,255,.04)}
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   GO VERTICAL ON MOBILE — 2026-05-25
+   Forces multi-column grids to single column on phones so inputs are
+   full-width, content isn't cut off, and nothing gets cramped.
+   Targets both .row2/.row3 (used heavily in the quote editor) and any
+   inline-styled 2-or-3-column grids (PDF display options, materials
+   spec panel, etc.).
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width:500px){
+  /* Editor row grids — biggest win, applies across the entire app */
+  .row2,.row3{grid-template-columns:1fr !important;gap:8px !important}
+
+  /* PPD module already has its own mobile rules at 720px/900px; reinforce */
+  .ppd-grid-2,.cs-grid-2,.qchgs-inner,.qspecs-row,.qcust,.pu-grid{grid-template-columns:1fr !important}
+  .prof-stats,.cs-metrics,.ppd-metrics{grid-template-columns:repeat(2,1fr) !important}
+
+  /* Inline-styled grids — attribute-selector hack so we don't have to
+     refactor every render path. Any element using inline grid-template-columns
+     with 2 or 3 equal-width tracks collapses to single column. */
+  [style*="grid-template-columns:1fr 1fr 1fr"],
+  [style*="grid-template-columns:1fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr"]{
+    grid-template-columns:1fr !important;
+  }
+
+  /* Materials picker — Browse button moves below the input on phones so
+     the input takes the full width and the button gets a comfortable
+     touch target. */
+  .mat-picker{flex-direction:column;align-items:stretch}
+  .mat-picker .mat-picker-btn{padding:10px 12px;font-size:11px}
+
+  /* Materials suggester — full-width items, no horizontal crowding */
+  .mat-suggest{max-height:50vh}
+
+  /* Modal — give it more breathing room on phones (was capped at 500px wide,
+     phones max out at 360-430px, so this mainly affects vertical sizing) */
+  .modal{max-height:92vh}
+
+  /* Form inputs — bump padding so they feel substantial on touch */
+  input[type="text"],input[type="email"],input[type="tel"],
+  input[type="number"],input[type="date"],input[type="password"],
+  select,textarea{
+    padding:10px 12px !important;
+    font-size:14px !important;   /* 14px+ prevents iOS auto-zoom on focus */
+    line-height:1.4;
+  }
+  /* Field labels — slightly bigger so they're readable */
+  .fg label,.fg>label{font-size:11px}
+
+  /* Buttons in the editor — generous tap targets */
+  .btn-pr,.btn-ghost{min-height:42px;font-size:12px}
+
+  /* Tab bar in the editor (etabs) — keep horizontal scroll but give items
+     more thumb-friendly width */
+  .etabs .etab,.tab{padding:10px 14px;font-size:12px}
+}
