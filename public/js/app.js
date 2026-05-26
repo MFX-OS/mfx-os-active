@@ -1823,17 +1823,20 @@ h+='</div></div></div>';
 // Client section
 h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🏢</span><span class="ttl">Client Information</span><span class="arr">▾</span></div><div class="scard-b open">';
 h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-h+='<div class="fg"><label>Company</label><input id="so-company" value="'+esc(_s.company||f.custCo||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
-h+='<div class="fg"><label>Contact</label><input id="so-contact" value="'+esc(_s.contact||qq.poSignature||f.custAttn||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
-h+='<div class="fg"><label>Email</label><input id="so-email" value="'+esc(_s.email||qq.poClientEmail||f.custEmail||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
-h+='<div class="fg"><label>Phone</label><input id="so-phone" value="'+esc(_s.phone||f.custPhone||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
-h+='<div class="fg"><label>Ship To</label><input id="so-shipTo" value="'+esc(_s.shipTo||qq.poShipTo||f.shipTo||f.cityState||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
-h+='<div class="fg"><label>Industry</label><input id="so-industry" value="'+esc(_s.industry||f.industry||'')+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+// When an SO exists, each field saves on blur (onchange) via saveSOField.
+// When creating a new SO, mark dirty so the create flow captures values.
+var _soSave=function(field){return linkedSO?('onchange="saveSOField(\''+so.id+'\',\''+field+'\',this.value)"'):'oninput="soFieldDirty=true"'};
+h+='<div class="fg"><label>Company</label><input id="so-company" value="'+esc(_s.company||f.custCo||'')+'" '+_soSave('company')+'></div>';
+h+='<div class="fg"><label>Contact</label><input id="so-contact" value="'+esc(_s.contact||qq.poSignature||f.custAttn||'')+'" '+_soSave('contact')+'></div>';
+h+='<div class="fg"><label>Email</label><input id="so-email" type="email" value="'+esc(_s.email||qq.poClientEmail||f.custEmail||'')+'" '+_soSave('email')+'></div>';
+h+='<div class="fg"><label>Phone</label><input id="so-phone" value="'+esc(_s.phone||f.custPhone||'')+'" '+_soSave('phone')+'></div>';
+h+='<div class="fg"><label>Ship To</label><input id="so-shipTo" value="'+esc(_s.shipTo||qq.poShipTo||f.shipTo||f.cityState||'')+'" '+_soSave('shipTo')+'></div>';
+h+='<div class="fg"><label>Industry</label><input id="so-industry" value="'+esc(_s.industry||f.industry||'')+'" '+_soSave('industry')+'></div>';
 h+='</div></div></div>';
 // Product specs
 h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🏷️</span><span class="ttl">Product Specifications</span><span class="arr">▾</span></div><div class="scard-b open">';
 var _jd=_s.jobDesc||((f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo'));
-h+='<div class="fg"><label>Job Description</label><input id="so-jobDesc" value="'+esc(_jd)+'" '+(linkedSO?'':'oninput="soFieldDirty=true"')+'></div>';
+h+='<div class="fg"><label>Job Description</label><input id="so-jobDesc" value="'+esc(_jd)+'" '+_soSave('jobDesc')+'></div>';
 h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
 h+='<div class="fg"><label>Size Across</label><input value="'+esc(_s.sizeA||f.sA||'')+'" readonly></div>';
 h+='<div class="fg"><label>Size Around</label><input value="'+esc(_s.sizeB||f.sar||'')+'" readonly></div>';
@@ -1887,10 +1890,10 @@ h+='<div style="text-align:center"><div style="font-size:8px;color:var(--tx3);fo
 h+='<div style="text-align:center"><div style="font-size:8px;color:var(--tx3);font-weight:700">ORDER TOTAL</div><div style="font-size:16px;font-weight:800;color:var(--ac)">$'+Number(soTot).toLocaleString(undefined,{minimumFractionDigits:2})+'</div></div>';
 h+='</div>';
 h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
-h+='<div class="fg"><label>Payment Terms</label><input value="'+esc(_s.payTerms||f.payTerms||'Net 30')+'" readonly></div>';
-h+='<div class="fg"><label>Estimator</label><input value="'+esc(_s.estimator||f.estimator||'')+'" readonly></div>';
-h+='<div class="fg"><label>Sales Rep</label><input value="'+esc(_s.salesRep||f.salesRep||'')+'" readonly></div>';
-h+='<div class="fg"><label>PO Instructions</label><input value="'+esc(_s.poInstructions||qq.poInstructions||'')+'" readonly></div>';
+h+='<div class="fg"><label>Payment Terms</label><input id="so-payTerms" value="'+esc(_s.payTerms||f.payTerms||'Net 30')+'" '+(linkedSO?_soSave('payTerms'):'readonly')+'></div>';
+h+='<div class="fg"><label>Estimator</label><input id="so-estimator" value="'+esc(_s.estimator||f.estimator||'')+'" '+(linkedSO?_soSave('estimator'):'readonly')+'></div>';
+h+='<div class="fg"><label>Sales Rep</label><input id="so-salesRep" value="'+esc(_s.salesRep||f.salesRep||'')+'" '+(linkedSO?_soSave('salesRep'):'readonly')+'></div>';
+h+='<div class="fg"><label>PO Instructions</label><input id="so-poInstructions" value="'+esc(_s.poInstructions||qq.poInstructions||'')+'" '+(linkedSO?_soSave('poInstructions'):'readonly')+'></div>';
 h+='</div>';
 h+='</div></div>';
 // SO Timeline
@@ -2191,7 +2194,23 @@ function updateArtStatus(qid,status){var all=DB.quotes();var q=all.find(function
 function saveArtNotes(qid){var el=$('artNotesInput');if(!el)return;var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;q.artNotes=el.value;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid);toast('Art notes saved','ok')}
 function saveSkuPPField(qid,skuIdx,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};var sk='sku'+skuIdx;if(!q.prePress[sk])q.prePress[sk]={};q.prePress[sk][key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid)}
 function toggleSkuPPCheck(qid,skuIdx,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};var sk='sku'+skuIdx;if(!q.prePress[sk])q.prePress[sk]={};if(!q.prePress[sk].checklist)q.prePress[sk].checklist={};q.prePress[sk].checklist[key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid);if(typeof renderEditor==='function')setTimeout(renderEditor,50)}
-function saveSOField(soId,key,val){if(!soId||typeof fbDb==='undefined')return;var upd={};upd[key]=val;upd.updatedAt=new Date().toISOString();fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){toast('SO updated','ok')}).catch(function(e){toast('Save failed: '+e.message,'err')});var sos=typeof getSalesOrders==='function'?getSalesOrders():[];var so=sos.find(function(x){return x.id===soId});if(so){so[key]=val}}
+function saveSOField(soId,key,val){
+  if(!soId||typeof fbDb==='undefined')return;
+  // Update in-memory cache first so the UI doesn't bounce
+  var sos=typeof getSalesOrders==='function'?getSalesOrders():[];
+  var so=sos.find(function(x){return x.id===soId});
+  if(so){so[key]=val}
+  // Save-state indicator (matches quote editor pattern)
+  if(window.setSaveState)window.setSaveState('saving');
+  var upd={};upd[key]=val;upd.updatedAt=new Date().toISOString();
+  upd.updatedBy=typeof getUserName==='function'?getUserName():'';
+  fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    toast('Save failed: '+e.message,'err');
+  });
+}
 window.saveSOField=saveSOField;
 window.saveSkuPPField=saveSkuPPField;window.toggleSkuPPCheck=toggleSkuPPCheck;
 window.updateArtStatus=updateArtStatus;window.saveArtNotes=saveArtNotes;
