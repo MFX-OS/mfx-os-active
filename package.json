@@ -10,7 +10,8 @@
     "deploy:all": "node build.js && firebase deploy",
     "clean": "node build.js --clean",
     "audit": "npm audit --omit=dev && cd functions && npm audit --omit=dev",
-    "audit:fix": "npm audit fix && cd functions && npm audit fix"
+    "audit:fix": "npm audit fix && cd functions && npm audit fix",
+    "test:smoke": "node scripts/smoke-test-endpoints.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.12"

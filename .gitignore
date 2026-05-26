@@ -25,6 +25,7 @@ _attic/data-08-nested-duplicates-*/
 .env
 .env.local
 .env.production
+.env.smoke
 
 # OS files
 .DS_Store
