@@ -750,8 +750,16 @@ function executeSendSO(soId){
     getGoogleToken().then(function(token){
       if(!token)return toast('Sign out & back in for Google access','err');
 
-      // 1. Send email
-      var raw='Content-Type: text/html; charset=utf-8\r\nFrom: MFX OS <info@microflexfilm.com>\r\nTo: '+so.email+'\r\nSubject: '+subj+'\r\nMIME-Version: 1.0\r\n\r\n'+emailHTML;
+      // 1. Send email — BCC team@/quotes@ so internal stays in the loop
+      // (matches the Quote BCC fix shipped earlier). Reply-To routes
+      // client replies to quotes@ instead of the staffer's personal inbox.
+      var raw='Content-Type: text/html; charset=utf-8\r\n'
+        +'From: MFX OS <info@microflexfilm.com>\r\n'
+        +'To: '+so.email+'\r\n'
+        +'Bcc: team@microflexfilm.com, quotes@microflexfilm.com\r\n'
+        +'Reply-To: quotes@microflexfilm.com\r\n'
+        +'Subject: '+subj+'\r\n'
+        +'MIME-Version: 1.0\r\n\r\n'+emailHTML;
       var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
       fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{
@@ -760,20 +768,31 @@ function executeSendSO(soId){
       }).then(function(r){return r.json()}).then(function(data){
         if(!data.id){toast('Email error','err');return}
 
-        // 2. Save PDF to Drive (not HTML)
-        findOrCreateClientFolder(token,so.company,so.quoteNum).then(function(folderId){
-          if(!folderId){finalizeSO(so,null,tpl.key);return}
-          var metadata={name:pdf.filename,mimeType:'application/pdf',parents:[folderId]};
-          var form=new FormData();
-          form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
-          form.append('file',pdf.blob);
-          fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',{
-            method:'POST',headers:{'Authorization':'Bearer '+token},body:form
-          }).then(function(r){return r.json()}).then(function(fileData){
-            var link=fileData.id?'https://drive.google.com/file/d/'+fileData.id+'/view':null;
+        // 2. Save PDF to Drive via server (Master Sales Orders + Clients/Co/QuoteNum)
+        // Reading blob as base64 → POST to /api/saveSalesOrderPDF. Server uses
+        // service-account Drive creds, so success doesn't depend on the staffer's
+        // OAuth Drive scope. SO doc gets driveLink + clientFolderLink set there.
+        var reader=new FileReader();
+        reader.onloadend=function(){
+          var b64=(reader.result||'').toString().split(',')[1]||'';
+          var payload={soId:so.id,soNum:so.soNum,quoteNum:so.quoteNum,company:so.company,filename:pdf.filename,pdfBase64:b64};
+          var p=(typeof MFX_API!=='undefined'&&MFX_API.postJSON)
+            ? MFX_API.postJSON('/api/saveSalesOrderPDF',payload)
+            : fetch('/api/saveSalesOrderPDF',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json()});
+          p.then(function(resp){
+            var link=resp&&resp.success?(resp.masterLink||resp.clientLink):null;
+            if(!link)console.warn('saveSalesOrderPDF returned no link:',resp);
             finalizeSO(so,link,tpl.key);
-          }).catch(function(e){console.warn('Drive upload err:',e);finalizeSO(so,null,tpl.key)});
-        }).catch(function(e){console.warn('Drive folder err:',e);finalizeSO(so,null,tpl.key)});
+          }).catch(function(e){
+            console.warn('saveSalesOrderPDF failed:',e);
+            finalizeSO(so,null,tpl.key);
+          });
+        };
+        reader.onerror=function(){
+          console.warn('PDF blob read failed');
+          finalizeSO(so,null,tpl.key);
+        };
+        reader.readAsDataURL(pdf.blob);
       }).catch(function(e){toast('Email error: '+e.message,'err')});
     });
   }).catch(function(e){toast('PDF generation error: '+e.message,'err')});

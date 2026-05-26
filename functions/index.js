@@ -193,6 +193,87 @@ function getDelegatedGmailClient(mailbox) {
   return google.gmail({ version: "v1", auth });
 }
 
+// Send an HTML email via the delegated Gmail service account.
+// Encodes recipients in standard RFC 822 headers (To, Bcc, Subject).
+// Returns the Gmail message id on success, null on failure (logged).
+async function sendDelegatedEmail({ from, to, bcc, subject, html, replyTo }) {
+  if (!from || !to || !subject || !html) {
+    console.warn("sendDelegatedEmail: missing required fields");
+    return null;
+  }
+  const gmail = getDelegatedGmailClient(from);
+  if (!gmail) {
+    console.warn(`sendDelegatedEmail: no delegated client for ${from} (set GMAIL_SERVICE_ACCOUNT_JSON + domain-wide delegation)`);
+    return null;
+  }
+  const headers = [
+    `From: ${from}`,
+    `To: ${to}`
+  ];
+  if (bcc) headers.push(`Bcc: ${bcc}`);
+  if (replyTo) headers.push(`Reply-To: ${replyTo}`);
+  headers.push(`Subject: ${subject}`);
+  headers.push(`MIME-Version: 1.0`);
+  headers.push(`Content-Type: text/html; charset=UTF-8`);
+  const raw = headers.join("\r\n") + "\r\n\r\n" + html;
+  // Gmail requires URL-safe base64
+  const encoded = Buffer.from(raw, "utf8").toString("base64")
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  try {
+    const r = await gmail.users.messages.send({ userId: "me", requestBody: { raw: encoded } });
+    return r.data && r.data.id ? r.data.id : null;
+  } catch (err) {
+    console.error(`sendDelegatedEmail failed (${from} -> ${to}):`, err.message);
+    return null;
+  }
+}
+
+// Build the SO confirmation email HTML — branded, matches Quote look-and-feel.
+// Used by auto-send when a client submits a PO via the portal.
+function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, selectedQty, ppu, total, payTerms, portalUrl }) {
+  const fmt$ = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtN = (n) => Number(n || 0).toLocaleString();
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;background:#ffffff">
+  <div style="background:#0a1929;padding:24px 32px;border-bottom:3px solid #00b4d8">
+    <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px">MICROFLEX FILM CORPORATION</div>
+    <div style="color:#94a3b8;font-size:11px;margin-top:4px;letter-spacing:2px">SALES ORDER CONFIRMATION</div>
+  </div>
+  <div style="padding:32px">
+    <p style="color:#0f172a;font-size:14px;margin:0 0 16px">Hello ${contact || "there"},</p>
+    <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 20px">
+      Thank you for your purchase order. We've created Sales Order
+      <strong style="color:#0a1929">${soNum}</strong> from your accepted quote
+      <strong>${quoteNum || ""}</strong>. Our team has been notified and will
+      begin production scheduling shortly.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 20px">
+      <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px;width:140px">Sales Order #</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px;font-weight:700">${soNum}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px">Quote #</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px">${quoteNum || "—"}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px">Company</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px">${company || "—"}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px">Job</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px">${jobDesc || "—"}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px">Quantity</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px">${fmtN(selectedQty)}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px">Unit Price</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px">$${Number(ppu || 0).toFixed(4)}</td></tr>
+      <tr><td style="padding:14px 0;color:#64748b;font-size:12px">Total</td><td style="padding:14px 0;color:#0a1929;font-size:18px;font-weight:700">${fmt$(total)}</td></tr>
+    </table>
+    <p style="color:#64748b;font-size:11px;line-height:1.5;margin:0 0 24px">
+      Payment terms: <strong>${payTerms || "Net 30"}</strong>. A formal PDF version
+      of this Sales Order will follow once it's been reviewed and approved by our team.
+    </p>
+    ${portalUrl ? `<div style="text-align:center;margin:20px 0">
+      <a href="${portalUrl}" style="background:#00b4d8;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;display:inline-block">View in Portal</a>
+    </div>` : ""}
+    <p style="color:#64748b;font-size:11px;margin:24px 0 0;line-height:1.5">
+      Questions? Reply to this email or contact our team at
+      <a href="mailto:quotes@microflexfilm.com" style="color:#00b4d8;text-decoration:none">quotes@microflexfilm.com</a>.
+    </p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:10px">
+    Microflex Film Corporation · Los Angeles, CA · microflexfilm.com
+  </div>
+</div></body></html>`;
+}
+
 
 async function getDriveClient() {
   const auth = new google.auth.GoogleAuth({ scopes: DRIVE_SCOPE });
@@ -1378,6 +1459,65 @@ exports.portalSubmitPO = onRequest(
           total: selRow.total || 0
         });
 
+        // ═══ AUTO-EMAIL SO CONFIRMATION TO CLIENT ═══
+        // Uses delegated Gmail service account (no user token needed).
+        // BCC team@ + quotes@ so internal stays in the loop.
+        // Falls back gracefully if delegation isn't configured.
+        const portalHost = process.env.PORTAL_HOST || "https://mfx-2026.web.app";
+        const portalUrl = `${portalHost}/portal.html?quoteId=${encodeURIComponent(quoteId)}&email=${encodeURIComponent(soDoc.email)}`;
+        const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+        const emailHtml = buildSOConfirmationEmail({
+          soNum: autoSONum,
+          quoteNum: quote.quoteNum || "",
+          company: f.custCo || "",
+          contact: f.custAttn || "",
+          jobDesc: soDoc.jobDesc,
+          selectedQty: selRow.qty || 0,
+          ppu: selRow.ppu || 0,
+          total: selRow.total || 0,
+          payTerms: f.payTerms || "Net 30",
+          portalUrl
+        });
+        const sentMsgId = await sendDelegatedEmail({
+          from: senderMailbox,
+          to: soDoc.email,
+          bcc: "team@microflexfilm.com, quotes@microflexfilm.com",
+          subject: `Sales Order ${autoSONum} — ${f.custCo || "Microflex"}`,
+          replyTo: "quotes@microflexfilm.com",
+          html: emailHtml
+        });
+        if (sentMsgId) {
+          // Mark the SO as sent so the workflow lifecycle reflects auto-send
+          await db.collection("salesOrders").doc(soId).update({
+            sentAt: nowIso(),
+            sentTo: soDoc.email,
+            status: "sent",
+            updatedAt: nowIso(),
+            notes: FieldValue.arrayUnion({
+              text: `✉ Auto-sent confirmation to ${soDoc.email} (Gmail msg ${sentMsgId})`,
+              by: "System",
+              at: nowIso()
+            })
+          });
+          await logServerEvent("so.auto_emailed", {
+            soId, soNum: autoSONum, to: soDoc.email,
+            gmailMessageId: sentMsgId
+          });
+        } else {
+          // Email send failed — log but don't fail the PO submit.
+          // Staff still gets the high-priority notification below.
+          await db.collection("salesOrders").doc(soId).update({
+            notes: FieldValue.arrayUnion({
+              text: `⚠ Auto-send to ${soDoc.email} failed — Gmail delegation may need configuration. Staff will send manually.`,
+              by: "System",
+              at: nowIso()
+            })
+          });
+          await logServerEvent("so.auto_email_failed", {
+            soId, soNum: autoSONum, to: soDoc.email
+          });
+        }
+
         // Post notification for CEO approval
         const mgmtSnap = await db.collection("users")
           .where("role", "in", ["CEO", "ceo", "Admin", "admin", "Operations Manager"]).limit(5).get();
@@ -1497,6 +1637,115 @@ exports.saveQuotePDF = onRequest(
       sendJson(res, 200, { success: true, ...results });
     } catch (err) {
       console.error("saveQuotePDF error:", err);
+      sendJson(res, 500, { error: err.message });
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// SAVE SALES ORDER PDF — Backend Drive save mirroring saveQuotePDF
+// Accepts base64-encoded PDF blob, uploads to Drive (Master + Client),
+// updates the salesOrders doc with driveLink + clientFolderLink.
+// ═══════════════════════════════════════════════════════════════════
+exports.saveSalesOrderPDF = onRequest(
+  { memory: "512MiB", timeoutSeconds: 120, cors: ["https://mfx-2026.web.app","https://mfx-2026.firebaseapp.com","http://localhost:5000"] },
+  async (req, res) => {
+    if (!ensurePost(req, res)) return;
+    const actor = await requireInternalUser(req, res);
+    if (!actor) return;
+    if (!(await enforceRateLimit(req, res, actor.uid, "saveSalesOrderPDF", 10, 60000))) return;
+    try {
+      const body = req.body || {};
+      const soId = body.soId;
+      const soNum = body.soNum;
+      const quoteNum = body.quoteNum || soNum;
+      const company = body.company;
+      const filename = body.filename || `${soNum}.pdf`;
+      const pdfBase64 = body.pdfBase64;
+      if (!soId || !soNum || !company) {
+        return sendJson(res, 400, { error: "soId, soNum, and company required" });
+      }
+
+      const drive = await getDriveClient();
+      const driveId = await getMFXCoreId(drive);
+      if (!driveId) throw new Error(`${DRIVE_NAME} shared drive not found`);
+
+      const results = { masterLink: null, clientLink: null };
+
+      // Decode the PDF blob if provided — otherwise we create placeholders
+      // (the file metadata-only path matches how saveQuotePDF works today,
+      // so the client can either pass the blob or rely on a separate upload).
+      let pdfBuffer = null;
+      if (pdfBase64) {
+        try {
+          pdfBuffer = Buffer.from(pdfBase64, 'base64');
+        } catch (e) {
+          return sendJson(res, 400, { error: "Invalid pdfBase64 payload" });
+        }
+      }
+
+      const uploadPdf = async (parentId) => {
+        if (pdfBuffer) {
+          const created = await drive.files.create({
+            requestBody: { name: safeName(filename), parents: [parentId], mimeType: "application/pdf" },
+            media: { mimeType: "application/pdf", body: require('stream').Readable.from(pdfBuffer) },
+            supportsAllDrives: true,
+            fields: "id,webViewLink"
+          });
+          return created.data;
+        }
+        const placeholder = await drive.files.create({
+          requestBody: { name: safeName(filename), parents: [parentId], mimeType: "application/pdf" },
+          supportsAllDrives: true,
+          fields: "id,webViewLink"
+        });
+        return placeholder.data;
+      };
+
+      // 1. Save to Master Sales Orders folder (replace if exists)
+      const masterFolder = await findOrCreateFolder(drive, "Master Sales Orders", driveId);
+      const masterSearch = `name contains '${qEscape(soNum)}' and trashed=false and '${masterFolder.id}' in parents`;
+      const masterExisting = await drive.files.list({
+        q: masterSearch, supportsAllDrives: true, includeItemsFromAllDrives: true,
+        corpora: "allDrives", fields: "files(id,name)"
+      });
+      if (masterExisting.data.files && masterExisting.data.files.length) {
+        // Delete old so the new one replaces cleanly
+        try { await drive.files.delete({ fileId: masterExisting.data.files[0].id, supportsAllDrives: true }); } catch (_) {}
+      }
+      const masterFile = await uploadPdf(masterFolder.id);
+      results.masterLink = masterFile.webViewLink || `https://drive.google.com/file/d/${masterFile.id}`;
+      results.masterFileId = masterFile.id;
+
+      // 2. Save to Client folder — same tree as quote PDF saved by saveQuotePDF
+      const clientsFolder = await findOrCreateFolder(drive, "Clients", driveId);
+      const companyFolder = await findOrCreateFolder(drive, safeName(company), clientsFolder.id);
+      const quoteFolder = await findOrCreateFolder(drive, safeName(quoteNum), companyFolder.id);
+      const clientFile = await uploadPdf(quoteFolder.id);
+      results.clientLink = clientFile.webViewLink || `https://drive.google.com/file/d/${clientFile.id}`;
+      results.clientFileId = clientFile.id;
+      results.clientFolderId = quoteFolder.id;
+
+      // 3. Update the SO doc — driveLink shown on portal + internal UI
+      const soRef = db.collection("salesOrders").doc(soId);
+      const soSnap = await soRef.get();
+      if (soSnap.exists) {
+        await soRef.update({
+          driveLink: results.masterLink,
+          clientFolderLink: results.clientLink,
+          driveSavedAt: nowIso(),
+          updatedAt: nowIso(),
+          updatedBy: actor.email || "System"
+        });
+      }
+
+      await logServerEvent("so.pdf.saved", {
+        actor: actor.email, soId, soNum, company,
+        masterFileId: results.masterFileId, hasPdfBlob: !!pdfBuffer
+      });
+      sendJson(res, 200, { success: true, ...results });
+    } catch (err) {
+      console.error("saveSalesOrderPDF error:", err);
       sendJson(res, 500, { error: err.message });
     }
   }

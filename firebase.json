@@ -186,6 +186,13 @@
           }
         },
         {
+          "source": "/api/saveSalesOrderPDF",
+          "function": {
+            "functionId": "saveSalesOrderPDF",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "/api/processVPOApproval",
           "function": {
             "functionId": "processVPOApproval",
