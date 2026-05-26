@@ -652,9 +652,15 @@ function resetSOTplFromUI(soId){
 // send time by generateSOPDF (called by executeSendSO). Use the
 // "🔄 Regenerate as PDF" button to force the heavy PDF render here
 // for double-checking — falls back to HTML preview on failure.
-function loadSendPDFPreview(soId,forceRegen){
+//
+// Third argument is the container element id — defaults to the modal's
+// soPdfFrameWrap, but the quote-editor "SO Preview" tab (app.js) passes
+// 'soEditorPdfWrap' / 'shipPdfWrap' for its inline panes. Without this
+// the editor panes were stuck on "Loading PDF…" forever.
+function loadSendPDFPreview(soId,forceRegen,containerId){
   var so=getSO(soId);if(!so)return;
-  var wrap=document.getElementById('soPdfFrameWrap');
+  var wrapId=containerId||'soPdfFrameWrap';
+  var wrap=document.getElementById(wrapId);
   if(!wrap)return;
 
   // Fast path: HTML preview (default). No canvas, no PDF round-trip.
@@ -682,7 +688,7 @@ function loadSendPDFPreview(soId,forceRegen){
   wrap.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px"><div style="width:32px;height:32px;border:3px solid var(--bdr);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite"></div><div style="font-size:11px;color:var(--tx3)">Rendering actual PDF (this can take 10–20s)…</div></div>';
   // 30s timeout — if html2canvas hangs we surface an error instead of leaving spinner
   var timeoutId=setTimeout(function(){
-    var w=document.getElementById('soPdfFrameWrap');
+    var w=document.getElementById(wrapId);
     if(w&&w.querySelector('div'))w.innerHTML='<div style="color:#dc2626;font-size:11px;padding:20px">PDF generation timed out after 30s. The HTML preview above shows what will be sent — click "Send" to proceed; the PDF will be generated server-side then.</div>';
   },30000);
   generateSOPDF(so).then(function(pdf){
@@ -690,11 +696,11 @@ function loadSendPDFPreview(soId,forceRegen){
     if(window._soPdfPreviewUrl){try{URL.revokeObjectURL(window._soPdfPreviewUrl)}catch(e){}}
     window._soPdfPreviewUrl=URL.createObjectURL(pdf.blob);
     window._soPdfPreviewSoId=soId;
-    var wrap2=document.getElementById('soPdfFrameWrap');
+    var wrap2=document.getElementById(wrapId);
     if(wrap2)wrap2.innerHTML='<iframe src="'+window._soPdfPreviewUrl+'" style="width:100%;height:100%;border:none"></iframe>';
   }).catch(function(e){
     clearTimeout(timeoutId);
-    var wrap2=document.getElementById('soPdfFrameWrap');
+    var wrap2=document.getElementById(wrapId);
     if(wrap2)wrap2.innerHTML='<div style="color:#dc2626;font-size:11px;padding:20px">PDF render failed: '+esc(e.message||String(e))+'. The HTML preview still works — click Send.</div>';
   });
 }
