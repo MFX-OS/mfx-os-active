@@ -1172,27 +1172,98 @@ async function autoCreateSO(q){
 
 // ═══════════════════════════════════════
 // SO PDF GENERATION (matches quote design)
+// Hardened against the silent failures we hit in production:
+//   - CDN libs are deferred so they may not be loaded yet → poll up to 10s
+//   - html2canvas hangs forever on cross-origin <img> tags without CORS
+//     headers (api.qrserver.com) → strip external images before render
+//   - html2canvas itself has no internal timeout → race against 20s hard
+//     cap, clean up the offscreen container regardless of outcome
+//   - Every failure path now rejects with a human-readable message that
+//     hits the toast / preview error UI
 // ═══════════════════════════════════════
 function generateSOPDF(so){
   return new Promise(function(resolve,reject){
-    var container=document.createElement('div');
-    container.style.cssText='position:fixed;top:-9999px;left:-9999px;width:800px;background:#fff;padding:30px;color:#000;font-family:Arial,sans-serif';
-    container.innerHTML=buildSOPrintHTML(so);
-    document.body.appendChild(container);
+    if(!so){reject(new Error('No SO provided'));return}
 
-    if(typeof html2canvas!=='function'){reject('html2canvas not loaded');return}
-    html2canvas(container,{scale:2,useCORS:true,backgroundColor:'#ffffff'}).then(function(canvas){
-      document.body.removeChild(container);
-      var imgData=canvas.toDataURL('image/jpeg',0.95);
-      var pdf=new jspdf.jsPDF('p','mm','letter');
-      var pdfW=pdf.internal.pageSize.getWidth();
-      var imgW=pdfW-20;var imgH=(canvas.height*imgW)/canvas.width;
-      pdf.addImage(imgData,'JPEG',10,10,imgW,imgH);
-      var descClean=(so.jobDesc||'').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'-').substring(0,60);
-      var filename=so.soNum+'_'+so.company.replace(/[^a-zA-Z0-9]/g,'-')+(descClean?'_'+descClean:'')+'.pdf';
-      var pdfBlob=pdf.output('blob');var pdfBase64=pdf.output('datauristring').split(',')[1];
-      resolve({blob:pdfBlob,base64:pdfBase64,filename:filename});
-    }).catch(function(e){document.body.removeChild(container);reject(e)});
+    // 1. Wait for deferred CDN libs (html2canvas + jsPDF) up to 10s
+    var libStart=Date.now();
+    function libsReady(){
+      return typeof html2canvas==='function'
+        && typeof jspdf!=='undefined' && jspdf && jspdf.jsPDF;
+    }
+    function waitForLibs(cb){
+      if(libsReady())return cb(null);
+      if(Date.now()-libStart>10000)return cb(new Error('PDF libraries (html2canvas / jsPDF) did not load within 10s. Hard refresh the page and try again.'));
+      setTimeout(function(){waitForLibs(cb)},200);
+    }
+
+    waitForLibs(function(libErr){
+      if(libErr)return reject(libErr);
+
+      // 2. Build the SO HTML, strip cross-origin <img> tags that would
+      //    hang html2canvas. Inline SVGs (barcodes/QR via qrcode-generator
+      //    lib) survive — only api.qrserver.com fallback gets removed.
+      var container=document.createElement('div');
+      container.style.cssText='position:fixed;top:-9999px;left:-9999px;width:800px;background:#fff;padding:30px;color:#000;font-family:Arial,sans-serif';
+      try{
+        var html=buildSOPrintHTML(so);
+        var stripped=0;
+        html=html.replace(/<img\s+[^>]*src="https?:\/\/[^"]+"[^>]*>/gi,function(){stripped++;return ''});
+        if(stripped)console.warn('[generateSOPDF] stripped '+stripped+' external image(s) before render');
+        container.innerHTML=html;
+        document.body.appendChild(container);
+      }catch(buildErr){
+        console.error('[generateSOPDF] buildSOPrintHTML threw:',buildErr);
+        return reject(new Error('SO content build failed: '+(buildErr.message||buildErr)));
+      }
+
+      // 3. Race html2canvas against a 20s hard timeout
+      var done=false;
+      var cleanup=function(){
+        if(container&&container.parentNode){try{container.parentNode.removeChild(container)}catch(_){}}
+      };
+      var timeoutId=setTimeout(function(){
+        if(done)return; done=true;
+        cleanup();
+        reject(new Error('PDF generation timed out after 20s. The HTML preview still works — use Print Preview instead, or open the SO Doc from Drive.'));
+      },20000);
+
+      html2canvas(container,{
+        scale:2,
+        useCORS:true,
+        backgroundColor:'#ffffff',
+        logging:false,
+        imageTimeout:5000   // never wait more than 5s per image
+      }).then(function(canvas){
+        if(done)return; done=true;
+        clearTimeout(timeoutId);
+        cleanup();
+        try{
+          var imgData=canvas.toDataURL('image/jpeg',0.95);
+          var pdf=new jspdf.jsPDF('p','mm','letter');
+          var pdfW=pdf.internal.pageSize.getWidth();
+          var imgW=pdfW-20;
+          var imgH=(canvas.height*imgW)/canvas.width;
+          pdf.addImage(imgData,'JPEG',10,10,imgW,imgH);
+          var descClean=String(so.jobDesc||'').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'-').substring(0,60);
+          var coClean=String(so.company||'Co').replace(/[^a-zA-Z0-9]/g,'-');
+          var filename=(so.soNum||'SO')+'_'+coClean+(descClean?'_'+descClean:'')+'.pdf';
+          var pdfBlob=pdf.output('blob');
+          var pdfBase64=pdf.output('datauristring').split(',')[1];
+          resolve({blob:pdfBlob,base64:pdfBase64,filename:filename});
+        }catch(renderErr){
+          console.error('[generateSOPDF] jsPDF render failed:',renderErr);
+          reject(new Error('PDF assembly failed: '+(renderErr.message||renderErr)));
+        }
+      }).catch(function(canvasErr){
+        if(done)return; done=true;
+        clearTimeout(timeoutId);
+        cleanup();
+        var msg=(canvasErr&&canvasErr.message)?canvasErr.message:String(canvasErr);
+        console.error('[generateSOPDF] html2canvas failed:',canvasErr);
+        reject(new Error('Canvas render failed: '+msg));
+      });
+    });
   });
 }
 
