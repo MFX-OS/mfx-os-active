@@ -3191,6 +3191,322 @@ async function sendSOStatusChangeNotification(so, newStatus, extras) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// OUTSTANDING-PROCESS REMINDERS
+// Daily cron nudges clients on unsigned SOs and stale quotes, and
+// escalates to internal notifications when items go too far overdue.
+// Idempotency: tracks lastReminderAt + reminderCount on each doc.
+// ═══════════════════════════════════════════════════════════════════
+
+function daysSinceIso(iso) {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (!isFinite(then)) return null;
+  return (Date.now() - then) / (1000 * 60 * 60 * 24);
+}
+
+// Per-doc-type reminder thresholds. Configurable via env if needed.
+const REMINDER_CFG = {
+  unsignedSO: {
+    firstAfterDays: Number(process.env.REMINDER_SO_FIRST_DAYS || 3),
+    repeatEveryDays: Number(process.env.REMINDER_SO_REPEAT_DAYS || 7),
+    maxClientReminders: Number(process.env.REMINDER_SO_MAX || 3),
+    internalEscalateDays: Number(process.env.REMINDER_SO_ESCALATE_DAYS || 14)
+  },
+  staleQuote: {
+    firstAfterDays: Number(process.env.REMINDER_QUOTE_FIRST_DAYS || 7),
+    repeatEveryDays: Number(process.env.REMINDER_QUOTE_REPEAT_DAYS || 14),
+    maxClientReminders: Number(process.env.REMINDER_QUOTE_MAX || 2),
+    internalEscalateDays: Number(process.env.REMINDER_QUOTE_ESCALATE_DAYS || 30)
+  }
+};
+
+function buildUnsignedSOReminderEmail({ soNum, contact, company, total, daysOpen, signingDocLink, portalUrl, attemptNum }) {
+  const fmt$ = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const dayWord = daysOpen === 1 ? "day" : "days";
+  const friendly = attemptNum === 1
+    ? "Just a friendly nudge"
+    : attemptNum === 2
+    ? "Checking in again"
+    : "One last reminder";
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;background:#ffffff">
+  <div style="background:#0a1929;padding:24px 32px;border-bottom:3px solid #f59e0b">
+    <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px">MICROFLEX FILM CORPORATION</div>
+    <div style="color:#fcd34d;font-size:11px;margin-top:4px;letter-spacing:2px">SALES ORDER · AWAITING SIGNATURE</div>
+  </div>
+  <div style="padding:32px">
+    <p style="color:#0f172a;font-size:14px;margin:0 0 16px">Hi ${contact || "there"},</p>
+    <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 20px">
+      ${friendly} — Sales Order <strong style="color:#0a1929">${soNum}</strong> has been waiting
+      for your signature for <strong>${Math.round(daysOpen)} ${dayWord}</strong>. Once it's signed,
+      we'll move it into our production queue and start scheduling proofs.
+    </p>
+    ${signingDocLink ? `<div style="background:#fef3c7;border:1.5px solid #f59e0b;border-radius:8px;padding:20px;margin:0 0 24px;text-align:center">
+      <div style="color:#92400e;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:8px">SIGN IN GOOGLE DRIVE</div>
+      <a href="${signingDocLink}" style="background:#f59e0b;color:#ffffff;padding:14px 36px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block">Open & Sign Sales Order</a>
+      <div style="color:#92400e;font-size:11px;margin-top:10px;line-height:1.5">Type your name + today's date in the signature lines, then save.</div>
+    </div>` : ""}
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 16px;font-size:12px">
+      <tr><td style="padding:6px 0;color:#64748b;width:120px">Sales Order</td><td style="padding:6px 0;color:#0f172a;font-weight:700">${soNum}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b">Company</td><td style="padding:6px 0;color:#0f172a">${company || "—"}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b">Order Total</td><td style="padding:6px 0;color:#0f172a;font-weight:700">${fmt$(total)}</td></tr>
+    </table>
+    ${portalUrl ? `<div style="text-align:center;margin:16px 0"><a href="${portalUrl}" style="background:#00b4d8;color:#ffffff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px;display:inline-block">View in Portal</a></div>` : ""}
+    <p style="color:#64748b;font-size:11px;margin:24px 0 0;line-height:1.5">
+      Any questions or changes needed before signing? Just reply — we'll take care of it.
+    </p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:10px">
+    Microflex Film Corporation · Los Angeles, CA · microflexfilm.com
+  </div>
+</div></body></html>`;
+}
+
+function buildStaleQuoteReminderEmail({ quoteNum, contact, company, jobDesc, daysOpen, portalUrl, attemptNum }) {
+  const dayWord = daysOpen === 1 ? "day" : "days";
+  const friendly = attemptNum === 1
+    ? "Checking in on your quote"
+    : "Following up once more";
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;background:#ffffff">
+  <div style="background:#0a1929;padding:24px 32px;border-bottom:3px solid #00b4d8">
+    <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px">MICROFLEX FILM CORPORATION</div>
+    <div style="color:#94a3b8;font-size:11px;margin-top:4px;letter-spacing:2px">QUOTE · STILL INTERESTED?</div>
+  </div>
+  <div style="padding:32px">
+    <p style="color:#0f172a;font-size:14px;margin:0 0 16px">Hi ${contact || "there"},</p>
+    <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 20px">
+      ${friendly} <strong style="color:#0a1929">${quoteNum}</strong> — we sent it
+      <strong>${Math.round(daysOpen)} ${dayWord}</strong> ago and haven't heard back yet.
+      Just want to make sure it didn't get lost in your inbox.
+    </p>
+    ${jobDesc ? `<p style="color:#64748b;font-size:12px;margin:0 0 16px"><strong>Job:</strong> ${jobDesc}</p>` : ""}
+    <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 16px">
+      Got questions about pricing, lead time, or materials? Reply here and we'll
+      get you what you need. If something's changed and you'd like a revised
+      quote, just say the word.
+    </p>
+    ${portalUrl ? `<div style="text-align:center;margin:20px 0">
+      <a href="${portalUrl}" style="background:#00b4d8;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;display:inline-block">Review Your Quote</a>
+    </div>` : ""}
+    <p style="color:#64748b;font-size:11px;margin:24px 0 0;line-height:1.5">
+      Microflex pricing typically stays valid for 30 days from quote date.
+    </p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:10px">
+    Microflex Film Corporation · Los Angeles, CA · microflexfilm.com
+  </div>
+</div></body></html>`;
+}
+
+// Post an internal escalation notification to ops/CEO when an item has
+// been outstanding past the escalation threshold. Tracked on the doc as
+// internalEscalatedAt so we don't double-post.
+async function postInternalEscalation({ kind, docId, soOrQuote, daysOpen }) {
+  const titlePrefix = kind === "unsignedSO" ? "Unsigned SO" : "Stale Quote";
+  const title = `${titlePrefix} — ${soOrQuote.soNum || soOrQuote.quoteNum} (${Math.round(daysOpen)}d)`;
+  const total = soOrQuote.total || (soOrQuote.qtys && soOrQuote.qtys[soOrQuote.poQtyIndex || 0] && soOrQuote.qtys[soOrQuote.poQtyIndex || 0].total) || 0;
+  const body = `${soOrQuote.company || (soOrQuote.fields && soOrQuote.fields.custCo) || "Client"} · ${Math.round(daysOpen)} days · $${Number(total).toLocaleString(undefined, { minimumFractionDigits: 2 })} · client reminders exhausted`;
+  const mgmtSnap = await db.collection("users")
+    .where("role", "in", ["CEO", "ceo", "Admin", "admin", "Operations Manager"]).limit(5).get();
+  const batch = db.batch();
+  mgmtSnap.docs.forEach(u => {
+    batch.set(db.collection("notifications").doc(), {
+      type: "alert",
+      title,
+      body,
+      icon: kind === "unsignedSO" ? "✍" : "⏳",
+      from: "System (Reminders)",
+      userId: u.id,
+      sourceView: kind === "unsignedSO" ? "orders" : "quotes",
+      sourceId: docId,
+      read: false, dismissed: false,
+      priority: "high",
+      timestamp: FieldValue.serverTimestamp()
+    });
+  });
+  await batch.commit();
+}
+
+// Scheduled daily reminder cron. Runs at 09:00 Central each weekday morning.
+// Three responsibilities:
+//   1. Email clients about unsigned SOs (>= REMINDER_SO_FIRST_DAYS)
+//   2. Email clients about stale quotes (>= REMINDER_QUOTE_FIRST_DAYS)
+//   3. Post internal escalations when items go past escalateDays
+// Each doc gets at most maxClientReminders before client emails stop;
+// internal escalation fires once and is recorded.
+exports.scheduledSendOutstandingReminders = onSchedule(
+  { schedule: "every day 09:00", timeZone: "America/Chicago", memory: "256MiB", timeoutSeconds: 240 },
+  async () => {
+    const cfg = REMINDER_CFG;
+    const portalHost = process.env.PORTAL_HOST || "https://mfx-2026.web.app";
+    const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+    const results = { soChecked: 0, soReminded: 0, soEscalated: 0, quoteChecked: 0, quoteReminded: 0, quoteEscalated: 0, errors: 0 };
+
+    // ─── Unsigned SOs ───────────────────────────────────────
+    try {
+      const soSnap = await db.collection("salesOrders")
+        .where("status", "in", ["sent", "pending"])
+        .limit(200).get();
+      for (const d of soSnap.docs) {
+        const so = { id: d.id, ...d.data() };
+        if (so.clientSignedAt) continue;
+        // sentAt is set by the auto-flow; if missing fall back to createdAt
+        const sinceIso = so.sentAt || so.createdAt;
+        const daysOpen = daysSinceIso(sinceIso);
+        if (daysOpen === null || daysOpen < cfg.unsignedSO.firstAfterDays) continue;
+        results.soChecked++;
+
+        const lastReminderDays = daysSinceIso(so.lastReminderAt);
+        const reminderCount = Number(so.reminderCount || 0);
+
+        // Internal escalation (one-time) — fire when overdue regardless of client reminders
+        if (daysOpen >= cfg.unsignedSO.internalEscalateDays && !so.internalEscalatedAt) {
+          try {
+            await postInternalEscalation({ kind: "unsignedSO", docId: d.id, soOrQuote: so, daysOpen });
+            await d.ref.update({ internalEscalatedAt: nowIso() });
+            results.soEscalated++;
+            await logServerEvent("reminder.internal_alert", {
+              kind: "unsignedSO", docId: d.id, soNum: so.soNum, daysOpen: Math.round(daysOpen)
+            });
+          } catch (err) {
+            console.warn("SO escalation failed:", err.message);
+            results.errors++;
+          }
+        }
+
+        // Client reminder — skip if already maxed or sent too recently
+        if (reminderCount >= cfg.unsignedSO.maxClientReminders) continue;
+        if (lastReminderDays !== null && lastReminderDays < cfg.unsignedSO.repeatEveryDays) continue;
+        if (!so.email) continue;
+
+        const portalUrl = so.quoteId
+          ? `${portalHost}/portal.html?quoteId=${encodeURIComponent(so.quoteId)}&email=${encodeURIComponent(so.email)}`
+          : portalHost;
+        try {
+          const html = buildUnsignedSOReminderEmail({
+            soNum: so.soNum, contact: so.contact, company: so.company,
+            total: so.total, daysOpen, signingDocLink: so.signingDocLink,
+            portalUrl, attemptNum: reminderCount + 1
+          });
+          const msgId = await sendDelegatedEmail({
+            from: senderMailbox,
+            to: so.email,
+            bcc: "team@microflexfilm.com, quotes@microflexfilm.com",
+            replyTo: "quotes@microflexfilm.com",
+            subject: `Reminder: Please sign ${so.soNum}`,
+            html
+          });
+          if (msgId) {
+            await d.ref.update({
+              lastReminderAt: nowIso(),
+              reminderCount: reminderCount + 1,
+              updatedAt: nowIso(),
+              notes: FieldValue.arrayUnion({
+                text: `⏰ Reminder #${reminderCount + 1} sent to ${so.email} (${Math.round(daysOpen)}d open · Gmail ${msgId})`,
+                by: "System (Reminders)",
+                at: nowIso()
+              })
+            });
+            results.soReminded++;
+            await logServerEvent("reminder.sent.so_unsigned", {
+              soId: d.id, soNum: so.soNum, to: so.email,
+              attempt: reminderCount + 1, daysOpen: Math.round(daysOpen), gmailMessageId: msgId
+            });
+          }
+        } catch (err) {
+          console.warn(`SO reminder failed for ${so.soNum}:`, err.message);
+          results.errors++;
+        }
+      }
+    } catch (err) {
+      console.error("Unsigned SO reminder pass failed:", err);
+      results.errors++;
+    }
+
+    // ─── Stale Quotes ──────────────────────────────────────
+    try {
+      const qSnap = await db.collection("quotes")
+        .where("status", "==", "sent")
+        .limit(200).get();
+      for (const d of qSnap.docs) {
+        const q = { id: d.id, ...d.data() };
+        if (q.poNumber || q.poSignature) continue; // PO already submitted
+        const sinceIso = q.sentAt || q.createdAt;
+        const daysOpen = daysSinceIso(sinceIso);
+        if (daysOpen === null || daysOpen < cfg.staleQuote.firstAfterDays) continue;
+        results.quoteChecked++;
+
+        const lastReminderDays = daysSinceIso(q.lastReminderAt);
+        const reminderCount = Number(q.reminderCount || 0);
+
+        if (daysOpen >= cfg.staleQuote.internalEscalateDays && !q.internalEscalatedAt) {
+          try {
+            await postInternalEscalation({ kind: "staleQuote", docId: d.id, soOrQuote: q, daysOpen });
+            await d.ref.update({ internalEscalatedAt: nowIso() });
+            results.quoteEscalated++;
+            await logServerEvent("reminder.internal_alert", {
+              kind: "staleQuote", docId: d.id, quoteNum: q.quoteNum, daysOpen: Math.round(daysOpen)
+            });
+          } catch (err) {
+            console.warn("Quote escalation failed:", err.message);
+            results.errors++;
+          }
+        }
+
+        if (reminderCount >= cfg.staleQuote.maxClientReminders) continue;
+        if (lastReminderDays !== null && lastReminderDays < cfg.staleQuote.repeatEveryDays) continue;
+        const clientEmail = (q.fields && q.fields.custEmail) || q.poClientEmail;
+        if (!clientEmail) continue;
+
+        const fields = q.fields || {};
+        const portalUrl = `${portalHost}/portal.html?quoteId=${encodeURIComponent(d.id)}&email=${encodeURIComponent(clientEmail)}`;
+        try {
+          const html = buildStaleQuoteReminderEmail({
+            quoteNum: q.quoteNum,
+            contact: fields.custAttn || "",
+            company: fields.custCo || "",
+            jobDesc: (fields.sA || "?") + 'x' + (fields.sar || "?") + '" ' + (fields.shapeType || ""),
+            daysOpen,
+            portalUrl,
+            attemptNum: reminderCount + 1
+          });
+          const msgId = await sendDelegatedEmail({
+            from: senderMailbox,
+            to: clientEmail,
+            bcc: "team@microflexfilm.com, quotes@microflexfilm.com",
+            replyTo: "quotes@microflexfilm.com",
+            subject: `${q.quoteNum} — Still interested?`,
+            html
+          });
+          if (msgId) {
+            await d.ref.update({
+              lastReminderAt: nowIso(),
+              reminderCount: reminderCount + 1,
+              updatedAt: nowIso()
+            });
+            results.quoteReminded++;
+            await logServerEvent("reminder.sent.quote_stale", {
+              quoteId: d.id, quoteNum: q.quoteNum, to: clientEmail,
+              attempt: reminderCount + 1, daysOpen: Math.round(daysOpen), gmailMessageId: msgId
+            });
+          }
+        } catch (err) {
+          console.warn(`Quote reminder failed for ${q.quoteNum}:`, err.message);
+          results.errors++;
+        }
+      }
+    } catch (err) {
+      console.error("Stale quote reminder pass failed:", err);
+      results.errors++;
+    }
+
+    await logServerEvent("reminder.cron.summary", results);
+    console.log(`scheduledSendOutstandingReminders: ${JSON.stringify(results)}`);
+  }
+);
+
 // Scheduled poll: every 15 min check SOs that have a signing Doc but no
 // recorded signature. For each, ask the Docs API what's in the doc — if
 // the "Signed by:" line has real text, mark the SO as signed, post an
