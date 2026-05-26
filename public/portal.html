@@ -666,6 +666,8 @@ function renderPortalData(){
   }
   // Render per-SKU art upload zones
   renderPerSkuArtZones(q);
+  // Restore Drive folder boxes if previously shared
+  rehydrateDriveFolders(q);
   // Handle already submitted PO
   if(q.status==='won'&&q.poSignature){
     document.querySelector('.status h2').textContent='PO Already Submitted';
@@ -730,15 +732,16 @@ function handleFiles(files,type,skuIdx){
   for(var pi=0;pi<files.length;pi++){if(files[pi].size>MAX_UPLOAD_BYTES)oversize.push(files[pi]);}
   if(oversize.length){
     var names=oversize.map(function(f){return f.name+' ('+Math.round(f.size/1024/1024)+'MB)';}).join(', ');
-    var msg='File too large (max 50MB per file): '+names
-      +'. For larger files, email your sales rep — they can give you a Drive folder link to upload directly.';
+    var driveType=type==='po'?'PO':'Art';
     if(list){
       var warn=document.createElement('div');
-      warn.style.cssText='background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#ef4444;font-size:11px;padding:10px 12px;border-radius:6px;margin-bottom:8px';
-      warn.textContent=msg;
+      warn.style.cssText='background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#ef4444;font-size:11px;padding:10px 12px;border-radius:6px;margin-bottom:8px;line-height:1.5';
+      warn.innerHTML='<div style="font-weight:600;margin-bottom:4px">File too large (max 50MB direct upload):</div>'
+        +'<div style="margin-bottom:6px">'+escPortal(names)+'</div>'
+        +'<a href="#" onclick="requestDriveFolder(\''+driveType+'\');return false" style="color:#22c55e;font-weight:700;text-decoration:none">→ Get a Drive folder to upload large files</a>';
       list.appendChild(warn);
     } else {
-      alert(msg);
+      alert('File too large (max 50MB per file): '+names+'. Open the portal to request a Drive upload folder.');
     }
     // Filter out the oversize files but continue with any that fit
     files=Array.prototype.filter.call(files,function(f){return f.size<=MAX_UPLOAD_BYTES;});
@@ -857,6 +860,61 @@ function fallbackStorageUpload(f,type,itemId,arr,skuIdx){
     var stE=document.querySelector('#'+itemId+' .upload-status');
     if(stE)stE.innerHTML='<span style="color:#ef4444">Upload failed: '+escPortal(e&&e.message?e.message:'storage error')+'</span>';
   }
+}
+
+// ─── Drive folder share for files >50MB ───
+// Server creates /Clients/<Co>/<Quote#>/<PO|Art>/ folder, shares it with
+// the client's email as writer, returns the webViewLink. Client uploads
+// directly to Drive; files appear in the same tree as portal uploads.
+function showDriveFolderBox(type,link){
+  var prefix=type==='PO'?'po':'art';
+  var cta=document.getElementById(prefix+'DriveFolderCta');
+  var box=document.getElementById(prefix+'DriveFolderBox');
+  var a=document.getElementById(prefix+'DriveFolderLink');
+  if(cta)cta.style.display='none';
+  if(a)a.setAttribute('href',link);
+  if(box)box.style.display='block';
+}
+function requestDriveFolder(type){
+  // type: 'PO' or 'Art'
+  if(!QUOTE_ID){alert('Quote not loaded yet — refresh the page and try again.');return}
+  var prefix=type==='PO'?'po':'art';
+  var cta=document.getElementById(prefix+'DriveFolderCta');
+  // Already have a folder cached on the quote? Just show it.
+  var cached=QUOTE_DATA&&(type==='PO'?QUOTE_DATA.poUploadFolder:QUOTE_DATA.artUploadFolder);
+  if(cached&&cached.link){showDriveFolderBox(type,cached.link);return}
+  if(cta)cta.innerHTML='<span style="color:var(--accent)">Creating your Drive folder…</span>';
+  getAuthToken().then(function(token){
+    return fetch('/api/getPortalUploadFolder',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({quoteId:QUOTE_ID,fileType:type})
+    });
+  }).then(function(r){return r.json().then(function(d){return {status:r.status,data:d}})})
+  .then(function(res){
+    if(res.status===200&&res.data&&res.data.success){
+      // Cache locally so a page refresh shows the link without re-sharing
+      if(QUOTE_DATA){
+        if(type==='PO')QUOTE_DATA.poUploadFolder={link:res.data.link,folderId:res.data.folderId,sharedWith:res.data.sharedWith};
+        else QUOTE_DATA.artUploadFolder={link:res.data.link,folderId:res.data.folderId,sharedWith:res.data.sharedWith};
+      }
+      showDriveFolderBox(type,res.data.link);
+    } else {
+      var err=(res.data&&res.data.error)?res.data.error:('HTTP '+res.status);
+      if(cta)cta.innerHTML='<span style="color:#ef4444">Could not create folder: '+escPortal(err)+'. Email your sales rep.</span>';
+      console.error('getPortalUploadFolder failed:',res);
+    }
+  })
+  .catch(function(err){
+    if(cta)cta.innerHTML='<span style="color:#ef4444">Network error: '+escPortal(err&&err.message?err.message:'unknown')+'. Try again.</span>';
+    console.error('requestDriveFolder error:',err);
+  });
+}
+// Restore Drive folder boxes on quote load if previously shared
+function rehydrateDriveFolders(q){
+  if(!q)return;
+  if(q.poUploadFolder&&q.poUploadFolder.link)showDriveFolderBox('PO',q.poUploadFolder.link);
+  if(q.artUploadFolder&&q.artUploadFolder.link)showDriveFolderBox('Art',q.artUploadFolder.link);
 }
 
 // ─── Per-SKU Art Upload Zones ───
@@ -1308,10 +1366,18 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 <div class="dropzone" onclick="document.getElementById('poFileInput').click()">
 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 <p>Drop your PO document here, or <b>browse</b></p>
-<small>PDF, DOCX — Max 50MB. For larger files, email your sales rep for a Drive upload link.</small>
+<small>PDF, DOCX — Max 50MB per file.</small>
 </div>
 <input type="file" id="poFileInput" multiple style="display:none" onchange="handleFiles(this.files,'po')">
 <div class="file-list" id="poFileList"></div>
+<div id="poDriveFolderCta" style="margin-top:8px;font-size:11px;color:var(--sub);text-align:center">
+  Have a file over 50MB? <a href="#" onclick="requestDriveFolder('PO');return false" style="color:var(--accent);text-decoration:none;font-weight:600">Get a Drive upload folder →</a>
+</div>
+<div id="poDriveFolderBox" style="display:none;margin-top:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:12px;font-size:12px">
+  <div style="font-weight:700;color:#22c55e;margin-bottom:6px">📁 Your Drive upload folder is ready</div>
+  <div style="color:var(--sub);margin-bottom:8px">Drop files of any size directly into this folder — they'll sync to Microflex automatically. A Drive invitation was emailed to you.</div>
+  <a id="poDriveFolderLink" href="#" target="_blank" style="display:inline-block;background:var(--accent);color:#060d14;padding:8px 14px;border-radius:5px;font-weight:700;text-decoration:none;font-size:11px">Open Drive Folder</a>
+</div>
 </div>
 
 <div class="section" id="artUploadSection">
@@ -1321,10 +1387,18 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 <div class="dropzone" onclick="document.getElementById('artFileInput').click()">
 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 <p>Drop your art/design files here, or <b>browse</b></p>
-<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 50MB each. Larger files? Email your sales rep for a Drive link.</small>
+<small>AI, PDF, PSD, PNG, JPG, TIFF — Max 50MB each.</small>
 </div>
 <input type="file" id="artFileInput" multiple style="display:none" onchange="handleFiles(this.files,'art')">
 <div class="file-list" id="artFileList"></div>
+</div>
+<div id="artDriveFolderCta" style="margin-top:8px;font-size:11px;color:var(--sub);text-align:center">
+  Have art files over 50MB? <a href="#" onclick="requestDriveFolder('Art');return false" style="color:var(--accent);text-decoration:none;font-weight:600">Get a Drive upload folder →</a>
+</div>
+<div id="artDriveFolderBox" style="display:none;margin-top:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:12px;font-size:12px">
+  <div style="font-weight:700;color:#22c55e;margin-bottom:6px">📁 Your Drive upload folder is ready</div>
+  <div style="color:var(--sub);margin-bottom:8px">Drop art files of any size directly into this folder — they'll sync to Microflex automatically. A Drive invitation was emailed to you.</div>
+  <a id="artDriveFolderLink" href="#" target="_blank" style="display:inline-block;background:var(--accent);color:#060d14;padding:8px 14px;border-radius:5px;font-weight:700;text-decoration:none;font-size:11px">Open Drive Folder</a>
 </div>
 </div>
 

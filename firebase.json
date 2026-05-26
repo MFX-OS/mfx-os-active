@@ -137,6 +137,13 @@
           }
         },
         {
+          "source": "/api/getPortalUploadFolder",
+          "function": {
+            "functionId": "getPortalUploadFolder",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "/api/nextSequence",
           "function": {
             "functionId": "nextSequence",
