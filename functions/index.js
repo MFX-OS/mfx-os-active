@@ -1513,25 +1513,122 @@ exports.transitionStatus = onRequest(
         note: note || ""
       });
 
-      // SO status-change emails: notify client when their order enters
-      // production / ships / completes / is cancelled. Fire-and-forget —
-      // we don't fail the transition if the email send hiccups.
+      // SO transitions trigger two distinct side-effect families:
+      //   1. pending → approved: CEO has signed off. THIS is the moment we
+      //      finally create the Google Doc signing surface, share it with
+      //      the client, send the branded confirmation email, and advance
+      //      the SO to 'sent' (sentAt stamped). Before this commit, all of
+      //      that ran the moment the PO was submitted — bypassing CEO
+      //      review. Now it strictly waits for approval.
+      //   2. → production / shipped / complete / cancelled: notify client
+      //      with a stage-appropriate update.
       if (collection === "salesOrders") {
-        try {
-          const so = { id: docId, ...data, ...update };
-          const msgId = await sendSOStatusChangeNotification(so, newStatus, req.body || {});
-          if (msgId) {
-            await docRef.update({
-              [`statusEmails.${newStatus}.sentAt`]: nowIso(),
-              [`statusEmails.${newStatus}.gmailMessageId`]: msgId
+        const so = { id: docId, ...data, ...update };
+        // ─── 1. Approval → create Doc + email client + auto-advance to sent
+        if (newStatus === "approved" && currentStatus === "pending") {
+          try {
+            // a. Create the Google Doc (idempotent — skip if already exists)
+            let signingDocLink = so.signingDocLink || null;
+            let signingDocId = so.signingDocId || null;
+            if (!signingDocId) {
+              try {
+                const signingDoc = await createSOSigningDoc(so);
+                signingDocLink = signingDoc.docLink;
+                signingDocId = signingDoc.docId;
+                await docRef.update({
+                  signingDocId,
+                  signingDocLink,
+                  signingDocFolderId: signingDoc.folderId,
+                  signingDocCreatedAt: nowIso(),
+                  updatedAt: nowIso()
+                });
+                await logServerEvent("so.signing_doc_created", {
+                  soId: docId, soNum: so.soNum || "", docId: signingDocId, sharedWith: so.email
+                });
+              } catch (docErr) {
+                console.warn(`createSOSigningDoc failed on approve for ${so.soNum}:`, docErr.message);
+                await logServerEvent("so.signing_doc_failed", {
+                  soId: docId, soNum: so.soNum || "", error: docErr.message, phase: "approval"
+                });
+              }
+            }
+            // b. Send branded confirmation email with sign CTA
+            const portalHost = process.env.PORTAL_HOST || "https://mfx-2026.web.app";
+            const portalUrl = so.quoteId
+              ? `${portalHost}/portal.html?quoteId=${encodeURIComponent(so.quoteId)}&email=${encodeURIComponent(so.email)}`
+              : portalHost;
+            const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+            const html = buildSOConfirmationEmail({
+              soNum: so.soNum,
+              quoteNum: so.quoteNum || "",
+              company: so.company || "",
+              contact: so.contact || "",
+              jobDesc: so.jobDesc,
+              selectedQty: so.selectedQty || 0,
+              ppu: so.ppu || 0,
+              total: so.total || 0,
+              payTerms: so.payTerms || "Net 30",
+              portalUrl,
+              signingDocLink
             });
-            await logServerEvent("so.status_email_sent", {
-              soId: docId, soNum: so.soNum || "",
-              from: currentStatus, to: newStatus, gmailMessageId: msgId
+            const msgId = await sendDelegatedEmail({
+              from: senderMailbox,
+              to: so.email,
+              bcc: "team@microflexfilm.com, quotes@microflexfilm.com",
+              subject: `Sales Order ${so.soNum} — ${so.company || "Microflex"}`,
+              replyTo: "quotes@microflexfilm.com",
+              html
             });
+            if (msgId) {
+              // c. Advance to 'sent' status with sentAt stamped — same
+              // single user action gets us approved → sent automatically.
+              await docRef.update({
+                status: "sent",
+                sentAt: nowIso(),
+                sentTo: so.email,
+                updatedAt: nowIso(),
+                notes: FieldValue.arrayUnion({
+                  text: `✉ Auto-sent after CEO approval to ${so.email} (Gmail msg ${msgId})`,
+                  by: "System",
+                  at: nowIso()
+                })
+              });
+              await logServerEvent("so.approved_and_sent", {
+                soId: docId, soNum: so.soNum || "", to: so.email, gmailMessageId: msgId
+              });
+            } else {
+              await docRef.update({
+                notes: FieldValue.arrayUnion({
+                  text: `⚠ Approval succeeded but auto-send failed — staff will send manually.`,
+                  by: "System",
+                  at: nowIso()
+                })
+              });
+              await logServerEvent("so.approved_send_failed", {
+                soId: docId, soNum: so.soNum || "", to: so.email
+              });
+            }
+          } catch (notifyErr) {
+            console.warn("SO approval side-effects failed (status still updated):", notifyErr.message);
           }
-        } catch (notifyErr) {
-          console.warn("SO status email failed (transition still succeeded):", notifyErr.message);
+        }
+        // ─── 2. Other downstream status changes (production/shipped/etc)
+        else {
+          try {
+            const msgId = await sendSOStatusChangeNotification(so, newStatus, req.body || {});
+            if (msgId) {
+              await docRef.update({
+                [`statusEmails.${newStatus}.sentAt`]: nowIso(),
+                [`statusEmails.${newStatus}.gmailMessageId`]: msgId
+              });
+              await logServerEvent("so.status_email_sent", {
+                soId: docId, soNum: so.soNum || "",
+                from: currentStatus, to: newStatus, gmailMessageId: msgId
+              });
+            }
+          } catch (notifyErr) {
+            console.warn("SO status email failed (transition still succeeded):", notifyErr.message);
+          }
         }
       }
 
@@ -1688,93 +1785,11 @@ exports.portalSubmitPO = onRequest(
           total: selRow.total || 0
         });
 
-        // ═══ CREATE GOOGLE DOC SIGNING SURFACE ═══
-        // Doc lives in /Clients/<Co>/<QuoteNum>/SO/, shared with client as
-        // editor so they can type their signature directly in the Doc.
-        let signingDocLink = null;
-        let signingDocId = null;
-        try {
-          const signingDoc = await createSOSigningDoc(soDoc);
-          signingDocLink = signingDoc.docLink;
-          signingDocId = signingDoc.docId;
-          // Persist on the SO so portal can show "Sign in Drive" CTA on reload
-          await db.collection("salesOrders").doc(soId).update({
-            signingDocId,
-            signingDocLink,
-            signingDocFolderId: signingDoc.folderId,
-            signingDocCreatedAt: nowIso(),
-            updatedAt: nowIso()
-          });
-          await logServerEvent("so.signing_doc_created", {
-            soId, soNum: autoSONum, docId: signingDocId, sharedWith: soDoc.email
-          });
-        } catch (err) {
-          console.warn(`createSOSigningDoc failed for ${autoSONum}:`, err.message);
-          await logServerEvent("so.signing_doc_failed", {
-            soId, soNum: autoSONum, error: err.message
-          });
-          // Keep going — email still sends, just without the signing CTA
-        }
-
-        // ═══ AUTO-EMAIL SO CONFIRMATION TO CLIENT ═══
-        // Uses delegated Gmail service account (no user token needed).
-        // BCC team@ + quotes@ so internal stays in the loop.
-        // Falls back gracefully if delegation isn't configured.
-        const portalHost = process.env.PORTAL_HOST || "https://mfx-2026.web.app";
-        const portalUrl = `${portalHost}/portal.html?quoteId=${encodeURIComponent(quoteId)}&email=${encodeURIComponent(soDoc.email)}`;
-        const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
-        const emailHtml = buildSOConfirmationEmail({
-          soNum: autoSONum,
-          quoteNum: quote.quoteNum || "",
-          company: f.custCo || "",
-          contact: f.custAttn || "",
-          jobDesc: soDoc.jobDesc,
-          selectedQty: selRow.qty || 0,
-          ppu: selRow.ppu || 0,
-          total: selRow.total || 0,
-          payTerms: f.payTerms || "Net 30",
-          portalUrl,
-          signingDocLink
-        });
-        const sentMsgId = await sendDelegatedEmail({
-          from: senderMailbox,
-          to: soDoc.email,
-          bcc: "team@microflexfilm.com, quotes@microflexfilm.com",
-          subject: `Sales Order ${autoSONum} — ${f.custCo || "Microflex"}`,
-          replyTo: "quotes@microflexfilm.com",
-          html: emailHtml
-        });
-        if (sentMsgId) {
-          // Mark the SO as sent so the workflow lifecycle reflects auto-send
-          await db.collection("salesOrders").doc(soId).update({
-            sentAt: nowIso(),
-            sentTo: soDoc.email,
-            status: "sent",
-            updatedAt: nowIso(),
-            notes: FieldValue.arrayUnion({
-              text: `✉ Auto-sent confirmation to ${soDoc.email} (Gmail msg ${sentMsgId})`,
-              by: "System",
-              at: nowIso()
-            })
-          });
-          await logServerEvent("so.auto_emailed", {
-            soId, soNum: autoSONum, to: soDoc.email,
-            gmailMessageId: sentMsgId
-          });
-        } else {
-          // Email send failed — log but don't fail the PO submit.
-          // Staff still gets the high-priority notification below.
-          await db.collection("salesOrders").doc(soId).update({
-            notes: FieldValue.arrayUnion({
-              text: `⚠ Auto-send to ${soDoc.email} failed — Gmail delegation may need configuration. Staff will send manually.`,
-              by: "System",
-              at: nowIso()
-            })
-          });
-          await logServerEvent("so.auto_email_failed", {
-            soId, soNum: autoSONum, to: soDoc.email
-          });
-        }
+        // NOTE: Google Doc creation + client email are intentionally
+        // deferred to CEO approval. The flow is now:
+        //   PO submitted → SO created (status=pending) → CEO notification
+        //   CEO approves → Google Doc created + email sent + status=sent
+        // See transitionStatus side-effect block for the approval handler.
 
         // Post notification for CEO approval
         const mgmtSnap = await db.collection("users")

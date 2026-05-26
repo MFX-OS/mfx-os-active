@@ -358,29 +358,48 @@ async function createSOFromPO(quoteId){
 }
 
 // ─── CEO Approve Sales Order ───
+// Approval is now the trigger that creates the Google Doc signing surface,
+// shares it with the client, sends the branded confirmation email, and
+// auto-advances the SO to 'sent'. All of that happens server-side via
+// /api/transitionStatus so the role gate + side effects are enforced.
 function approveSO(soId){
-  var p=getMFXProfile();
+  var profile=getMFXProfile();
   var allowedRoles=['ceo','admin','administrator','owner','operations manager'];
-  var userRole=(p.role||'').toLowerCase();
+  var userRole=(profile.role||'').toLowerCase();
   if(!allowedRoles.includes(userRole)){
     toast('Unauthorized — CEO or admin role required','err');return;
   }
 
   var so=getSO(soId);if(!so)return;
   var totalStr=so.total?(' for $'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})):'';
-  if(!confirm('Approve Sales Order '+so.soNum+totalStr+'?\n\nClient: '+(so.company||'?')+'\nPO#: '+(so.poNumber||'—')+'\n\nApproved SOs become eligible to send. This action is logged with your name.'))return;
+  if(!confirm('Approve Sales Order '+so.soNum+totalStr+'?\n\nClient: '+(so.company||'?')+'\nPO#: '+(so.poNumber||'—')+'\n\nApproving will:\n  • Create the Google Doc for client signature\n  • Email the client with the sign link (BCC team@/quotes@)\n  • Mark the SO as Sent\n\nLogged with your name. Continue?'))return;
 
-  so.status='approved';
-  so.approvedBy=getUserName();
-  so.approvedAt=new Date().toISOString();
-  so.notes=so.notes||[];
-  so.notes.push({text:'✅ Approved by '+getUserName(),by:getUserName(),at:new Date().toISOString()});
+  toast('Approving — creating Doc + emailing client…','ok');
+  var payload={collection:'salesOrders',docId:so.id,newStatus:'approved',machine:'salesOrders'};
+  var apiP=(typeof MFX_API!=='undefined'&&MFX_API.postJSON)
+    ? MFX_API.postJSON('/api/transitionStatus',payload)
+    : fetch('/api/transitionStatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json()});
 
-  saveSO(so).then(function(){
-    toast(so.soNum+' approved!','ok');
-    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.approved',so.soNum+' CEO approved');
+  apiP.then(function(resp){
+    if(!resp||resp.error){
+      toast('Approval failed: '+(resp&&resp.error?resp.error:'unknown'),'err');
+      return;
+    }
+    // Server auto-advances 'approved' → 'sent' on success, so reflect that
+    // in local cache so the UI matches without a full refetch.
+    so.status='sent';
+    so.approvedBy=getUserName();
+    so.approvedAt=new Date().toISOString();
+    so.sentAt=new Date().toISOString();
+    so.sentTo=so.email;
+    so.notes=so.notes||[];
+    so.notes.push({text:'✅ Approved by '+getUserName()+' — Doc + email auto-sent',by:getUserName(),at:new Date().toISOString()});
+    toast(so.soNum+' approved and sent to '+so.email,'ok');
+    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.approved',so.soNum+' CEO approved & sent');
     if(typeof MFX!=='undefined'&&MFX.track)MFX.track('so.approved',{soId:so.id,soNum:so.soNum,company:so.company});
     renderOrdersView();
+  }).catch(function(e){
+    toast('Approval failed: '+(e.message||e),'err');
   });
 }
 
@@ -1280,16 +1299,22 @@ function buildSOPrintHTML(so){
   var confPPU=so.ppu||(confQty?so.total/confQty:0);
   var confTotal=so.total||0;
 
-  // Secondary pricing ladder (if multiple qtys available)
+  // Secondary pricing ladder — only show rows with real qty data, and only
+  // show the ladder at all if there are 2+ meaningful rows. Empty qty
+  // arrays from incomplete quotes used to render 5 rows of zeros.
   var ladderRows='';
-  if(so.allQtys&&so.allQtys.length>1){
-    so.allQtys.forEach(function(r,i){
-      var sel=i===so.selectedQtyIndex;
-      ladderRows+='<tr style="'+(sel?'background:#e0f7fa':'background:#fff')+'">'
-        +'<td style="padding:6px 10px;font-size:9px;color:'+(sel?'#00838f':'#555')+';border-bottom:1px solid #e8ecf0;font-weight:'+(sel?'800':'500')+'">'+(sel?'✓ ':'')+_fN(r.qty)+'</td>'
-        +'<td style="padding:6px 10px;font-size:9px;text-align:right;border-bottom:1px solid #e8ecf0;color:#555">$'+(r.ppu||0).toFixed(4)+'</td>'
-        +'<td style="padding:6px 10px;font-size:9px;text-align:right;border-bottom:1px solid #e8ecf0;font-weight:'+(sel?'800':'500')+';color:'+(sel?'#0a2e3e':'#555')+'">'+_f$(r.total||0)+'</td></tr>';
-    });
+  if(so.allQtys&&so.allQtys.length){
+    var realRows=so.allQtys.filter(function(r){return r&&Number(r.qty)>0});
+    if(realRows.length>1){
+      so.allQtys.forEach(function(r,i){
+        if(!r||!Number(r.qty))return; // skip zero rows
+        var sel=i===so.selectedQtyIndex;
+        ladderRows+='<tr style="'+(sel?'background:#e0f7fa':'background:#fff')+'">'
+          +'<td style="padding:6px 10px;font-size:9px;color:'+(sel?'#00838f':'#555')+';border-bottom:1px solid #e8ecf0;font-weight:'+(sel?'800':'500')+'">'+(sel?'✓ ':'')+_fN(r.qty)+'</td>'
+          +'<td style="padding:6px 10px;font-size:9px;text-align:right;border-bottom:1px solid #e8ecf0;color:#555">$'+(r.ppu||0).toFixed(4)+'</td>'
+          +'<td style="padding:6px 10px;font-size:9px;text-align:right;border-bottom:1px solid #e8ecf0;font-weight:'+(sel?'800':'500')+';color:'+(sel?'#0a2e3e':'#555')+'">'+_f$(r.total||0)+'</td></tr>';
+      });
+    }
   }
 
   // Build SKU rows (if multi-sku)
