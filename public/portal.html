@@ -551,7 +551,26 @@ function doLoadQuote(){
     });
   }
   loadPromise.then(function(result){
-    if(!result){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">Quote not found</h2><p>'+(qNum||docId)+' could not be found.</p></div>';return}
+    if(!result){
+      var signedAs=(typeof CLIENT_EMAIL!=='undefined'&&CLIENT_EMAIL)?CLIENT_EMAIL:'';
+      var ref=qNum||docId||'this quote';
+      var msg='<div style="text-align:center;padding:40px 20px;color:var(--sub);max-width:520px;margin:0 auto">';
+      msg+='<h2 style="color:var(--h1)">Quote not available</h2>';
+      msg+='<p style="line-height:1.6;margin:14px 0">We couldn\'t load <strong>'+escPortal(ref)+'</strong> for the email you\'re signed in as'+(signedAs?(' (<strong>'+escPortal(signedAs)+'</strong>)'):'')+'.</p>';
+      msg+='<p style="font-size:13px;line-height:1.6;margin:14px 0;color:var(--sub)">Two common reasons:</p>';
+      msg+='<ul style="text-align:left;display:inline-block;font-size:13px;line-height:1.7;color:var(--sub)">';
+      msg+='<li>The quote belongs to a different email address.</li>';
+      msg+='<li>The link is mistyped or the quote was removed.</li>';
+      msg+='</ul>';
+      msg+='<div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">';
+      msg+='<button onclick="loadQuoteList()" style="background:var(--accent);border:none;color:#060d14;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">See My Quotes</button>';
+      msg+='<button onclick="portalSignOut()" style="background:transparent;border:1px solid var(--border);color:var(--sub);padding:10px 20px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Sign in with a different email</button>';
+      msg+='</div>';
+      msg+='<p style="margin-top:30px;font-size:11px;color:var(--sub)">Still stuck? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent)">quotes@microflexfilm.com</a> with the quote number.</p>';
+      msg+='</div>';
+      document.querySelector('.wrap').innerHTML=msg;
+      return;
+    }
     QUOTE_ID=result.id;
     QUOTE_DATA=result.data;
     // Clear stale quote params — this quote is now loaded
