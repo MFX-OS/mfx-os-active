@@ -1479,6 +1479,28 @@ exports.transitionStatus = onRequest(
         note: note || ""
       });
 
+      // SO status-change emails: notify client when their order enters
+      // production / ships / completes / is cancelled. Fire-and-forget —
+      // we don't fail the transition if the email send hiccups.
+      if (collection === "salesOrders") {
+        try {
+          const so = { id: docId, ...data, ...update };
+          const msgId = await sendSOStatusChangeNotification(so, newStatus, req.body || {});
+          if (msgId) {
+            await docRef.update({
+              [`statusEmails.${newStatus}.sentAt`]: nowIso(),
+              [`statusEmails.${newStatus}.gmailMessageId`]: msgId
+            });
+            await logServerEvent("so.status_email_sent", {
+              soId: docId, soNum: so.soNum || "",
+              from: currentStatus, to: newStatus, gmailMessageId: msgId
+            });
+          }
+        } catch (notifyErr) {
+          console.warn("SO status email failed (transition still succeeded):", notifyErr.message);
+        }
+      }
+
       sendJson(res, 200, {
         success: true,
         collection,
@@ -3012,6 +3034,258 @@ exports.assembleJobPacket = onRequest(
 // ═══════════════════════════════════════════════════════════════════
 // SCHEDULED: Check Overdue VPOs — Runs daily at 7:00 AM CT
 // ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// SO SIGNING DETECTION + STATUS CHANGE EMAILS
+// ═══════════════════════════════════════════════════════════════════
+
+// Walk a Google Doc body for the "Signed by:" line and extract whatever
+// the client typed there. We treat the field as "signed" when the text
+// after "Signed by:" has any letters (not just the underscore placeholder).
+// Returns { signed, name, dateText, fullText } — name is null until signed.
+async function parseSignatureFromDoc(docs, docId) {
+  try {
+    const doc = await docs.documents.get({ documentId: docId });
+    const content = (doc.data.body && doc.data.body.content) || [];
+    // Flatten all paragraph text into one string with newlines preserved
+    let fullText = "";
+    for (const el of content) {
+      if (!el.paragraph) continue;
+      for (const pe of (el.paragraph.elements || [])) {
+        if (pe.textRun && pe.textRun.content) fullText += pe.textRun.content;
+      }
+    }
+    const lines = fullText.split(/\r?\n/);
+    let nameRaw = "", dateRaw = "";
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const sigMatch = line.match(/^\s*Signed by:\s*(.*)$/i);
+      if (sigMatch && !nameRaw) nameRaw = sigMatch[1];
+      const dateMatch = line.match(/^\s*Date:\s*(.*)$/i);
+      if (dateMatch && !dateRaw) dateRaw = dateMatch[1];
+    }
+    // Strip underscores and whitespace — what remains is the actual signature
+    const cleanName = String(nameRaw || "").replace(/_+/g, "").trim();
+    const cleanDate = String(dateRaw || "").replace(/_+/g, "").trim();
+    const hasLetters = /[a-z]/i.test(cleanName);
+    return {
+      signed: hasLetters,
+      name: hasLetters ? cleanName : null,
+      dateText: cleanDate || null,
+      fullText
+    };
+  } catch (err) {
+    console.warn(`parseSignatureFromDoc failed for ${docId}:`, err.message);
+    return { signed: false, name: null, dateText: null, error: err.message };
+  }
+}
+
+// Build the "thanks for signing" confirmation email (sent to client + BCC team)
+function buildSOSignedConfirmationEmail({ soNum, signerName, company, total, portalUrl }) {
+  const fmt$ = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;background:#ffffff">
+  <div style="background:#0a1929;padding:24px 32px;border-bottom:3px solid #16a34a">
+    <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px">MICROFLEX FILM CORPORATION</div>
+    <div style="color:#86efac;font-size:11px;margin-top:4px;letter-spacing:2px">SALES ORDER SIGNED · IN PRODUCTION QUEUE</div>
+  </div>
+  <div style="padding:32px">
+    <div style="background:#f0fdf4;border:1.5px solid #16a34a;border-radius:8px;padding:20px;margin:0 0 24px;text-align:center">
+      <div style="font-size:36px;line-height:1;margin-bottom:8px">✓</div>
+      <div style="color:#15803d;font-size:14px;font-weight:700">Sales Order ${soNum} is signed</div>
+      <div style="color:#16a34a;font-size:12px;margin-top:4px">Signed by ${signerName || "you"} · ${fmt$(total)}</div>
+    </div>
+    <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 16px">
+      Thanks ${signerName ? signerName.split(/\s+/)[0] : ""}! Your signature is on file and ${company || "your order"} is now in our production queue. Our team will reach out when proof artwork is ready for your review.
+    </p>
+    <p style="color:#64748b;font-size:11px;line-height:1.5;margin:0 0 16px">
+      Your signed Sales Order is saved in your Drive folder. We've also logged the signature internally.
+    </p>
+    ${portalUrl ? `<div style="text-align:center;margin:20px 0">
+      <a href="${portalUrl}" style="background:#00b4d8;color:#ffffff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px;display:inline-block">View in Portal</a>
+    </div>` : ""}
+    <p style="color:#64748b;font-size:11px;margin:24px 0 0;line-height:1.5">
+      Questions? Reply here or contact <a href="mailto:quotes@microflexfilm.com" style="color:#00b4d8;text-decoration:none">quotes@microflexfilm.com</a>.
+    </p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:10px">
+    Microflex Film Corporation · Los Angeles, CA · microflexfilm.com
+  </div>
+</div></body></html>`;
+}
+
+// Branded email for SO status changes (production / shipped / complete).
+// Used by the transitionStatus path when an SO moves to a notable state.
+function buildSOStatusChangeEmail({ soNum, company, contact, newStatus, jobDesc, total, trackingNumber, trackingCarrier, portalUrl }) {
+  const fmt$ = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const STAGE = {
+    production:  { color: "#a855f7", label: "IN PRODUCTION", icon: "⚙",  msg: "Your order has entered production. We'll send proof artwork for your review shortly." },
+    shipped:     { color: "#0ea5e9", label: "SHIPPED",       icon: "📦", msg: "Your order has shipped! Tracking details below." },
+    complete:    { color: "#16a34a", label: "COMPLETE",      icon: "✓",  msg: "Your order is complete. Thank you for choosing Microflex!" },
+    cancelled:   { color: "#dc2626", label: "CANCELLED",     icon: "✕",  msg: "This Sales Order has been cancelled. If this was unexpected, please contact us." }
+  };
+  const stage = STAGE[newStatus] || { color: "#64748b", label: newStatus.toUpperCase(), icon: "•", msg: "Your Sales Order status has been updated." };
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;background:#ffffff">
+  <div style="background:#0a1929;padding:24px 32px;border-bottom:3px solid ${stage.color}">
+    <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px">MICROFLEX FILM CORPORATION</div>
+    <div style="color:#94a3b8;font-size:11px;margin-top:4px;letter-spacing:2px">SALES ORDER UPDATE</div>
+  </div>
+  <div style="padding:32px">
+    <div style="background:#f8fafc;border-left:4px solid ${stage.color};padding:18px 22px;margin:0 0 24px">
+      <div style="color:${stage.color};font-size:11px;font-weight:800;letter-spacing:2px;margin-bottom:6px">${stage.icon}  ${stage.label}</div>
+      <div style="color:#0f172a;font-size:16px;font-weight:700;margin-bottom:4px">${soNum}</div>
+      <div style="color:#64748b;font-size:12px">${company || ""} · ${fmt$(total)}</div>
+    </div>
+    <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 16px">Hello ${contact || "there"},</p>
+    <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 16px">${stage.msg}</p>
+    ${jobDesc ? `<p style="color:#64748b;font-size:11px;margin:0 0 16px"><strong>Job:</strong> ${jobDesc}</p>` : ""}
+    ${(newStatus === "shipped" && trackingNumber) ? `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 20px;background:#f0f9ff;border-radius:6px">
+      <tr><td style="padding:14px 18px"><div style="font-size:10px;color:#0369a1;font-weight:700;letter-spacing:1.5px;margin-bottom:4px">TRACKING</div><div style="font-size:14px;color:#0c4a6e;font-weight:700">${trackingCarrier || "Carrier"} · ${trackingNumber}</div></td></tr>
+    </table>` : ""}
+    ${portalUrl ? `<div style="text-align:center;margin:20px 0">
+      <a href="${portalUrl}" style="background:${stage.color};color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;display:inline-block">View Order Status</a>
+    </div>` : ""}
+    <p style="color:#64748b;font-size:11px;margin:24px 0 0;line-height:1.5">
+      Questions? Reply here or contact <a href="mailto:quotes@microflexfilm.com" style="color:#00b4d8;text-decoration:none">quotes@microflexfilm.com</a>.
+    </p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:10px">
+    Microflex Film Corporation · Los Angeles, CA · microflexfilm.com
+  </div>
+</div></body></html>`;
+}
+
+// Single entry point for sending an SO status-change email to the client.
+// Idempotent: caller is responsible for not double-sending (we check
+// lastStatusEmailSentFor on the SO doc).
+async function sendSOStatusChangeNotification(so, newStatus, extras) {
+  if (!so || !so.email || !newStatus) return null;
+  // Only send for stages clients care about
+  const NOTIFY_STATES = ["production", "shipped", "complete", "cancelled"];
+  if (!NOTIFY_STATES.includes(newStatus)) return null;
+  const portalHost = process.env.PORTAL_HOST || "https://mfx-2026.web.app";
+  const portalUrl = so.quoteId
+    ? `${portalHost}/portal.html?quoteId=${encodeURIComponent(so.quoteId)}&email=${encodeURIComponent(so.email)}`
+    : portalHost;
+  const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+  const html = buildSOStatusChangeEmail({
+    soNum: so.soNum, company: so.company, contact: so.contact,
+    newStatus, jobDesc: so.jobDesc, total: so.total,
+    trackingNumber: (extras && extras.trackingNumber) || so.trackingNumber || "",
+    trackingCarrier: (extras && extras.trackingCarrier) || so.trackingCarrier || "",
+    portalUrl
+  });
+  const subjects = {
+    production: `Sales Order ${so.soNum} — In Production`,
+    shipped:    `Sales Order ${so.soNum} — Shipped 📦`,
+    complete:   `Sales Order ${so.soNum} — Complete ✓`,
+    cancelled:  `Sales Order ${so.soNum} — Cancelled`
+  };
+  return sendDelegatedEmail({
+    from: senderMailbox,
+    to: so.email,
+    bcc: "team@microflexfilm.com, quotes@microflexfilm.com",
+    replyTo: "quotes@microflexfilm.com",
+    subject: subjects[newStatus] || `Sales Order ${so.soNum} Update`,
+    html
+  });
+}
+
+// Scheduled poll: every 15 min check SOs that have a signing Doc but no
+// recorded signature. For each, ask the Docs API what's in the doc — if
+// the "Signed by:" line has real text, mark the SO as signed, post an
+// internal notification, and email the client a thank-you confirmation.
+exports.scheduledPollSOSignings = onSchedule(
+  { schedule: "every 15 minutes", timeZone: "America/Chicago", memory: "256MiB", timeoutSeconds: 240 },
+  async () => {
+    try {
+      const snap = await db.collection("salesOrders")
+        .where("signingDocId", "!=", null)
+        .limit(100)
+        .get();
+      const unsigned = snap.docs.filter(d => {
+        const x = d.data();
+        return x.signingDocId && !x.clientSignedAt;
+      });
+      if (unsigned.length === 0) {
+        console.log("scheduledPollSOSignings: no unsigned SOs with signing docs");
+        return;
+      }
+      const docs = await getDocsClient();
+      let signed = 0, errors = 0;
+      for (const d of unsigned) {
+        const so = { id: d.id, ...d.data() };
+        try {
+          const result = await parseSignatureFromDoc(docs, so.signingDocId);
+          if (!result.signed) continue;
+          // Update SO with signature details
+          const nowIsoStr = nowIso();
+          await db.collection("salesOrders").doc(d.id).update({
+            clientSignedAt: nowIsoStr,
+            clientSignedName: result.name,
+            clientSignedDateText: result.dateText || null,
+            updatedAt: nowIsoStr,
+            notes: FieldValue.arrayUnion({
+              text: `✓ Client signed via Google Doc (${result.name}${result.dateText ? ` · ${result.dateText}` : ""})`,
+              by: "System (Signing Poll)",
+              at: nowIsoStr
+            })
+          });
+          await logServerEvent("so.signed.detected", {
+            soId: d.id, soNum: so.soNum, signerName: result.name,
+            dateText: result.dateText, docId: so.signingDocId
+          });
+          // Confirmation email to client + BCC team
+          const portalHost = process.env.PORTAL_HOST || "https://mfx-2026.web.app";
+          const portalUrl = so.quoteId
+            ? `${portalHost}/portal.html?quoteId=${encodeURIComponent(so.quoteId)}&email=${encodeURIComponent(so.email)}`
+            : portalHost;
+          const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+          const html = buildSOSignedConfirmationEmail({
+            soNum: so.soNum, signerName: result.name,
+            company: so.company, total: so.total, portalUrl
+          });
+          await sendDelegatedEmail({
+            from: senderMailbox,
+            to: so.email,
+            bcc: "team@microflexfilm.com, quotes@microflexfilm.com",
+            replyTo: "quotes@microflexfilm.com",
+            subject: `Thanks — ${so.soNum} Signed`,
+            html
+          });
+          // Internal notification for ops
+          const mgmtSnap = await db.collection("users")
+            .where("role", "in", ["CEO", "ceo", "Admin", "admin", "Operations Manager"]).limit(5).get();
+          const batch = db.batch();
+          mgmtSnap.docs.forEach(u => {
+            batch.set(db.collection("notifications").doc(), {
+              type: "alert",
+              title: `Client signed ${so.soNum}`,
+              body: `${so.company || ""} · ${result.name || "Client"} · $${Number(so.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} · ready for production`,
+              icon: "✓",
+              from: "System",
+              userId: u.id,
+              sourceView: "orders",
+              sourceId: d.id,
+              read: false, dismissed: false,
+              priority: "high",
+              timestamp: FieldValue.serverTimestamp()
+            });
+          });
+          await batch.commit();
+          signed++;
+        } catch (err) {
+          errors++;
+          console.warn(`scheduledPollSOSignings: SO ${d.id} check failed:`, err.message);
+        }
+      }
+      console.log(`scheduledPollSOSignings: checked ${unsigned.length}, ${signed} newly signed, ${errors} errors`);
+    } catch (err) {
+      console.error("scheduledPollSOSignings error:", err);
+    }
+  }
+);
+
 exports.scheduledCheckOverdueVPOs = onSchedule(
   { schedule: "every day 07:00", timeZone: "America/Chicago", memory: "256MiB", timeoutSeconds: 120 },
   async () => {
