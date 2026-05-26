@@ -646,25 +646,56 @@ function resetSOTplFromUI(soId){
   toast('Fields reset to original template','ok');
 }
 
-// Load/generate the actual PDF and show in iframe (step 2 of send flow)
+// Show the SO preview using buildSOPrintHTML directly in an iframe via
+// srcdoc — bypasses html2canvas which hangs on cross-origin QR images
+// and CDN font race conditions. The actual PDF is still generated at
+// send time by generateSOPDF (called by executeSendSO). Use the
+// "🔄 Regenerate as PDF" button to force the heavy PDF render here
+// for double-checking — falls back to HTML preview on failure.
 function loadSendPDFPreview(soId,forceRegen){
   var so=getSO(soId);if(!so)return;
   var wrap=document.getElementById('soPdfFrameWrap');
   if(!wrap)return;
-  if(window._soPdfPreviewUrl&&!forceRegen&&window._soPdfPreviewSoId===soId){
+
+  // Fast path: HTML preview (default). No canvas, no PDF round-trip.
+  if(!forceRegen){
+    try{
+      var html=buildSOPrintHTML(so);
+      // Wrap with body styles so the SO content renders cleanly inside an iframe
+      var doc='<!DOCTYPE html><html><head><meta charset="utf-8">'
+        +'<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;700;900&display=swap" rel="stylesheet">'
+        +'<style>body{margin:0;padding:20px;background:#f5f7f9;font-family:Outfit,Arial,sans-serif}</style>'
+        +'</head><body>'+html+'</body></html>';
+      wrap.innerHTML='<iframe srcdoc="'+doc.replace(/"/g,'&quot;')+'" style="width:100%;height:100%;border:none;background:#fff"></iframe>';
+      return;
+    }catch(e){
+      wrap.innerHTML='<div style="color:#dc2626;font-size:11px;padding:20px">Preview error: '+esc(e.message||String(e))+'</div>';
+      return;
+    }
+  }
+
+  // Slow path: actually render the PDF (only on explicit Regenerate click)
+  if(window._soPdfPreviewUrl&&window._soPdfPreviewSoId===soId){
     wrap.innerHTML='<iframe src="'+window._soPdfPreviewUrl+'" style="width:100%;height:100%;border:none"></iframe>';
     return;
   }
-  wrap.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:32px;height:32px;border:3px solid var(--bdr);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite"></div><div style="font-size:11px;color:var(--tx3)">Generating PDF…</div></div>';
+  wrap.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px"><div style="width:32px;height:32px;border:3px solid var(--bdr);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite"></div><div style="font-size:11px;color:var(--tx3)">Rendering actual PDF (this can take 10–20s)…</div></div>';
+  // 30s timeout — if html2canvas hangs we surface an error instead of leaving spinner
+  var timeoutId=setTimeout(function(){
+    var w=document.getElementById('soPdfFrameWrap');
+    if(w&&w.querySelector('div'))w.innerHTML='<div style="color:#dc2626;font-size:11px;padding:20px">PDF generation timed out after 30s. The HTML preview above shows what will be sent — click "Send" to proceed; the PDF will be generated server-side then.</div>';
+  },30000);
   generateSOPDF(so).then(function(pdf){
+    clearTimeout(timeoutId);
     if(window._soPdfPreviewUrl){try{URL.revokeObjectURL(window._soPdfPreviewUrl)}catch(e){}}
     window._soPdfPreviewUrl=URL.createObjectURL(pdf.blob);
     window._soPdfPreviewSoId=soId;
     var wrap2=document.getElementById('soPdfFrameWrap');
     if(wrap2)wrap2.innerHTML='<iframe src="'+window._soPdfPreviewUrl+'" style="width:100%;height:100%;border:none"></iframe>';
   }).catch(function(e){
+    clearTimeout(timeoutId);
     var wrap2=document.getElementById('soPdfFrameWrap');
-    if(wrap2)wrap2.innerHTML='<div style="color:#dc2626;font-size:11px;padding:20px">PDF error: '+esc(e.message||String(e))+'</div>';
+    if(wrap2)wrap2.innerHTML='<div style="color:#dc2626;font-size:11px;padding:20px">PDF render failed: '+esc(e.message||String(e))+'. The HTML preview still works — click Send.</div>';
   });
 }
 

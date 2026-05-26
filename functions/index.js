@@ -13,7 +13,13 @@ initializeApp();
 const db = getFirestore();
 
 const DRIVE_SCOPE = ["https://www.googleapis.com/auth/drive"];
-const GMAIL_SCOPE = ["https://www.googleapis.com/auth/gmail.readonly"];
+const DOCS_SCOPE = ["https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/drive"];
+// Split read vs send so the inbox-ingest path doesn't request send rights
+// it doesn't need, and the auto-email path actually has send scope.
+// Both must be added to domain-wide delegation in Workspace admin.
+const GMAIL_READ_SCOPE = ["https://www.googleapis.com/auth/gmail.readonly"];
+const GMAIL_SEND_SCOPE = ["https://www.googleapis.com/auth/gmail.send"];
+const GMAIL_SCOPE = GMAIL_READ_SCOPE; // legacy alias — old callers default to read
 const DRIVE_NAME = "MFX-CORE";
 const DEFAULT_PPD_SUBFOLDERS = [
   "01_Request",
@@ -179,7 +185,7 @@ async function enforceRateLimit(req, res, uid, action, maxPerWindow, windowMs) {
   return true;
 }
 
-function getDelegatedGmailClient(mailbox) {
+function getDelegatedGmailClient(mailbox, scopes) {
   const raw = process.env.GMAIL_SERVICE_ACCOUNT_JSON || "";
   if (!raw || !mailbox) return null;
   const creds = JSON.parse(raw);
@@ -187,7 +193,7 @@ function getDelegatedGmailClient(mailbox) {
     creds.client_email,
     null,
     creds.private_key,
-    GMAIL_SCOPE,
+    scopes || GMAIL_READ_SCOPE,
     mailbox
   );
   return google.gmail({ version: "v1", auth });
@@ -201,9 +207,9 @@ async function sendDelegatedEmail({ from, to, bcc, subject, html, replyTo }) {
     console.warn("sendDelegatedEmail: missing required fields");
     return null;
   }
-  const gmail = getDelegatedGmailClient(from);
+  const gmail = getDelegatedGmailClient(from, GMAIL_SEND_SCOPE);
   if (!gmail) {
-    console.warn(`sendDelegatedEmail: no delegated client for ${from} (set GMAIL_SERVICE_ACCOUNT_JSON + domain-wide delegation)`);
+    console.warn(`sendDelegatedEmail: no delegated client for ${from} (set GMAIL_SERVICE_ACCOUNT_JSON + domain-wide delegation with gmail.send scope)`);
     return null;
   }
   const headers = [
@@ -229,24 +235,32 @@ async function sendDelegatedEmail({ from, to, bcc, subject, html, replyTo }) {
 }
 
 // Build the SO confirmation email HTML — branded, matches Quote look-and-feel.
-// Used by auto-send when a client submits a PO via the portal.
-function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, selectedQty, ppu, total, payTerms, portalUrl }) {
+// Leads with the "Sign in Google Drive" CTA when signingDocLink is available
+// (the auto-flow always tries to create one). Portal link is the backup path.
+function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, selectedQty, ppu, total, payTerms, portalUrl, signingDocLink }) {
   const fmt$ = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtN = (n) => Number(n || 0).toLocaleString();
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
 <div style="max-width:600px;margin:0 auto;background:#ffffff">
   <div style="background:#0a1929;padding:24px 32px;border-bottom:3px solid #00b4d8">
     <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px">MICROFLEX FILM CORPORATION</div>
-    <div style="color:#94a3b8;font-size:11px;margin-top:4px;letter-spacing:2px">SALES ORDER CONFIRMATION</div>
+    <div style="color:#94a3b8;font-size:11px;margin-top:4px;letter-spacing:2px">SALES ORDER · ACTION REQUIRED</div>
   </div>
   <div style="padding:32px">
     <p style="color:#0f172a;font-size:14px;margin:0 0 16px">Hello ${contact || "there"},</p>
     <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 20px">
       Thank you for your purchase order. We've created Sales Order
       <strong style="color:#0a1929">${soNum}</strong> from your accepted quote
-      <strong>${quoteNum || ""}</strong>. Our team has been notified and will
-      begin production scheduling shortly.
+      <strong>${quoteNum || ""}</strong>. <strong>Please review and sign</strong>
+      to lock in pricing and lead time.
     </p>
+    ${signingDocLink ? `<div style="background:#f0fdf4;border:1.5px solid #16a34a;border-radius:8px;padding:20px;margin:0 0 24px;text-align:center">
+      <div style="color:#15803d;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:8px">SIGN IN GOOGLE DRIVE</div>
+      <a href="${signingDocLink}" style="background:#16a34a;color:#ffffff;padding:14px 36px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block">Open & Sign Sales Order</a>
+      <div style="color:#15803d;font-size:11px;margin-top:10px;line-height:1.5">
+        Opens in Google Docs. Type your name and today's date in the signature lines, then save — your signed copy lives in your Sales Order folder automatically.
+      </div>
+    </div>` : ""}
     <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 20px">
       <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px;width:140px">Sales Order #</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px;font-weight:700">${soNum}</td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px">Quote #</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px">${quoteNum || "—"}</td></tr>
@@ -256,12 +270,11 @@ function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, 
       <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px">Unit Price</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:13px">$${Number(ppu || 0).toFixed(4)}</td></tr>
       <tr><td style="padding:14px 0;color:#64748b;font-size:12px">Total</td><td style="padding:14px 0;color:#0a1929;font-size:18px;font-weight:700">${fmt$(total)}</td></tr>
     </table>
-    <p style="color:#64748b;font-size:11px;line-height:1.5;margin:0 0 24px">
-      Payment terms: <strong>${payTerms || "Net 30"}</strong>. A formal PDF version
-      of this Sales Order will follow once it's been reviewed and approved by our team.
+    <p style="color:#64748b;font-size:11px;line-height:1.5;margin:0 0 16px">
+      Payment terms: <strong>${payTerms || "Net 30"}</strong>.
     </p>
     ${portalUrl ? `<div style="text-align:center;margin:20px 0">
-      <a href="${portalUrl}" style="background:#00b4d8;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;display:inline-block">View in Portal</a>
+      <a href="${portalUrl}" style="background:#00b4d8;color:#ffffff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px;display:inline-block">View Full Details in Portal</a>
     </div>` : ""}
     <p style="color:#64748b;font-size:11px;margin:24px 0 0;line-height:1.5">
       Questions? Reply to this email or contact our team at
@@ -278,6 +291,166 @@ function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, 
 async function getDriveClient() {
   const auth = new google.auth.GoogleAuth({ scopes: DRIVE_SCOPE });
   return google.drive({ version: "v3", auth });
+}
+
+async function getDocsClient() {
+  const auth = new google.auth.GoogleAuth({ scopes: DOCS_SCOPE });
+  return google.docs({ version: "v1", auth });
+}
+
+// Create a Google Doc copy of the SO inside the per-quote SO folder,
+// populated via Docs API batchUpdate, then share with the client as
+// editor so they can type their signature directly in the Doc.
+// Returns { docId, docLink, folderId } so the caller can persist the
+// link on the salesOrders doc and include it in the auto-email.
+async function createSOSigningDoc(so) {
+  if (!so || !so.soNum) throw new Error("createSOSigningDoc: so + soNum required");
+  const drive = await getDriveClient();
+  const docs = await getDocsClient();
+  const driveId = await getMFXCoreId(drive);
+  if (!driveId) throw new Error(`${DRIVE_NAME} shared drive not found`);
+
+  // Same folder tree as the SO PDF: Clients/<Co>/<QuoteNum>/SO/
+  const clientsFolder = await findOrCreateFolder(drive, "Clients", driveId);
+  const companyFolder = await findOrCreateFolder(drive, safeName(so.company || "Unknown"), clientsFolder.id);
+  const quoteFolder = await findOrCreateFolder(drive, safeName(so.quoteNum || so.soNum), companyFolder.id);
+  const soFolder = await findOrCreateFolder(drive, "SO", quoteFolder.id);
+
+  // 1. Create empty Google Doc inside the SO folder
+  const docName = `${so.soNum} — Sales Order (Sign Here)`;
+  const created = await drive.files.create({
+    requestBody: {
+      name: docName,
+      mimeType: "application/vnd.google-apps.document",
+      parents: [soFolder.id]
+    },
+    supportsAllDrives: true,
+    fields: "id,webViewLink"
+  });
+  const docId = created.data.id;
+  const docLink = created.data.webViewLink || `https://docs.google.com/document/d/${docId}/edit`;
+
+  // 2. Populate via Docs API. We insert from the end backwards so each
+  //    insert keeps later index positions stable.
+  const fmt$ = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtN = (n) => Number(n || 0).toLocaleString();
+  const dateStr = new Date(so.createdAt || Date.now()).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  const body =
+    `SALES ORDER\n` +
+    `${so.soNum}\n` +
+    `\n` +
+    `Microflex Film Corporation\n` +
+    `4130 Garner Rd · Riverside, CA 92501 · (909) 360-9066\n` +
+    `\n` +
+    `─────────────────────────────────────────────\n` +
+    `\n` +
+    `BILL TO\n` +
+    `${so.company || ""}\n` +
+    `${so.contact || ""}\n` +
+    `${so.email || ""}\n` +
+    `${so.phone || ""}\n` +
+    `\n` +
+    `SHIP TO\n` +
+    `${so.shipTo || so.company || ""}\n` +
+    `\n` +
+    `─────────────────────────────────────────────\n` +
+    `\n` +
+    `ORDER DETAILS\n` +
+    `Sales Order #:  ${so.soNum}\n` +
+    `Quote #:        ${so.quoteNum || ""}  (Rev ${so.quoteRev || "A"})\n` +
+    `PO Number:      ${so.poNumber || "—"}\n` +
+    `Order Date:     ${dateStr}\n` +
+    `Payment Terms:  ${so.payTerms || "Net 30"}\n` +
+    `\n` +
+    `JOB\n` +
+    `${so.jobDesc || ""}\n` +
+    `\n` +
+    `Size:      ${so.sizeA || "?"}" × ${so.sizeB || "?"}"\n` +
+    `Shape:     ${so.shapeType || ""}\n` +
+    `Colors:    ${so.colors || ""}\n` +
+    `Material:  ${so.face || ""}  /  Lam: ${so.laminate || "NA"}  /  Coating: ${so.coating || "NA"}\n` +
+    `\n` +
+    `PRICING\n` +
+    `Quantity:    ${fmtN(so.selectedQty)}\n` +
+    `Unit Price:  $${Number(so.ppu || 0).toFixed(4)}\n` +
+    `TOTAL:       ${fmt$(so.total)}\n` +
+    `\n` +
+    `─────────────────────────────────────────────\n` +
+    `\n` +
+    `TERMS & CONDITIONS\n` +
+    `• Lead time is 15 working days from proof sign-off.\n` +
+    `• Quantities shipped are ±10% of order quantity.\n` +
+    `• Art will be billed at $90.00/hour if not in AI format.\n` +
+    `• Plates, dies, and tooling remain property of Microflex until paid in full.\n` +
+    `• All finished goods comply with FDA Title 21 CFR Sections 174–178.\n` +
+    `\n` +
+    `─────────────────────────────────────────────\n` +
+    `\n` +
+    `CLIENT SIGNATURE\n` +
+    `\n` +
+    `To approve this Sales Order, please type your full name and today's\n` +
+    `date in the lines below, then save. Your signature locks in pricing\n` +
+    `and lead time as quoted.\n` +
+    `\n` +
+    `\n` +
+    `Signed by:  ____________________________________________\n` +
+    `\n` +
+    `Title:      ____________________________________________\n` +
+    `\n` +
+    `Date:       ____________________________________________\n` +
+    `\n` +
+    `Company:    ${so.company || ""}\n` +
+    `\n`;
+
+  const requests = [
+    { insertText: { location: { index: 1 }, text: body } },
+    // Make the very top "SALES ORDER" line big and bold
+    { updateTextStyle: {
+        range: { startIndex: 1, endIndex: 13 },
+        textStyle: { bold: true, fontSize: { magnitude: 22, unit: "PT" } },
+        fields: "bold,fontSize"
+    }},
+    // Make the SO number line big
+    { updateTextStyle: {
+        range: { startIndex: 13, endIndex: 13 + so.soNum.length + 1 },
+        textStyle: { bold: true, fontSize: { magnitude: 18, unit: "PT" } },
+        fields: "bold,fontSize"
+    }}
+  ];
+
+  try {
+    await docs.documents.batchUpdate({
+      documentId: docId,
+      requestBody: { requests }
+    });
+  } catch (err) {
+    console.warn(`createSOSigningDoc batchUpdate failed for ${docId}:`, err.message);
+    // Doc still exists, just plain — don't fail the whole flow
+  }
+
+  // 3. Share with client email as writer/editor. They can type signature.
+  if (so.email) {
+    try {
+      await drive.permissions.create({
+        fileId: docId,
+        supportsAllDrives: true,
+        sendNotificationEmail: false, // we send our own branded email
+        requestBody: {
+          type: "user",
+          role: "writer",
+          emailAddress: String(so.email).toLowerCase()
+        }
+      });
+    } catch (err) {
+      const msg = (err && err.message) || String(err);
+      if (msg.indexOf("already exists") === -1) {
+        console.warn(`createSOSigningDoc share with ${so.email} failed: ${msg}`);
+      }
+    }
+  }
+
+  return { docId, docLink, folderId: soFolder.id };
 }
 
 function getOAuthClient(accessToken) {
@@ -1459,6 +1632,34 @@ exports.portalSubmitPO = onRequest(
           total: selRow.total || 0
         });
 
+        // ═══ CREATE GOOGLE DOC SIGNING SURFACE ═══
+        // Doc lives in /Clients/<Co>/<QuoteNum>/SO/, shared with client as
+        // editor so they can type their signature directly in the Doc.
+        let signingDocLink = null;
+        let signingDocId = null;
+        try {
+          const signingDoc = await createSOSigningDoc(soDoc);
+          signingDocLink = signingDoc.docLink;
+          signingDocId = signingDoc.docId;
+          // Persist on the SO so portal can show "Sign in Drive" CTA on reload
+          await db.collection("salesOrders").doc(soId).update({
+            signingDocId,
+            signingDocLink,
+            signingDocFolderId: signingDoc.folderId,
+            signingDocCreatedAt: nowIso(),
+            updatedAt: nowIso()
+          });
+          await logServerEvent("so.signing_doc_created", {
+            soId, soNum: autoSONum, docId: signingDocId, sharedWith: soDoc.email
+          });
+        } catch (err) {
+          console.warn(`createSOSigningDoc failed for ${autoSONum}:`, err.message);
+          await logServerEvent("so.signing_doc_failed", {
+            soId, soNum: autoSONum, error: err.message
+          });
+          // Keep going — email still sends, just without the signing CTA
+        }
+
         // ═══ AUTO-EMAIL SO CONFIRMATION TO CLIENT ═══
         // Uses delegated Gmail service account (no user token needed).
         // BCC team@ + quotes@ so internal stays in the loop.
@@ -1476,7 +1677,8 @@ exports.portalSubmitPO = onRequest(
           ppu: selRow.ppu || 0,
           total: selRow.total || 0,
           payTerms: f.payTerms || "Net 30",
-          portalUrl
+          portalUrl,
+          signingDocLink
         });
         const sentMsgId = await sendDelegatedEmail({
           from: senderMailbox,

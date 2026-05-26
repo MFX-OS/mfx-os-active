@@ -1120,6 +1120,18 @@ function buildPortalSOHTML(so,soId){
     h+='<div style="padding:10px 24px;background:#fffbea;border-bottom:1px solid #e8ecf0;font-size:10px;color:#8B6914;text-align:center;font-weight:600">Deposit required — payment link will be provided shortly.</div>';
   }
 
+  // Signing surface — Google Doc that the client edits to sign.
+  // Server-created on PO submit (createSOSigningDoc in functions/index.js).
+  // Shown above PDF because signing is the actionable step.
+  if(so.signingDocLink){
+    var signed=!!so.clientSignedAt;
+    h+='<div style="padding:18px 24px;background:'+(signed?'#f0fdf4':'#fef3c7')+';border-top:2px solid '+(signed?'#16a34a':'#f59e0b')+';border-bottom:1px solid '+(signed?'#d1fae5':'#fde68a')+';text-align:center">'
+     +'<div style="font-size:10px;color:'+(signed?'#15803d':'#92400e')+';font-weight:800;letter-spacing:2px;margin-bottom:10px">'+(signed?'✓ SIGNED · '+escPortal(_fD(so.clientSignedAt)):'✍ ACTION REQUIRED — SIGN YOUR SALES ORDER')+'</div>'
+     +'<a href="'+escPortal(so.signingDocLink)+'" target="_blank" rel="noopener" style="display:inline-block;padding:12px 28px;background:'+(signed?'#16a34a':'#f59e0b')+';color:#fff;font-size:13px;font-weight:700;border-radius:6px;text-decoration:none">'+(signed?'View Signed Order':'Open & Sign in Google Drive')+'</a>'
+     +'<div style="font-size:10px;color:'+(signed?'#15803d':'#92400e')+';margin-top:8px;line-height:1.5">'+(signed?'Your signed copy is saved in your Sales Order folder.':'Opens in Google Docs. Type your name + date in the signature lines, then save.')+'</div>'
+     +'</div>';
+  }
+
   // PDF download — only when a Drive link is present (server-set by saveSalesOrderPDF)
   if(so.driveLink){
     h+='<div style="padding:14px 24px;background:#f0fdf4;border-top:1px solid #d1fae5;border-bottom:1px solid #d1fae5;text-align:center">'
