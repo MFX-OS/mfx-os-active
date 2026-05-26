@@ -245,7 +245,21 @@ function loadQuote(){
     docId=localStorage.getItem('mfxPortalPendingId')||'';
     qNum=localStorage.getItem('mfxPortalPendingQ')||'';
   }
-  if(!docId&&!qNum){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
+  // LANDING-PAGE MODE — no quote in URL or storage means the client opened
+  // /portal directly (e.g., bookmarked, or returning to view multiple quotes).
+  // Skip the "No quote specified" dead-end; route through auth then show a
+  // list of all quotes belonging to their email.
+  if(!docId&&!qNum){
+    auth.onAuthStateChanged(function(user){
+      if(user && user.email){
+        CLIENT_EMAIL=user.email;
+        loadQuoteList();
+      } else {
+        showAuthScreen(null, /*landingMode*/true);
+      }
+    });
+    return;
+  }
 
   // Always save current quote params so email link redirect can recover them
   if(docId)localStorage.setItem('mfxPortalPendingId',docId);
@@ -267,7 +281,13 @@ function loadQuote(){
       if(recoveredQ)cleanParams.push('q='+recoveredQ);
       var clean=window.location.origin+window.location.pathname+(cleanParams.length?'?'+cleanParams.join('&'):'');
       window.history.replaceState({},'',clean);
-      doLoadQuote();
+      // Landing-mode return — no quote params, go to the list view
+      if(localStorage.getItem('mfxPortalLandingMode')==='1' || (!recoveredId && !recoveredQ)){
+        localStorage.removeItem('mfxPortalLandingMode');
+        loadQuoteList();
+      } else {
+        doLoadQuote();
+      }
     }).catch(function(e){
       console.error('[Portal Auth] signInWithEmailLink failed:', e.code, e.message);
       // Show error to user instead of silently going back to auth screen
@@ -295,29 +315,46 @@ function loadQuote(){
   });
 }
 
-function showAuthScreen(qNum){
+function showAuthScreen(qNum, landingMode){
   var params=new URLSearchParams(window.location.search);
   var docId=params.get('id')||'';
-  if(!qNum&&!docId){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
+  // landingMode=true means client visited /portal directly (no id/q). We show
+  // the same email-link auth UI but with copy + button label tailored to
+  // "see all your quotes" instead of "view this one quote."
+  if(!landingMode && !qNum && !docId){
+    document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';
+    return;
+  }
+  var headline=landingMode
+    ? 'Enter your email to see your quotes'
+    : 'Enter your email to view quote '+(qNum||'');
+  var sub=landingMode
+    ? 'We\'ll send a one-tap verification link. After signing in you\'ll see all quotes shared with your email.'
+    : 'Your email is used for identification and communication only.';
+  var btnLabel=landingMode?'See my quotes':'View Quote';
   document.querySelector('.wrap').innerHTML='<div style="max-width:380px;margin:60px auto;text-align:center">'
     +'<div style="font-family:Outfit;font-size:28px;font-weight:900;color:var(--h1);margin-bottom:4px">Microflex</div>'
     +'<div style="width:50px;height:2px;background:var(--accent);margin:0 auto 4px;border-radius:1px"></div>'
     +'<div style="font-family:Outfit;font-size:8px;font-weight:300;color:var(--accent-dk);letter-spacing:4px;text-transform:uppercase;margin-bottom:24px">Film Corporation</div>'
-    +'<div style="font-size:14px;color:var(--h1);font-weight:700;margin-bottom:6px">Enter your email to view quote '+(qNum||'')+'</div>'
-    +'<div style="font-size:11px;color:var(--sub);margin-bottom:20px">Your email is used for identification and communication only.</div>'
-    +'<input id="portalEmail" type="email" placeholder="your@company.com" style="width:100%;padding:12px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border);color:var(--h1);font-size:13px;margin-bottom:10px;outline:none;box-sizing:border-box">'
-    +'<button id="portalBtn" onclick="portalSignIn()" style="width:100%;padding:12px;border-radius:8px;background:var(--accent);color:#060d14;font-size:13px;font-weight:700;border:none;cursor:pointer">View Quote</button>'
+    +'<div style="font-size:14px;color:var(--h1);font-weight:700;margin-bottom:6px">'+headline+'</div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-bottom:20px">'+sub+'</div>'
+    +'<input id="portalEmail" type="email" placeholder="your@company.com" autocomplete="email" inputmode="email" style="width:100%;padding:12px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border);color:var(--h1);font-size:13px;margin-bottom:10px;outline:none;box-sizing:border-box">'
+    +'<button id="portalBtn" onclick="portalSignIn('+(landingMode?'true':'false')+')" style="width:100%;padding:12px;border-radius:8px;background:var(--accent);color:#060d14;font-size:13px;font-weight:700;border:none;cursor:pointer">'+btnLabel+'</button>'
     +'<div id="portalStatus" style="margin-top:12px;font-size:11px;color:var(--sub)"></div>'
     +'</div>';
 }
 
-function portalSignIn(){
+function portalSignIn(landingMode){
   var email=document.getElementById('portalEmail').value.trim();
   if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
     document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Please enter a valid email address</div>';return;
   }
   var btn=document.getElementById('portalBtn');
   btn.textContent='Sending verification...';btn.disabled=true;
+  // Persist landing-mode flag so the email-link return knows to render the
+  // list (not show a "Quote not found" error from doLoadQuote).
+  if(landingMode)localStorage.setItem('mfxPortalLandingMode','1');
+  else localStorage.removeItem('mfxPortalLandingMode');
 
   // Check if user is returning from email link
   if(auth.isSignInWithEmailLink && auth.isSignInWithEmailLink(window.location.href)){
@@ -326,9 +363,14 @@ function portalSignIn(){
       CLIENT_EMAIL=savedEmail;
       localStorage.removeItem('mfxPortalPendingEmail');
       localStorage.setItem('mfxPortalClientEmail',savedEmail);
-      doLoadQuote();
+      if(localStorage.getItem('mfxPortalLandingMode')==='1'){
+        localStorage.removeItem('mfxPortalLandingMode');
+        loadQuoteList();
+      } else {
+        doLoadQuote();
+      }
     }).catch(function(e){
-      btn.textContent='View Quote';btn.disabled=false;
+      btn.textContent=landingMode?'See my quotes':'View Quote';btn.disabled=false;
       document.getElementById('portalStatus').innerHTML='<div style="color:var(--red)">Verification failed: '+escPortal(e.message)+'</div>';
     });
     return;
@@ -362,6 +404,125 @@ function portalSignIn(){
 }
 
 function escPortal(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// ─── Landing page: list of all quotes for this signed-in client ──────────
+// Runs two Firestore queries (poClientEmail OR fields.custEmail) because
+// Firestore doesn't support OR across different fields. Both queries are
+// permitted by the firestore.rules `allow list` block for /quotes (which
+// scopes results to the auth email, case-insensitive).
+function loadQuoteList(){
+  var wrap=document.querySelector('.wrap');
+  if(!wrap)return;
+  if(!CLIENT_EMAIL){
+    // No email yet — bounce back to auth
+    showAuthScreen(null, true);
+    return;
+  }
+  wrap.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--sub)"><div style="font-family:Outfit;font-size:24px;font-weight:900;color:var(--h1);margin-bottom:4px">Microflex</div><div style="width:50px;height:2px;background:var(--accent);margin:0 auto 18px"></div><div style="font-size:13px">Loading your quotes…</div></div>';
+  var emailLower=String(CLIENT_EMAIL||'').toLowerCase();
+  // Firestore queries are case-sensitive. Most stored emails are sent-case;
+  // try both lowercased + original casing of the signed-in email.
+  var queries=[
+    db.collection('quotes').where('poClientEmail','==',CLIENT_EMAIL).limit(100).get(),
+    db.collection('quotes').where('poClientEmail','==',emailLower).limit(100).get(),
+    db.collection('quotes').where('fields.custEmail','==',CLIENT_EMAIL).limit(100).get(),
+    db.collection('quotes').where('fields.custEmail','==',emailLower).limit(100).get()
+  ];
+  Promise.allSettled(queries).then(function(results){
+    var byId={};
+    results.forEach(function(r){
+      if(r.status==='fulfilled' && r.value){
+        r.value.docs.forEach(function(d){
+          if(!byId[d.id])byId[d.id]=Object.assign({id:d.id}, d.data());
+        });
+      } else if(r.status==='rejected'){
+        console.warn('[Portal list] query rejected:', r.reason && r.reason.message);
+      }
+    });
+    var quotes=Object.values(byId);
+    // Sort: most recently updated first
+    quotes.sort(function(a,b){
+      var aT=new Date(a.updatedAt||a.sentAt||a.createdAt||0).getTime();
+      var bT=new Date(b.updatedAt||b.sentAt||b.createdAt||0).getTime();
+      return bT-aT;
+    });
+    renderQuoteList(quotes);
+  });
+}
+
+function renderQuoteList(quotes){
+  var wrap=document.querySelector('.wrap');
+  if(!wrap)return;
+  var STATUS_STYLE={
+    draft:{bg:'#64748b22',color:'#94a3b8',label:'DRAFT'},
+    ready:{bg:'rgba(14,165,233,.15)',color:'#0ea5e9',label:'READY'},
+    approval:{bg:'rgba(168,85,247,.15)',color:'#a855f7',label:'PENDING'},
+    sent:{bg:'rgba(0,229,255,.15)',color:'#00e5ff',label:'SENT'},
+    won:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'WON'},
+    lost:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'LOST'},
+    rejected:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'REJECTED'}
+  };
+  var h='<div style="margin-bottom:18px;display:flex;flex-direction:column;gap:6px">'
+    +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    +'<div><div style="font-family:Outfit;font-size:26px;font-weight:900;color:var(--h1);line-height:1.1">Your Quotes</div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:4px">Signed in as <strong style="color:var(--h1)">'+escPortal(CLIENT_EMAIL)+'</strong></div></div>'
+    +'<button onclick="portalSignOut()" style="padding:7px 14px;font-size:11px;font-weight:600;background:transparent;color:var(--sub);border:1px solid var(--border);border-radius:6px;cursor:pointer">Sign out</button>'
+    +'</div></div>';
+  if(!quotes.length){
+    h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:40px 24px;text-align:center">'
+      +'<div style="font-size:32px;margin-bottom:10px;opacity:.4">📭</div>'
+      +'<div style="font-size:14px;font-weight:700;color:var(--h1);margin-bottom:6px">No quotes found</div>'
+      +'<div style="font-size:12px;color:var(--sub);line-height:1.5">We couldn\'t find any quotes shared with <strong>'+escPortal(CLIENT_EMAIL)+'</strong>.<br>If you\'re expecting a quote, check that your sales contact sent it to this exact email address.</div>'
+      +'<div style="margin-top:18px;font-size:11px;color:var(--sub)">Questions? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent);text-decoration:none">quotes@microflexfilm.com</a></div>'
+      +'</div>';
+    wrap.innerHTML=h;
+    return;
+  }
+  h+='<div style="font-size:11px;color:var(--sub);margin-bottom:12px">'+quotes.length+' quote'+(quotes.length===1?'':'s')+' shared with you.</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:10px">';
+  quotes.forEach(function(q){
+    var status=String(q.status||'draft').toLowerCase();
+    var ss=STATUS_STYLE[status]||STATUS_STYLE.draft;
+    var quoteNum=q.quoteNum||q.id;
+    var jobDesc=(q.fields&&q.fields.jobDesc)||(q.description)||'(no description)';
+    var company=(q.fields&&q.fields.custCo)||q.poClientCo||'';
+    var when=q.updatedAt||q.sentAt||q.createdAt;
+    var whenStr='';
+    if(when){
+      try{ whenStr=new Date(when).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }catch(e){}
+    }
+    var total=q.poSelectedTotal||q.poTotal||0;
+    var qty=q.poSelectedQty||q.poQty||0;
+    var url='?id='+encodeURIComponent(q.id)+'&q='+encodeURIComponent(quoteNum);
+    h+='<a href="'+url+'" style="display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:border-color .15s,transform .1s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px">'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-family:Outfit;font-size:17px;font-weight:800;color:var(--h1);letter-spacing:-.2px">'+escPortal(quoteNum)+'</div>'
+      +(company?'<div style="font-size:10px;color:var(--sub);margin-top:1px">'+escPortal(company)+'</div>':'')
+      +'</div>'
+      +'<span style="font-size:9px;font-weight:800;letter-spacing:1px;padding:3px 8px;border-radius:4px;background:'+ss.bg+';color:'+ss.color+';flex-shrink:0;white-space:nowrap">'+ss.label+'</span>'
+      +'</div>'
+      +'<div style="font-size:12px;color:var(--body);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escPortal(jobDesc)+'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px;color:var(--sub);flex-wrap:wrap">'
+      +'<div>'+(whenStr?'Updated '+whenStr:'')+'</div>'
+      +'<div>'+(total>0?'<strong style="color:var(--accent);font-size:13px">$'+Number(total).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong>'+(qty>0?' &middot; '+Number(qty).toLocaleString()+' units':''):'Open to review →')+'</div>'
+      +'</div>'
+      +'</a>';
+  });
+  h+='</div>';
+  h+='<div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border);font-size:10px;color:var(--sub);text-align:center;line-height:1.6">Questions? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent);text-decoration:none">quotes@microflexfilm.com</a></div>';
+  wrap.innerHTML=h;
+}
+window.portalSignOut=function(){
+  auth.signOut().then(function(){
+    localStorage.removeItem('mfxPortalClientEmail');
+    localStorage.removeItem('mfxPortalEmail');
+    localStorage.removeItem('mfxPortalPendingEmail');
+    localStorage.removeItem('mfxPortalLandingMode');
+    CLIENT_EMAIL=null;
+    showAuthScreen(null, true);
+  });
+};
 
 function doLoadQuote(){
   var params=new URLSearchParams(window.location.search);
