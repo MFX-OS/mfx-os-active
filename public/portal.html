@@ -907,8 +907,42 @@ function doLoadQuote(){
     }catch(e){}
     renderPortalData();
   }).catch(function(e){
-    document.querySelector('.status h2').textContent='Error loading quote';
-    document.querySelector('.status p').textContent=e.message;
+    // Quote load failed. Don't leave the static placeholder content
+    // (Fresh Foods, sample dimensions, etc.) visible underneath — that
+    // makes it look like the data partially loaded. Replace the whole
+    // wrap with a clean error panel that shows the actual cause and
+    // gives the user a way forward.
+    console.error('[Portal] quote load failed:', e);
+    var wrap=document.querySelector('.wrap');
+    if(!wrap)return;
+    var requested=String(qNum||docId||'');
+    var signedAs=(typeof CLIENT_EMAIL!=='undefined'&&CLIENT_EMAIL)?CLIENT_EMAIL:'';
+    var rawMsg=String(e&&e.message||e||'').toLowerCase();
+    var isPermissionError=rawMsg.indexOf('permission')!==-1||rawMsg.indexOf('insufficient')!==-1;
+    var headline=isPermissionError?'Access denied for this quote':'Error loading quote';
+    var explain=isPermissionError
+      ?'The email you are signed in as does not have access to this quote. The quote either belongs to a different customer, or the link is for a different account.'
+      :'Something went wrong while loading the quote. The error message is below.';
+    var msg='<div style="max-width:540px;margin:40px auto;padding:24px;background:var(--surface);border:1px solid rgba(239,68,68,.3);border-radius:10px;color:var(--sub);font-family:Inter,sans-serif">'
+      +'<div style="font-size:11px;color:#ef4444;font-weight:800;letter-spacing:2px;margin-bottom:8px">'+(isPermissionError?'ACCESS DENIED':'ERROR')+'</div>'
+      +'<div style="font-size:18px;color:var(--h1);font-weight:800;margin-bottom:10px">'+escPortal(headline)+'</div>'
+      +'<div style="font-size:13px;line-height:1.6;margin-bottom:14px">'+escPortal(explain)+'</div>';
+    if(requested){
+      msg+='<div style="display:flex;gap:6px;font-size:12px;margin-bottom:6px"><div style="width:90px;color:var(--sub)">Requested</div><div style="color:var(--h1);font-weight:700">'+escPortal(requested)+'</div></div>';
+    }
+    if(signedAs){
+      msg+='<div style="display:flex;gap:6px;font-size:12px;margin-bottom:6px"><div style="width:90px;color:var(--sub)">Signed in as</div><div style="color:var(--h1);font-weight:700">'+escPortal(signedAs)+'</div></div>';
+    }
+    msg+='<div style="font-size:11px;font-family:JetBrains Mono,monospace;background:rgba(0,0,0,.2);padding:8px 10px;border-radius:6px;margin:12px 0;color:#fca5a5;line-height:1.4;word-break:break-word">'+escPortal(e&&e.message||String(e))+'</div>';
+    msg+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">';
+    if(typeof loadQuoteList==='function'){
+      msg+='<button onclick="loadQuoteList()" style="background:var(--accent);border:none;color:#060d14;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">See My Workspace</button>';
+    }
+    msg+='<button onclick="portalSignOut()" style="background:transparent;border:1px solid var(--border);color:var(--sub);padding:10px 20px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Sign in with a different email</button>';
+    msg+='</div>';
+    msg+='<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;color:var(--sub);line-height:1.6">Still stuck? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent)">quotes@microflexfilm.com</a> with the quote number and a screenshot of this page.</div>';
+    msg+='</div>';
+    wrap.innerHTML=msg;
   });
 }
 
