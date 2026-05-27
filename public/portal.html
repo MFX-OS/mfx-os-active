@@ -234,6 +234,34 @@ var QUOTE_DATA=null;
 var CLIENT_EMAIL=null;
 var UPLOADED_FILES=[];
 
+// ─── Defensive error surfacing ────────────────────────────────────
+// Portal used to die silently if any JS path threw — leaving a blank
+// page with the user reporting "portal isn't working" but no signal.
+// Now any uncaught error renders an inline panel with the message and
+// a one-click "Reload" button. Console still gets the full stack.
+window.addEventListener('error', function(ev){
+  try{
+    var msg=(ev && ev.error && ev.error.message) || ev.message || 'Unknown error';
+    var src=(ev && ev.filename ? ev.filename.split('/').pop() : 'portal');
+    var line=(ev && ev.lineno) ? (' line '+ev.lineno) : '';
+    console.error('[Portal] uncaught:', ev && ev.error ? ev.error : msg);
+    var wrap=document.querySelector('.wrap');
+    if(!wrap)return;
+    // Don't stomp on the page if the error fired AFTER a useful screen rendered
+    if(wrap.querySelector('[data-portal-error]'))return;
+    if(wrap.children.length>1)return;
+    wrap.innerHTML='<div data-portal-error style="max-width:540px;margin:40px auto;padding:24px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.3);border-radius:10px;color:var(--sub);font-family:Inter,sans-serif">'
+      +'<div style="font-size:11px;color:#ef4444;font-weight:800;letter-spacing:2px;margin-bottom:8px">PORTAL ERROR</div>'
+      +'<div style="font-size:15px;color:var(--h1);font-weight:700;margin-bottom:8px">Something went wrong loading the portal</div>'
+      +'<div style="font-size:12px;font-family:JetBrains Mono,monospace;background:rgba(0,0,0,.2);padding:10px 12px;border-radius:6px;margin:10px 0;color:#fca5a5;line-height:1.5;word-break:break-word">'+String(msg).replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]})+(src?'<br><span style="color:#94a3b8">at '+src+line+'</span>':'')+'</div>'
+      +'<div style="font-size:11px;color:var(--sub);line-height:1.6">If this keeps happening, copy the message above and email it to <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent)">quotes@microflexfilm.com</a>.</div>'
+      +'<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">'
+      +'<button onclick="location.reload()" style="padding:9px 18px;background:var(--accent);color:#060d14;border:none;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer">Reload</button>'
+      +'<button onclick="auth.signOut().then(()=>location.reload())" style="padding:9px 18px;background:transparent;color:var(--sub);border:1px solid var(--border);border-radius:6px;font-weight:600;font-size:12px;cursor:pointer">Sign out and retry</button>'
+      +'</div></div>';
+  }catch(_){}
+});
+
 // ─── Auth: Anonymous + Email Identification ───
 function loadQuote(){
   var params=new URLSearchParams(window.location.search);
@@ -414,39 +442,49 @@ function loadQuoteList(){
   var wrap=document.querySelector('.wrap');
   if(!wrap)return;
   if(!CLIENT_EMAIL){
-    // No email yet — bounce back to auth
     showAuthScreen(null, true);
     return;
   }
-  wrap.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--sub)"><div style="font-family:Outfit;font-size:24px;font-weight:900;color:var(--h1);margin-bottom:4px">Microflex</div><div style="width:50px;height:2px;background:var(--accent);margin:0 auto 18px"></div><div style="font-size:13px">Loading your quotes…</div></div>';
+  wrap.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--sub)"><div style="font-family:Outfit;font-size:24px;font-weight:900;color:var(--h1);margin-bottom:4px">Microflex</div><div style="width:50px;height:2px;background:var(--accent);margin:0 auto 18px"></div><div style="font-size:13px">Loading your workspace…</div></div>';
   var emailLower=String(CLIENT_EMAIL||'').toLowerCase();
-  // Firestore queries are case-sensitive. Most stored emails are sent-case;
-  // try both lowercased + original casing of the signed-in email.
-  var queries=[
+  // Case insensitive lookup — Firestore equality is exact, so try both
+  // the original-cased email and the lowercased version against both
+  // /quotes and /salesOrders. We dedupe by doc id afterwards.
+  var quoteQueries=[
     db.collection('quotes').where('poClientEmail','==',CLIENT_EMAIL).limit(100).get(),
     db.collection('quotes').where('poClientEmail','==',emailLower).limit(100).get(),
     db.collection('quotes').where('fields.custEmail','==',CLIENT_EMAIL).limit(100).get(),
     db.collection('quotes').where('fields.custEmail','==',emailLower).limit(100).get()
   ];
-  Promise.allSettled(queries).then(function(results){
-    var byId={};
-    results.forEach(function(r){
-      if(r.status==='fulfilled' && r.value){
-        r.value.docs.forEach(function(d){
-          if(!byId[d.id])byId[d.id]=Object.assign({id:d.id}, d.data());
-        });
-      } else if(r.status==='rejected'){
-        console.warn('[Portal list] query rejected:', r.reason && r.reason.message);
-      }
+  var soQueries=[
+    db.collection('salesOrders').where('email','==',CLIENT_EMAIL).limit(100).get(),
+    db.collection('salesOrders').where('email','==',emailLower).limit(100).get()
+  ];
+  Promise.allSettled(quoteQueries.concat(soQueries)).then(function(results){
+    var qById={}, soById={};
+    results.forEach(function(r,idx){
+      if(r.status!=='fulfilled' || !r.value)return;
+      var isSO=idx>=quoteQueries.length;
+      r.value.docs.forEach(function(d){
+        var bucket=isSO?soById:qById;
+        if(!bucket[d.id])bucket[d.id]=Object.assign({id:d.id}, d.data());
+      });
     });
-    var quotes=Object.values(byId);
-    // Sort: most recently updated first
-    quotes.sort(function(a,b){
+    var quotes=Object.values(qById);
+    var salesOrders=Object.values(soById);
+    var byTime=function(a,b){
       var aT=new Date(a.updatedAt||a.sentAt||a.createdAt||0).getTime();
       var bT=new Date(b.updatedAt||b.sentAt||b.createdAt||0).getTime();
       return bT-aT;
-    });
-    renderQuoteList(quotes);
+    };
+    quotes.sort(byTime); salesOrders.sort(byTime);
+    try{
+      renderClientWorkspace(quotes,salesOrders);
+    }catch(err){
+      console.error('[Portal] renderClientWorkspace failed:',err);
+      // Fall back to the simple quote list so the user still sees something
+      renderQuoteList(quotes);
+    }
   });
 }
 
@@ -523,6 +561,279 @@ window.portalSignOut=function(){
     showAuthScreen(null, true);
   });
 };
+
+// ─── CLIENT WORKSPACE ─────────────────────────────────────────────
+// Aggregated dashboard shown when the client lands on /portal without
+// a specific quote in the URL, OR clicks "See My Quotes" from the
+// "Quote not found" page. Replaces the simpler renderQuoteList view.
+//
+// Sections, top to bottom:
+//   1. Greeting header with email + sign out
+//   2. Hero metric cards — Active Quotes, SOs Awaiting Sign, Other Status counts
+//   3. Action Items — actionable rows (submit PO, sign SO, etc.)
+//   4. Projects — grouped by company name when multiple companies exist
+//   5. All quotes list — every quote shared with the email
+//   6. All sales orders list — every SO for the email
+//   7. Activity feed — last 25 events from quote.notes/SO.notes
+function renderClientWorkspace(quotes,salesOrders){
+  var wrap=document.querySelector('.wrap');
+  if(!wrap)return;
+  quotes=quotes||[]; salesOrders=salesOrders||[];
+
+  // ─── Compute aggregates ──────────────────────────────────────────
+  var actionable=[];
+  // Quotes in 'sent' status with no PO submitted yet → client should submit PO
+  quotes.forEach(function(q){
+    var st=String(q.status||'').toLowerCase();
+    if(st==='sent' && !q.poNumber && !q.poSignature){
+      actionable.push({
+        type:'submit_po',
+        priority:1,
+        label:'Submit PO for '+(q.quoteNum||q.id),
+        subtitle:(q.fields&&q.fields.custCo)||'',
+        href:'?id='+encodeURIComponent(q.id)+'&q='+encodeURIComponent(q.quoteNum||''),
+        when:q.sentAt||q.updatedAt
+      });
+    }
+  });
+  // SOs with signingDocLink but no clientSignedAt → client should sign
+  salesOrders.forEach(function(so){
+    if(so.signingDocLink && !so.clientSignedAt){
+      actionable.push({
+        type:'sign_so',
+        priority:0, // higher priority than submit-po
+        label:'Sign Sales Order '+(so.soNum||so.id),
+        subtitle:so.company||'',
+        href:so.quoteId?('?id='+encodeURIComponent(so.quoteId)):'#',
+        when:so.sentAt||so.updatedAt
+      });
+    }
+    // SOs requiring deposit but not paid
+    if(so.depositRequired && so.depositLink && so.depositStatus!=='paid' && so.depositStatus!=='waived'){
+      actionable.push({
+        type:'pay_deposit',
+        priority:2,
+        label:'Pay deposit on '+(so.soNum||so.id),
+        subtitle:so.company||'',
+        href:so.depositLink,
+        external:true,
+        when:so.updatedAt||so.sentAt
+      });
+    }
+  });
+  actionable.sort(function(a,b){return a.priority-b.priority});
+
+  // Hero counts
+  var counts={
+    activeQuotes:quotes.filter(function(q){var st=String(q.status||'').toLowerCase();return st==='sent'||st==='approval';}).length,
+    sosToSign:salesOrders.filter(function(so){return so.signingDocLink && !so.clientSignedAt;}).length,
+    inProduction:salesOrders.filter(function(so){return so.clientSignedAt && so.status!=='completed' && so.status!=='cancelled';}).length,
+    completed:salesOrders.filter(function(so){return so.status==='completed';}).length+quotes.filter(function(q){return String(q.status||'').toLowerCase()==='won';}).length
+  };
+
+  // Project groups — bucket by company name when more than one exists
+  var companies={};
+  quotes.forEach(function(q){
+    var co=(q.fields&&q.fields.custCo)||q.poClientCo||'(no company)';
+    if(!companies[co])companies[co]={name:co,quotes:[],sos:[]};
+    companies[co].quotes.push(q);
+  });
+  salesOrders.forEach(function(so){
+    var co=so.company||'(no company)';
+    if(!companies[co])companies[co]={name:co,quotes:[],sos:[]};
+    companies[co].sos.push(so);
+  });
+  var companyList=Object.values(companies);
+  var hasMultipleCompanies=companyList.length>1;
+
+  // Activity feed — aggregate notes from quotes + sos, sort by timestamp desc, top 25
+  var activity=[];
+  quotes.forEach(function(q){
+    (q.notes||[]).forEach(function(n){
+      activity.push({at:n.at,text:n.text,by:n.by,source:q.quoteNum||q.id,sourceHref:'?id='+encodeURIComponent(q.id)+'&q='+encodeURIComponent(q.quoteNum||'')});
+    });
+  });
+  salesOrders.forEach(function(so){
+    (so.notes||[]).forEach(function(n){
+      activity.push({at:n.at,text:n.text,by:n.by,source:so.soNum||so.id,sourceHref:so.quoteId?'?id='+encodeURIComponent(so.quoteId):'#'});
+    });
+  });
+  activity.sort(function(a,b){return new Date(b.at||0).getTime()-new Date(a.at||0).getTime();});
+  activity=activity.slice(0,25);
+
+  // ─── Status pill colors (shared with renderQuoteList) ────────────
+  var STATUS_STYLE={
+    draft:{bg:'#64748b22',color:'#94a3b8',label:'DRAFT'},
+    ready:{bg:'rgba(14,165,233,.15)',color:'#0ea5e9',label:'READY'},
+    approval:{bg:'rgba(168,85,247,.15)',color:'#a855f7',label:'PENDING'},
+    sent:{bg:'rgba(0,229,255,.15)',color:'#00e5ff',label:'SENT'},
+    won:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'WON'},
+    lost:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'LOST'},
+    rejected:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'REJECTED'},
+    pending:{bg:'rgba(245,158,11,.15)',color:'#f59e0b',label:'AWAITING APPROVAL'},
+    approved:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'APPROVED'},
+    completed:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'COMPLETE'},
+    cancelled:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'CANCELLED'}
+  };
+  var formatDate=function(when){if(!when)return '';try{return new Date(when).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});}catch(e){return '';}};
+
+  // ─── Build HTML ──────────────────────────────────────────────────
+  var h='';
+
+  // 1. Greeting header
+  h+='<div style="margin-bottom:18px;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    +'<div><div style="font-family:Outfit;font-size:26px;font-weight:900;color:var(--h1);line-height:1.1">Your Workspace</div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:4px">Signed in as <strong style="color:var(--h1)">'+escPortal(CLIENT_EMAIL)+'</strong></div></div>'
+    +'<button onclick="portalSignOut()" style="padding:7px 14px;font-size:11px;font-weight:600;background:transparent;color:var(--sub);border:1px solid var(--border);border-radius:6px;cursor:pointer">Sign out</button>'
+    +'</div>';
+
+  // Empty state if NOTHING at all
+  if(!quotes.length && !salesOrders.length){
+    h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:40px 24px;text-align:center">'
+      +'<div style="font-size:32px;margin-bottom:10px;opacity:.4">📭</div>'
+      +'<div style="font-size:14px;font-weight:700;color:var(--h1);margin-bottom:6px">Nothing here yet</div>'
+      +'<div style="font-size:12px;color:var(--sub);line-height:1.5">We couldn\'t find any quotes or orders shared with <strong>'+escPortal(CLIENT_EMAIL)+'</strong>.<br>If you\'re expecting one, check that your Microflex contact sent it to this exact email.</div>'
+      +'<div style="margin-top:18px;font-size:11px;color:var(--sub)">Questions? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent);text-decoration:none">quotes@microflexfilm.com</a></div>'
+      +'</div>';
+    wrap.innerHTML=h;
+    return;
+  }
+
+  // 2. Hero metric cards
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px">';
+  h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:10px;color:var(--sub);font-weight:700;letter-spacing:1.5px">ACTIVE QUOTES</div><div style="font-size:28px;font-weight:900;color:var(--accent);line-height:1.1;margin-top:4px">'+counts.activeQuotes+'</div><div style="font-size:10px;color:var(--sub);margin-top:2px">awaiting your response</div></div>';
+  h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:10px;color:'+(counts.sosToSign>0?'#f59e0b':'var(--sub)')+';font-weight:700;letter-spacing:1.5px">SIGN SALES ORDERS</div><div style="font-size:28px;font-weight:900;color:'+(counts.sosToSign>0?'#f59e0b':'var(--sub)')+';line-height:1.1;margin-top:4px">'+counts.sosToSign+'</div><div style="font-size:10px;color:var(--sub);margin-top:2px">'+(counts.sosToSign>0?'click to sign in Drive':'all signed')+'</div></div>';
+  h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:10px;color:var(--sub);font-weight:700;letter-spacing:1.5px">IN PRODUCTION</div><div style="font-size:28px;font-weight:900;color:var(--h1);line-height:1.1;margin-top:4px">'+counts.inProduction+'</div><div style="font-size:10px;color:var(--sub);margin-top:2px">orders running</div></div>';
+  h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:10px;color:var(--sub);font-weight:700;letter-spacing:1.5px">COMPLETED</div><div style="font-size:28px;font-weight:900;color:#22c55e;line-height:1.1;margin-top:4px">'+counts.completed+'</div><div style="font-size:10px;color:var(--sub);margin-top:2px">all-time</div></div>';
+  h+='</div>';
+
+  // 3. Action Items
+  if(actionable.length){
+    h+='<div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:14px 16px;margin-bottom:18px">';
+    h+='<div style="font-size:10px;color:#f59e0b;font-weight:800;letter-spacing:2px;margin-bottom:10px">⚡ ACTION REQUIRED</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:6px">';
+    actionable.forEach(function(a){
+      var icon=a.type==='sign_so'?'✍':a.type==='submit_po'?'📋':a.type==='pay_deposit'?'💳':'•';
+      var target=a.external?' target="_blank" rel="noopener"':'';
+      h+='<a href="'+escPortal(a.href)+'"'+target+' style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:7px;text-decoration:none;color:inherit;transition:border-color .15s" onmouseover="this.style.borderColor=\'#f59e0b\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+        +'<span style="font-size:16px;width:24px;text-align:center">'+icon+'</span>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:13px;font-weight:700;color:var(--h1)">'+escPortal(a.label)+'</div>'
+        +(a.subtitle?'<div style="font-size:10px;color:var(--sub);margin-top:1px">'+escPortal(a.subtitle)+'</div>':'')
+        +'</div>'
+        +'<span style="font-size:11px;color:#f59e0b;font-weight:700;flex-shrink:0">'+(a.external?'Pay →':'Open →')+'</span>'
+        +'</a>';
+    });
+    h+='</div></div>';
+  }
+
+  // 4. Projects (only when there are multiple companies)
+  if(hasMultipleCompanies){
+    h+='<div style="margin-bottom:18px">';
+    h+='<div style="font-family:Outfit;font-size:16px;font-weight:800;color:var(--h1);margin-bottom:10px">Projects</div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">';
+    companyList.forEach(function(co){
+      var activeQ=co.quotes.filter(function(q){var st=String(q.status||'').toLowerCase();return st==='sent'||st==='approval';}).length;
+      var openSO=co.sos.filter(function(s){return s.status!=='completed' && s.status!=='cancelled';}).length;
+      h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px">'
+        +'<div style="font-size:13px;font-weight:800;color:var(--h1);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escPortal(co.name)+'</div>'
+        +'<div style="font-size:11px;color:var(--sub);line-height:1.6">'+co.quotes.length+' quote'+(co.quotes.length===1?'':'s')+(co.sos.length?' · '+co.sos.length+' sales order'+(co.sos.length===1?'':'s'):'')+'</div>'
+        +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
+        +(activeQ?'<span style="background:rgba(0,229,255,.12);color:var(--accent);font-size:9px;font-weight:700;padding:3px 8px;border-radius:3px">'+activeQ+' ACTIVE</span>':'')
+        +(openSO?'<span style="background:rgba(245,158,11,.12);color:#f59e0b;font-size:9px;font-weight:700;padding:3px 8px;border-radius:3px">'+openSO+' OPEN SO</span>':'')
+        +'</div>'
+        +'</div>';
+    });
+    h+='</div></div>';
+  }
+
+  // 5. All Quotes
+  if(quotes.length){
+    h+='<div style="margin-bottom:18px">';
+    h+='<div style="font-family:Outfit;font-size:16px;font-weight:800;color:var(--h1);margin-bottom:10px">Quotes ('+quotes.length+')</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:8px">';
+    quotes.forEach(function(q){
+      var status=String(q.status||'draft').toLowerCase();
+      var ss=STATUS_STYLE[status]||STATUS_STYLE.draft;
+      var quoteNum=q.quoteNum||q.id;
+      var jobDesc=(q.fields&&q.fields.jobDesc)||(q.description)||'(no description)';
+      var company=(q.fields&&q.fields.custCo)||q.poClientCo||'';
+      var when=q.updatedAt||q.sentAt||q.createdAt;
+      var total=q.poSelectedTotal||q.poTotal||0;
+      var qty=q.poSelectedQty||q.poQty||0;
+      var url='?id='+encodeURIComponent(q.id)+'&q='+encodeURIComponent(quoteNum);
+      h+='<a href="'+url+'" style="display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-family:Outfit;font-size:15px;font-weight:800;color:var(--h1);letter-spacing:-.2px">'+escPortal(quoteNum)+'</div>'
+        +(company?'<div style="font-size:10px;color:var(--sub);margin-top:1px">'+escPortal(company)+'</div>':'')
+        +'</div>'
+        +'<span style="font-size:9px;font-weight:800;letter-spacing:1px;padding:3px 8px;border-radius:4px;background:'+ss.bg+';color:'+ss.color+';flex-shrink:0;white-space:nowrap">'+ss.label+'</span>'
+        +'</div>'
+        +'<div style="font-size:12px;color:var(--body);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escPortal(jobDesc)+'</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px;color:var(--sub);flex-wrap:wrap">'
+        +'<div>'+(when?'Updated '+formatDate(when):'')+'</div>'
+        +'<div>'+(total>0?'<strong style="color:var(--accent);font-size:13px">$'+Number(total).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong>'+(qty>0?' &middot; '+Number(qty).toLocaleString()+' units':''):'Open to review →')+'</div>'
+        +'</div></a>';
+    });
+    h+='</div></div>';
+  }
+
+  // 6. All Sales Orders
+  if(salesOrders.length){
+    h+='<div style="margin-bottom:18px">';
+    h+='<div style="font-family:Outfit;font-size:16px;font-weight:800;color:var(--h1);margin-bottom:10px">Sales Orders ('+salesOrders.length+')</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:8px">';
+    salesOrders.forEach(function(so){
+      var status=String(so.status||'pending').toLowerCase();
+      var ss=STATUS_STYLE[status]||STATUS_STYLE.pending;
+      var jobDesc=so.jobDesc||'(no description)';
+      var when=so.updatedAt||so.sentAt||so.createdAt;
+      var total=so.total||0;
+      var qty=so.selectedQty||0;
+      var url=so.quoteId?'?id='+encodeURIComponent(so.quoteId):'#';
+      var needsSign=so.signingDocLink && !so.clientSignedAt;
+      h+='<a href="'+url+'" style="display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid '+(needsSign?'#f59e0b':'var(--border)')+';border-radius:10px;padding:12px 14px;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\''+(needsSign?'#f59e0b':'var(--border)')+'\'">'
+        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-family:Outfit;font-size:15px;font-weight:800;color:var(--h1);letter-spacing:-.2px">'+escPortal(so.soNum||so.id)+'</div>'
+        +(so.company?'<div style="font-size:10px;color:var(--sub);margin-top:1px">'+escPortal(so.company)+(so.poNumber?' · PO# '+escPortal(so.poNumber):'')+'</div>':'')
+        +'</div>'
+        +'<span style="font-size:9px;font-weight:800;letter-spacing:1px;padding:3px 8px;border-radius:4px;background:'+ss.bg+';color:'+ss.color+';flex-shrink:0;white-space:nowrap">'+(needsSign?'AWAITING SIGNATURE':ss.label)+'</span>'
+        +'</div>'
+        +'<div style="font-size:12px;color:var(--body);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escPortal(jobDesc)+'</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px;color:var(--sub);flex-wrap:wrap">'
+        +'<div>'+(when?'Updated '+formatDate(when):'')+'</div>'
+        +'<div>'+(total>0?'<strong style="color:var(--accent);font-size:13px">$'+Number(total).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong>'+(qty>0?' &middot; '+Number(qty).toLocaleString()+' units':''):'')+'</div>'
+        +'</div></a>';
+    });
+    h+='</div></div>';
+  }
+
+  // 7. Activity feed
+  if(activity.length){
+    h+='<div style="margin-bottom:18px">';
+    h+='<div style="font-family:Outfit;font-size:16px;font-weight:800;color:var(--h1);margin-bottom:10px">Recent Activity</div>';
+    h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px">';
+    activity.forEach(function(a){
+      var when=a.at?formatDate(a.at):'';
+      h+='<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.5">'
+        +'<div style="flex-shrink:0;width:80px;color:var(--sub);font-size:10px;padding-top:1px">'+escPortal(when)+'</div>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="color:var(--body)">'+escPortal(a.text||'')+'</div>'
+        +'<div style="font-size:9px;color:var(--sub);margin-top:1px">'
+        +(a.sourceHref&&a.source?'<a href="'+escPortal(a.sourceHref)+'" style="color:var(--accent);text-decoration:none">'+escPortal(a.source)+'</a>':escPortal(a.source||''))
+        +(a.by?' · '+escPortal(a.by):'')
+        +'</div></div></div>';
+    });
+    h+='</div></div>';
+  }
+
+  // Footer help
+  h+='<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);font-size:10px;color:var(--sub);text-align:center;line-height:1.6">Questions about any item? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent);text-decoration:none">quotes@microflexfilm.com</a> with the quote or SO number.</div>';
+
+  wrap.innerHTML=h;
+}
 
 function doLoadQuote(){
   var params=new URLSearchParams(window.location.search);
