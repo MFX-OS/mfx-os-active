@@ -234,6 +234,26 @@ var QUOTE_DATA=null;
 var CLIENT_EMAIL=null;
 var UPLOADED_FILES=[];
 
+// ─── Staff preview detection ─────────────────────────────────────
+// When the signed-in portal user has an @microflexfilm.com email, the
+// Firestore rule `allow read: if companyUser();` already grants them
+// read access to every quote and SO. The portal can use that to let
+// staff QA the customer experience on any link without needing the
+// customer's email. A visible banner removes any doubt that they're
+// seeing the customer view, not internal data.
+function isStaffPreview(){
+  return !!(CLIENT_EMAIL && /@microflexfilm\.com$/i.test(CLIENT_EMAIL));
+}
+function renderStaffPreviewBanner(){
+  if(!isStaffPreview())return;
+  if(document.getElementById('staffPreviewBanner'))return;
+  var bar=document.createElement('div');
+  bar.id='staffPreviewBanner';
+  bar.style.cssText='position:sticky;top:0;z-index:9999;background:linear-gradient(90deg,#a855f7 0%,#7c3aed 100%);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;text-align:center;padding:6px 14px;border-bottom:2px solid #581c87;box-shadow:0 2px 8px rgba(124,58,237,.3)';
+  bar.innerHTML='👁 STAFF PREVIEW — viewing as <span style="font-weight:900">'+escPortal(CLIENT_EMAIL)+'</span> · client experience may differ <button onclick="auth.signOut().then(()=>location.reload())" style="margin-left:14px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:4px;cursor:pointer">EXIT PREVIEW</button>';
+  document.body.insertBefore(bar, document.body.firstChild);
+}
+
 // ─── Defensive error surfacing ────────────────────────────────────
 // Portal used to die silently if any JS path threw — leaving a blank
 // page with the user reporting "portal isn't working" but no signal.
@@ -445,21 +465,30 @@ function loadQuoteList(){
     showAuthScreen(null, true);
     return;
   }
+  renderStaffPreviewBanner();
   wrap.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--sub)"><div style="font-family:Outfit;font-size:24px;font-weight:900;color:var(--h1);margin-bottom:4px">Microflex</div><div style="width:50px;height:2px;background:var(--accent);margin:0 auto 18px"></div><div style="font-size:13px">Loading your workspace…</div></div>';
   var emailLower=String(CLIENT_EMAIL||'').toLowerCase();
-  // Case insensitive lookup — Firestore equality is exact, so try both
-  // the original-cased email and the lowercased version against both
-  // /quotes and /salesOrders. We dedupe by doc id afterwards.
-  var quoteQueries=[
-    db.collection('quotes').where('poClientEmail','==',CLIENT_EMAIL).limit(100).get(),
-    db.collection('quotes').where('poClientEmail','==',emailLower).limit(100).get(),
-    db.collection('quotes').where('fields.custEmail','==',CLIENT_EMAIL).limit(100).get(),
-    db.collection('quotes').where('fields.custEmail','==',emailLower).limit(100).get()
-  ];
-  var soQueries=[
-    db.collection('salesOrders').where('email','==',CLIENT_EMAIL).limit(100).get(),
-    db.collection('salesOrders').where('email','==',emailLower).limit(100).get()
-  ];
+  var quoteQueries, soQueries;
+  if(isStaffPreview()){
+    // Staff preview: rules already grant companyUser() read on everything.
+    // Skip the per-email filters and load the most recent records so
+    // staff can browse and click into any portal view.
+    quoteQueries=[ db.collection('quotes').orderBy('updatedAt','desc').limit(100).get() ];
+    soQueries=[ db.collection('salesOrders').orderBy('updatedAt','desc').limit(100).get() ];
+  } else {
+    // Case insensitive client lookup — Firestore equality is exact, so
+    // try both the original-cased email and the lowercased version.
+    quoteQueries=[
+      db.collection('quotes').where('poClientEmail','==',CLIENT_EMAIL).limit(100).get(),
+      db.collection('quotes').where('poClientEmail','==',emailLower).limit(100).get(),
+      db.collection('quotes').where('fields.custEmail','==',CLIENT_EMAIL).limit(100).get(),
+      db.collection('quotes').where('fields.custEmail','==',emailLower).limit(100).get()
+    ];
+    soQueries=[
+      db.collection('salesOrders').where('email','==',CLIENT_EMAIL).limit(100).get(),
+      db.collection('salesOrders').where('email','==',emailLower).limit(100).get()
+    ];
+  }
   Promise.allSettled(quoteQueries.concat(soQueries)).then(function(results){
     var qById={}, soById={};
     results.forEach(function(r,idx){
@@ -680,10 +709,11 @@ function renderClientWorkspace(quotes,salesOrders){
   // ─── Build HTML ──────────────────────────────────────────────────
   var h='';
 
-  // 1. Greeting header
+  // 1. Greeting header — different copy for staff preview vs client
+  var staff=isStaffPreview();
   h+='<div style="margin-bottom:18px;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">'
-    +'<div><div style="font-family:Outfit;font-size:26px;font-weight:900;color:var(--h1);line-height:1.1">Your Workspace</div>'
-    +'<div style="font-size:11px;color:var(--sub);margin-top:4px">Signed in as <strong style="color:var(--h1)">'+escPortal(CLIENT_EMAIL)+'</strong></div></div>'
+    +'<div><div style="font-family:Outfit;font-size:26px;font-weight:900;color:var(--h1);line-height:1.1">'+(staff?'Staff Preview · All Active Records':'Your Workspace')+'</div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:4px">'+(staff?'Browsing <strong style="color:#a855f7">'+quotes.length+' quotes</strong> and <strong style="color:#a855f7">'+salesOrders.length+' sales orders</strong> as <strong style="color:var(--h1)">'+escPortal(CLIENT_EMAIL)+'</strong>':'Signed in as <strong style="color:var(--h1)">'+escPortal(CLIENT_EMAIL)+'</strong>')+'</div></div>'
     +'<button onclick="portalSignOut()" style="padding:7px 14px;font-size:11px;font-weight:600;background:transparent;color:var(--sub);border:1px solid var(--border);border-radius:6px;cursor:pointer">Sign out</button>'
     +'</div>';
 
@@ -947,6 +977,7 @@ function doLoadQuote(){
 }
 
 function renderPortalData(){
+  renderStaffPreviewBanner();
   var q=QUOTE_DATA;var f=q.fields||{};
   document.querySelector('.qnum').textContent=q.quoteNum||'';
   document.querySelector('.rev').textContent='REV '+(q.rev||'A');
