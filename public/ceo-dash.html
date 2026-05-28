@@ -1368,6 +1368,44 @@
       const [running, setRunning] = useState(false);
       const [result, setResult] = useState(null);
       const [resultKind, setResultKind] = useState('');
+      // 2026-05-27 round 53: SO Registry backfill state
+      const [soRegRunning, setSoRegRunning] = useState(false);
+      const [soRegResult, setSoRegResult] = useState(null);
+      const [soRegKind, setSoRegKind] = useState('');
+
+      const runSORegistryBackfill = async () => {
+        if (soRegRunning) return;
+        if (!user || !/@microflexfilm\.com$/i.test(user.email || '')) {
+          setSoRegKind('err');
+          setSoRegResult('Only @microflexfilm.com staff can run this.');
+          return;
+        }
+        if (!window.confirm('Backfill the SO Registry sheet from every existing salesOrders doc?\n\nThis clears rows A2:Z and rewrites from Firestore — idempotent, safe to re-run.')) return;
+        setSoRegRunning(true);
+        setSoRegResult('Running…');
+        setSoRegKind('');
+        try {
+          const token = await firebase.auth().currentUser.getIdToken();
+          const resp = await fetch('/api/backfillSORegistry', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: '{}'
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            setSoRegKind('err');
+            setSoRegResult('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2));
+          } else {
+            setSoRegKind('ok');
+            setSoRegResult(JSON.stringify(data, null, 2));
+          }
+        } catch (err) {
+          setSoRegKind('err');
+          setSoRegResult('Error: ' + (err && err.message ? err.message : String(err)));
+        } finally {
+          setSoRegRunning(false);
+        }
+      };
 
       const runBackfill = async () => {
         if (running) return;
@@ -1435,6 +1473,22 @@
             </div>
             {result !== null && (
               <div className={'admin-tool-result' + (resultKind ? ' ' + resultKind : '')}>{result}</div>
+            )}
+            <div className="admin-tool-row" style={{ marginTop: 12, borderTop: '1px solid var(--bdr)', paddingTop: 12 }}>
+              <div className="admin-tool-info">
+                <div className="admin-tool-title">SO Registry Sheet Backfill</div>
+                <div className="admin-tool-desc">
+                  Pushes every existing <code>salesOrders</code> doc to the registry sheet (<a href="https://docs.google.com/spreadsheets/d/1ZNPElD6QL9talxo20R20tzTR6_qSXguPvt364LNYsEA" target="_blank" rel="noopener">open</a>). Clears rows A2:Z first and rewrites from Firestore. After this runs once, the live <code>syncSORegistry</code> trigger keeps the sheet current on every SO write.
+                </div>
+              </div>
+              <div className="admin-tool-controls">
+                <button className="admin-tool-btn" onClick={runSORegistryBackfill} disabled={soRegRunning}>
+                  {soRegRunning ? 'Running…' : 'Backfill Registry Sheet'}
+                </button>
+              </div>
+            </div>
+            {soRegResult !== null && (
+              <div className={'admin-tool-result' + (soRegKind ? ' ' + soRegKind : '')}>{soRegResult}</div>
             )}
           </div>
         </div>

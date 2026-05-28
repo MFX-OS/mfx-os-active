@@ -4688,6 +4688,60 @@ async function _findRegistryRowBySO(sheets, soNum) {
   return -1;
 }
 
+// 2026-05-27 round 53: one-shot backfill endpoint — loops over every
+// existing salesOrders doc and pushes a row to the registry sheet. Use
+// once after sharing the sheet with the service account, or anytime
+// you suspect the sheet has drifted out of sync.
+exports.backfillSORegistry = onRequest(
+  { memory: "512MiB", timeoutSeconds: 540, cors: ["https://mfx-2026.web.app","https://mfx-2026.firebaseapp.com","http://localhost:5000"] },
+  async (req, res) => {
+    if (!ensurePost(req, res)) return;
+    const actor = await requireInternalUser(req, res);
+    if (!actor) return;
+    try {
+      const sheets = await getSheetsClient();
+      await _ensureRegistryHeader(sheets);
+      const snap = await db.collection("salesOrders").orderBy("createdAt", "asc").get();
+      const rows = [];
+      const skipped = [];
+      snap.docs.forEach(doc => {
+        const so = doc.data() || {};
+        if (!so.soNum) { skipped.push(doc.id); return; }
+        rows.push(_soToRegistryRow(doc.id, so));
+      });
+      if (!rows.length) {
+        sendJson(res, 200, { ok: true, total: 0, written: 0, skipped: skipped.length, message: "No SOs to backfill" });
+        return;
+      }
+      // Clear existing data rows (preserve header) and rewrite from scratch.
+      const tab = SO_REGISTRY_TAB;
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId: SO_REGISTRY_SHEET_ID,
+        range: `${tab}!A2:Z`
+      });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SO_REGISTRY_SHEET_ID,
+        range: `${tab}!A2`,
+        valueInputOption: "RAW",
+        requestBody: { values: rows }
+      });
+      await logServerEvent("so.registry.backfill", {
+        actor: actor.email, written: rows.length, skipped: skipped.length
+      });
+      sendJson(res, 200, {
+        ok: true,
+        total: snap.docs.length,
+        written: rows.length,
+        skipped: skipped.length,
+        sheetUrl: `https://docs.google.com/spreadsheets/d/${SO_REGISTRY_SHEET_ID}`
+      });
+    } catch (err) {
+      console.error("[backfillSORegistry] failed:", err);
+      sendJson(res, 500, { error: err.message });
+    }
+  }
+);
+
 exports.syncSORegistry = onDocumentWritten(
   { document: "salesOrders/{soId}", region: "us-central1", memory: "256MiB", timeoutSeconds: 60 },
   async (event) => {

@@ -1,4 +1,4 @@
-var CACHE_NAME = 'mfx-mpp2yg2y';
+var CACHE_NAME = 'mfx-mpp3akds';
 var STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -12,7 +12,7 @@ var STATIC_ASSETS = [
 ];
 
 // CDN resources to cache on first use
-var CDN_CACHE = 'mfx-cdn-mpp2yg2y';
+var CDN_CACHE = 'mfx-cdn-mpp3akds';
 var CDN_PATTERNS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
