@@ -1792,13 +1792,21 @@ function buildPortalSOHTML(so,soId){
   // very SO block to PDF via the browser's Save-as-PDF, so the customer
   // always has a way to download even before staff has hit Send.
   if(so.driveLink){
-    h+='<div style="padding:14px 24px;background:#f0fdf4;border-top:1px solid #d1fae5;border-bottom:1px solid #d1fae5;text-align:center">'
-     +'<div style="font-size:9px;color:#15803d;font-weight:700;letter-spacing:1.5px;margin-bottom:8px">📄 SALES ORDER PDF AVAILABLE</div>'
+    // 2026-05-27 round 53: when staff has explicitly attached the
+    // signed SO to the portal (clicked Attach Signed SO to Portal),
+    // promote the card to "SIGNED" styling and pin to the signed PDF
+    // link. portalSignedPdfLink falls back to driveLink.
+    var _portalPdf=so.portalSignedPdfLink||so.driveLink;
+    var _isSigned=!!so.attachedToPortalAt;
+    var _bg=_isSigned?'#ecfdf5':'#f0fdf4';
+    var _label=_isSigned?'✓ SIGNED SALES ORDER ATTACHED':'📄 SALES ORDER PDF AVAILABLE';
+    h+='<div style="padding:14px 24px;background:'+_bg+';border-top:1px solid #d1fae5;border-bottom:1px solid #d1fae5;text-align:center">'
+     +'<div style="font-size:9px;color:#15803d;font-weight:700;letter-spacing:1.5px;margin-bottom:8px">'+_label+'</div>'
      +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'
-     +'<a href="'+escPortal(so.driveLink)+'" target="_blank" rel="noopener" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;border-radius:6px;text-decoration:none">Download Sales Order PDF</a>'
+     +'<a href="'+escPortal(_portalPdf)+'" target="_blank" rel="noopener" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;border-radius:6px;text-decoration:none">'+(_isSigned?'Download Signed SO':'Download Sales Order PDF')+'</a>'
      +'<button onclick="printPortalSO()" style="padding:10px 18px;background:transparent;color:#15803d;font-size:12px;font-weight:700;border:1px solid #16a34a;border-radius:6px;cursor:pointer">🖨 Print / Save as PDF</button>'
      +'</div>'
-     +'<div style="font-size:9px;color:#16a34a;margin-top:6px">Opens '+escPortal(so.soNum||'SO')+' in Google Drive</div>'
+     +'<div style="font-size:9px;color:#16a34a;margin-top:6px">'+(_isSigned?'Attached '+(so.attachedToPortalAt?new Date(so.attachedToPortalAt).toLocaleDateString():''):'Opens '+escPortal(so.soNum||'SO')+' in Google Drive')+'</div>'
      +'</div>';
   } else {
     h+='<div style="padding:14px 24px;background:#f0fdf4;border-top:1px solid #d1fae5;border-bottom:1px solid #d1fae5;text-align:center">'

@@ -25,6 +25,7 @@ const db = getFirestore();
 
 const DRIVE_SCOPE = ["https://www.googleapis.com/auth/drive"];
 const DOCS_SCOPE = ["https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/drive"];
+const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
 // Split read vs send so the inbox-ingest path doesn't request send rights
 // it doesn't need, and the auto-email path actually has send scope.
 // Both must be added to domain-wide delegation in Workspace admin.
@@ -315,6 +316,11 @@ async function getDriveClient() {
 async function getDocsClient() {
   const auth = new google.auth.GoogleAuth({ scopes: DOCS_SCOPE });
   return google.docs({ version: "v1", auth });
+}
+
+async function getSheetsClient() {
+  const auth = new google.auth.GoogleAuth({ scopes: SHEETS_SCOPE });
+  return google.sheets({ version: "v4", auth });
 }
 
 // Create a Google Doc copy of the SO inside the per-quote SO folder,
@@ -4583,3 +4589,141 @@ exports.aiOverdueQuoteSweep = overdueQuoteSweep;
 exports.aiLowStockSweep = lowStockSweep;
 exports.aiTrainingExpirySweep = trainingExpirySweep;
 exports.aiOpenCAPASweep = openCAPASweep;
+
+// ════════════════════════════════════════════════════════════════════
+// SO REGISTRY → Google Sheets sync (round 53)
+// ════════════════════════════════════════════════════════════════════
+// On every salesOrders write, upsert a row in the user-specified
+// registry sheet so leadership has a live spreadsheet of all SOs and
+// their signature status. Lookup by SO# in column B; insert if new,
+// update in place if existing. Fails silently — never blocks the SO
+// write itself.
+const SO_REGISTRY_SHEET_ID = process.env.SO_REGISTRY_SHEET_ID
+  || "1ZNPElD6QL9talxo20R20tzTR6_qSXguPvt364LNYsEA";
+const SO_REGISTRY_TAB = process.env.SO_REGISTRY_TAB || "Sales Orders";
+
+const SO_REGISTRY_HEADERS = [
+  "Created", "SO Number", "Quote Number", "PO Number", "Company",
+  "Contact", "Email", "Quantity", "Total ($)", "Status",
+  "Drive PDF Link", "Approver Signed By", "Approver Signed At",
+  "Client Signed By", "Client Signed At", "Job Started By",
+  "Job Started At", "Last Updated", "Last Updated By"
+];
+
+function _fmtTs(ts) {
+  if (!ts) return "";
+  try {
+    if (typeof ts.toDate === "function") return ts.toDate().toISOString();
+    if (ts instanceof Date) return ts.toISOString();
+    return new Date(ts).toISOString();
+  } catch (_e) { return String(ts); }
+}
+
+function _soToRegistryRow(soId, so) {
+  return [
+    _fmtTs(so.createdAt),
+    so.soNum || "",
+    so.quoteNum || "",
+    so.poNumber || "",
+    so.company || "",
+    so.contact || "",
+    so.email || "",
+    Number(so.selectedQty || 0) || "",
+    Number(so.total || 0) || "",
+    so.status || "",
+    so.driveLink || "",
+    so.ceoSignedBy || "",
+    _fmtTs(so.ceoSignedAt),
+    so.clientSignedBy || "",
+    _fmtTs(so.clientSignedAt),
+    so.jobStartedBy || "",
+    _fmtTs(so.jobStartedAt),
+    _fmtTs(so.updatedAt),
+    so.updatedBy || ""
+  ];
+}
+
+async function _ensureRegistryHeader(sheets) {
+  // Read row 1; if empty or stale, write the headers.
+  const tab = SO_REGISTRY_TAB;
+  let header = [];
+  try {
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SO_REGISTRY_SHEET_ID,
+      range: `${tab}!1:1`
+    });
+    header = (r.data && r.data.values && r.data.values[0]) || [];
+  } catch (_e) {
+    // tab might not exist — try to create it
+    try {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SO_REGISTRY_SHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: tab } } }] }
+      });
+    } catch (_e2) {/* may already exist */}
+  }
+  if (header.join("|") !== SO_REGISTRY_HEADERS.join("|")) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SO_REGISTRY_SHEET_ID,
+      range: `${tab}!A1`,
+      valueInputOption: "RAW",
+      requestBody: { values: [SO_REGISTRY_HEADERS] }
+    });
+  }
+}
+
+async function _findRegistryRowBySO(sheets, soNum) {
+  if (!soNum) return -1;
+  const tab = SO_REGISTRY_TAB;
+  try {
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SO_REGISTRY_SHEET_ID,
+      range: `${tab}!B:B`
+    });
+    const col = (r.data && r.data.values) || [];
+    for (let i = 0; i < col.length; i++) {
+      if ((col[i][0] || "") === soNum) return i + 1; // 1-indexed row
+    }
+  } catch (_e) {/* tab may be empty */}
+  return -1;
+}
+
+exports.syncSORegistry = onDocumentWritten(
+  { document: "salesOrders/{soId}", region: "us-central1", memory: "256MiB", timeoutSeconds: 60 },
+  async (event) => {
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    const soId = event.params.soId;
+    if (!after) return; // deleted — keep historical row in sheet
+    if (!after.soNum) return; // can't index without SO number
+    try {
+      const sheets = await getSheetsClient();
+      await _ensureRegistryHeader(sheets);
+      const row = _soToRegistryRow(soId, after);
+      const existingRow = await _findRegistryRowBySO(sheets, after.soNum);
+      const tab = SO_REGISTRY_TAB;
+      if (existingRow > 1) {
+        // Update in place
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SO_REGISTRY_SHEET_ID,
+          range: `${tab}!A${existingRow}`,
+          valueInputOption: "RAW",
+          requestBody: { values: [row] }
+        });
+        console.log(`[syncSORegistry] updated row ${existingRow} for ${after.soNum}`);
+      } else {
+        // Append new row
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: SO_REGISTRY_SHEET_ID,
+          range: `${tab}!A:A`,
+          valueInputOption: "RAW",
+          insertDataOption: "INSERT_ROWS",
+          requestBody: { values: [row] }
+        });
+        console.log(`[syncSORegistry] appended new row for ${after.soNum}`);
+      }
+    } catch (err) {
+      console.error("[syncSORegistry] failed:", err.message);
+      // Don't throw — registry sync is best-effort
+    }
+  }
+);

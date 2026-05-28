@@ -2003,6 +2003,8 @@ function emailCEOForSign(soId, templateKey){
   var tpl=(_SO_SIGN_TEMPLATES.ceo[key]||_SO_SIGN_TEMPLATES.ceo.standard);
   var built=tpl.build(so);
   _mailtoOpen(_ceoEmail(), built.subject, built.body);
+  // 2026-05-27 round 53: stamp the SO so the progress bar reflects the send
+  _stampSORequestSent(soId, 'approvalEmailSentAt', 'approvalEmailSentBy', key);
 }
 window.emailCEOForSign=emailCEOForSign;
 
@@ -2015,8 +2017,30 @@ function emailClientForSign(soId, templateKey){
   var tpl=(_SO_SIGN_TEMPLATES.client[key]||_SO_SIGN_TEMPLATES.client.standard);
   var built=tpl.build(so);
   _mailtoOpen(so.email, built.subject, built.body);
+  // 2026-05-27 round 53: stamp the SO so the progress bar reflects the send
+  _stampSORequestSent(soId, 'clientSignRequestSentAt', 'clientSignRequestSentBy', key);
 }
 window.emailClientForSign=emailClientForSign;
+
+// 2026-05-27 round 53: lightweight stamp helper — fire-and-forget so
+// the mailto: window opens without blocking on the Firestore write.
+function _stampSORequestSent(soId, atField, byField, templateKey){
+  if(typeof fbDb==='undefined')return;
+  var who=(typeof getUserName==='function'&&getUserName())||'Staff';
+  var nowIso=new Date().toISOString();
+  var upd={};
+  upd[atField]=nowIso;
+  upd[byField]=who;
+  upd[atField+'Template']=templateKey||'standard';
+  upd.updatedAt=nowIso;
+  upd.updatedBy=who;
+  // mirror to local cache for instant UI
+  var cached=(window._soCache||[]).find(function(s){return s.id===soId;});
+  if(cached){ cached[atField]=nowIso; cached[byField]=who; }
+  fbDb.collection('salesOrders').doc(soId).update(upd).catch(function(e){
+    console.warn('[_stampSORequestSent] non-fatal write failed',e.message);
+  });
+}
 
 // 2026-05-27 round 49: SO-tab dropdown helpers — pull the selected
 // template key out of the <select> next to the button, then call the

@@ -1836,16 +1836,46 @@ h+='</div>';
 if(linkedSO){
   var _hasMaster=!!so.driveLink;
   var _hasClient=!!so.clientFolderLink;
-  // 2026-05-27 round 50: Drive-PDF card always renders the signature
-  // panel below — even before the PDF has been saved to Drive — so
-  // staff can see the workflow and the dropdowns from the moment an
-  // SO exists. Send buttons remain disabled until _hasMaster (no PDF
-  // = nothing to send a link to), but Mark CEO Signed always works.
+  var _ceoSigned=!!so.ceoSignedAt;
+  var _clientSigned=!!so.clientSignedAt;
+  var _approvalSentAt=so.approvalEmailSentAt||so.ceoSignRequestSentAt;
+  var _clientSentAt=so.clientSignRequestSentAt;
+  var _attachedToPortal=!!so.attachedToPortalAt;
+
+  // ─── Round 53: PROGRESS BAR ───────────────────────────────────────
+  // 5 stages: PDF Saved → Approval Sent → Approved → Client Sent → Client Signed
+  // Plus "Attached to Portal" indicator at the end.
+  var _steps=[
+    {label:'PDF on Drive',  done:_hasMaster,        ts:so.driveSavedAt,  icon:'📁'},
+    {label:'Approval Sent', done:!!_approvalSentAt, ts:_approvalSentAt,  icon:'📧'},
+    {label:'Approved',      done:_ceoSigned,        ts:so.ceoSignedAt,   icon:'✅'},
+    {label:'Sent to Client',done:!!_clientSentAt,   ts:_clientSentAt,    icon:'📨'},
+    {label:'Client Signed', done:_clientSigned,     ts:so.clientSignedAt,icon:'✍️'}
+  ];
+  var _doneCount=_steps.filter(function(s){return s.done}).length;
+  var _pct=Math.round((_doneCount/_steps.length)*100);
+
   h+='<div style="background:linear-gradient(135deg,rgba(34,197,94,.06),rgba(34,197,94,.02));border:1px solid '+(_hasMaster?'rgba(34,197,94,.4)':'rgba(255,255,255,.08)')+';border-radius:10px;padding:12px 14px;margin-bottom:10px">';
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
-  h+='<div style="font-size:10px;color:'+(_hasMaster?'#22c55e':'#f59e0b')+';font-weight:800;letter-spacing:1.5px">📁 SALES ORDER PDF ON DRIVE'+(_hasMaster?' · ✓ SAVED':' · NOT SAVED YET')+'</div>';
-  h+='<button class="btn '+(_hasMaster?'btn-ghost':'btn-pr')+' btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate':'⬆ Save PDF Now')+'</button>';
+
+  // Progress bar header
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
+  h+='<div style="font-size:10px;color:var(--ac);font-weight:800;letter-spacing:1.5px">📊 SO WORKFLOW · '+_doneCount+'/'+_steps.length+' COMPLETE</div>';
+  h+='<button class="btn '+(_hasMaster?'btn-ghost':'btn-pr')+' btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate PDF':'⬆ Save PDF Now')+'</button>';
   h+='</div>';
+  // Bar
+  h+='<div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:'+_pct+'%;background:linear-gradient(90deg,#22c55e,#00e5ff);transition:width .3s ease"></div></div>';
+  // Steps grid
+  h+='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px">';
+  for(var _si=0; _si<_steps.length; _si++){
+    var _s2=_steps[_si];
+    var _bg=_s2.done?'rgba(34,197,94,.10)':'rgba(255,255,255,.03)';
+    var _bd=_s2.done?'rgba(34,197,94,.4)':'rgba(255,255,255,.08)';
+    var _fg=_s2.done?'#22c55e':'var(--tx3)';
+    h+='<div title="'+esc(_s2.label)+(_s2.ts?' · '+fD(_s2.ts):'')+'" style="text-align:center;padding:7px 4px;background:'+_bg+';border:1px solid '+_bd+';border-radius:5px;font-size:9px;color:'+_fg+';font-weight:700"><div style="font-size:13px;margin-bottom:2px">'+_s2.icon+'</div><div style="line-height:1.1">'+esc(_s2.label)+'</div></div>';
+  }
+  h+='</div>';
+
+  // Drive link / filename block
   if(_hasMaster){
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
     h+='<a href="'+esc(so.driveLink)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;text-decoration:none;color:var(--tx);font-size:11px;font-weight:600"><span style="font-size:14px">📄</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Master SO Folder<br><span style="font-size:9px;color:var(--tx3);font-weight:500">MFX-'+esc(so.soNum||'')+(so.company?' - '+esc(so.company):'')+'.pdf</span></span></a>';
@@ -1854,16 +1884,10 @@ if(linkedSO){
     }
     h+='</div>';
   } else {
-    h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(245,158,11,.06);border:1px dashed rgba(245,158,11,.4);border-radius:6px;font-size:11px;color:var(--tx2);line-height:1.4"><span style="font-size:18px">📄</span><span style="flex:1">Filename will be <strong style="color:var(--tx)">MFX-'+esc(so.soNum||'')+(so.company?' - '+esc(so.company):'')+'.pdf</strong> — click <strong>Save PDF Now</strong> above to generate it and unlock the email send buttons.</span></div>';
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(245,158,11,.06);border:1px dashed rgba(245,158,11,.4);border-radius:6px;font-size:11px;color:var(--tx2);line-height:1.4"><span style="font-size:18px">📄</span><span style="flex:1">Filename: <strong style="color:var(--tx)">MFX-'+esc(so.soNum||'')+(so.company?' - '+esc(so.company):'')+'.pdf</strong> — click <strong>Save PDF Now</strong> above.</span></div>';
   }
 
-  // ─── Sign-request email templates (round 49/50) ─────────────────
-  // Always visible when SO exists. Send buttons need a Drive link to
-  // include in the email body; if missing, they prompt to save first.
-  // Mark CEO Signed stamps the SO + auto-opens the client email so
-  // the chain finishes itself.
-  var _ceoSigned=!!so.ceoSignedAt;
-  var _clientSigned=!!so.clientSignedAt;
+  // ─── Sign-request email templates ─────────────────────────────────
   var _ceoTplOpts=Object.keys((window._SO_SIGN_TEMPLATES&&window._SO_SIGN_TEMPLATES.ceo)||{standard:1}).map(function(k){
     var t=window._SO_SIGN_TEMPLATES.ceo[k];
     return '<option value="'+esc(k)+'">'+esc(t.label||k)+'</option>';
@@ -1878,38 +1902,68 @@ if(linkedSO){
   h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.08)">';
   h+='<div style="font-size:9px;color:var(--tx3);font-weight:800;letter-spacing:1.5px;margin-bottom:6px">📨 SIGNATURE REQUESTS</div>';
 
-  // Approver row (was "CEO" — round 52 routes to randy@microflexfilm.com)
-  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:8px;align-items:center">';
+  // Approver send row
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px;align-items:center">';
   h+='<select id="'+_ceoSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_ceoTplOpts+'</select>';
   h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" '+(_hasMaster?'':'title="Save the PDF first"')+' style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'"><span>📧</span> Send for Approval</button>';
   h+='</div>';
-
-  // Mark Approved row
-  if(_ceoSigned){
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:8px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:6px;font-size:11px">';
-    h+='<span style="color:var(--ac);font-weight:700">✓ Approved</span>';
-    h+='<span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'Approver')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span>';
-    h+='</div>';
-  } else {
-    h+='<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:8px">';
-    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:9px 12px"><span>✍️</span> Mark Approved → auto-send Client</button>';
-    h+='</div>';
+  if(_approvalSentAt){
+    h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:6px;padding-left:2px">✉ Last sent '+fD(_approvalSentAt)+(so.approvalEmailSentBy?' by '+esc(so.approvalEmailSentBy):'')+'</div>';
   }
 
-  // Client row
-  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">';
-  h+='<select id="'+_cliSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_cliTplOpts+'</select>';
-  h+='<button class="btn btn-pr btn-xs" onclick="emailClientForSignFromSelect(\''+so.id+'\',\''+_cliSelId+'\')" '+(_hasMaster?(_ceoSigned?'':' title="CEO should sign first"'):' title="Save the PDF first"')+' style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.4);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'"><span>📧</span> Send to Client</button>';
+  // ─── Manual signature entry — APPROVER ──────────────────────────
+  h+='<div style="background:rgba(0,229,255,.04);border:1px solid var(--ac3);border-radius:6px;padding:8px 10px;margin-bottom:8px">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+  h+='<div style="font-size:9px;color:var(--ac);font-weight:800;letter-spacing:1px">✍️ APPROVER SIGNATURE</div>';
+  if(!_ceoSigned){
+    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="font-size:9px;padding:3px 8px">Mark Approved + Auto-send Client</button>';
+  } else {
+    h+='<span style="font-size:9px;color:#22c55e;font-weight:700">✓ ON FILE</span>';
+  }
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+  h+='<div><label style="font-size:9px;color:var(--tx3);font-weight:700">Signed By</label><input type="text" value="'+esc(so.ceoSignedBy||'')+'" placeholder="Randy" onchange="saveSOField(\''+so.id+'\',\'ceoSignedBy\',this.value)" style="width:100%;padding:5px 7px;font-size:11px;background:var(--bg);color:var(--tx);border:1px solid var(--bdr);border-radius:4px"></div>';
+  h+='<div><label style="font-size:9px;color:var(--tx3);font-weight:700">Signed On</label><input type="datetime-local" value="'+_dateLocal(so.ceoSignedAt)+'" onchange="saveSOFieldDate(\''+so.id+'\',\'ceoSignedAt\',this.value)" style="width:100%;padding:5px 7px;font-size:11px;background:var(--bg);color:var(--tx);border:1px solid var(--bdr);border-radius:4px"></div>';
+  h+='</div>';
   h+='</div>';
 
+  // Client send row
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px;align-items:center">';
+  h+='<select id="'+_cliSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_cliTplOpts+'</select>';
+  h+='<button class="btn btn-pr btn-xs" onclick="emailClientForSignFromSelect(\''+so.id+'\',\''+_cliSelId+'\')" '+(_hasMaster?(_ceoSigned?'':' title="Approver should sign first"'):' title="Save the PDF first"')+' style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.4);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'"><span>📧</span> Send to Client</button>';
+  h+='</div>';
+  if(_clientSentAt){
+    h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:6px;padding-left:2px">✉ Last sent '+fD(_clientSentAt)+(so.clientSignRequestSentBy?' by '+esc(so.clientSignRequestSentBy):'')+'</div>';
+  }
+
+  // ─── Manual signature entry — CLIENT ────────────────────────────
+  h+='<div style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.4);border-radius:6px;padding:8px 10px;margin-bottom:8px">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+  h+='<div style="font-size:9px;color:#22c55e;font-weight:800;letter-spacing:1px">✍️ CLIENT SIGNATURE</div>';
   if(_clientSigned){
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-top:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.4);border-radius:6px;font-size:11px">';
-    h+='<span style="color:#22c55e;font-weight:700">✓ Client signed</span>';
-    h+='<span style="color:var(--tx2)">'+(so.clientSignedAt?fD(so.clientSignedAt):'')+'</span>';
+    h+='<span style="font-size:9px;color:#22c55e;font-weight:700">✓ ON FILE</span>';
+  }
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+  h+='<div><label style="font-size:9px;color:var(--tx3);font-weight:700">Signed By</label><input type="text" value="'+esc(so.clientSignedBy||so.clientSignature||'')+'" placeholder="'+esc(so.contact||'Client name')+'" onchange="saveSOField(\''+so.id+'\',\'clientSignedBy\',this.value)" style="width:100%;padding:5px 7px;font-size:11px;background:var(--bg);color:var(--tx);border:1px solid var(--bdr);border-radius:4px"></div>';
+  h+='<div><label style="font-size:9px;color:var(--tx3);font-weight:700">Signed On</label><input type="datetime-local" value="'+_dateLocal(so.clientSignedAt)+'" onchange="saveSOFieldDate(\''+so.id+'\',\'clientSignedAt\',this.value)" style="width:100%;padding:5px 7px;font-size:11px;background:var(--bg);color:var(--tx);border:1px solid var(--bdr);border-radius:4px"></div>';
+  h+='</div>';
+  h+='</div>';
+
+  // ─── Attach Signed SO to Quote Portal ───────────────────────────
+  if(_hasMaster){
+    h+='<div style="padding:10px;background:'+(_attachedToPortal?'rgba(34,197,94,.06)':'rgba(0,229,255,.06)')+';border:1px '+(_attachedToPortal?'solid rgba(34,197,94,.4)':'dashed var(--ac3)')+';border-radius:6px">';
+    if(_attachedToPortal){
+      h+='<div style="display:flex;align-items:center;gap:8px;font-size:11px"><span style="color:#22c55e;font-weight:800">📎 ATTACHED TO PORTAL</span><span style="color:var(--tx3);font-size:10px">'+fD(so.attachedToPortalAt)+(so.attachedToPortalBy?' by '+esc(so.attachedToPortalBy):'')+'</span></div>';
+      h+='<button class="btn btn-ghost btn-xs" onclick="attachSOToPortal(\''+so.id+'\', true)" style="margin-top:6px;font-size:9px;padding:3px 8px">↻ Re-attach (re-notify client)</button>';
+    } else {
+      h+='<button class="btn btn-pr btn-xs" onclick="attachSOToPortal(\''+so.id+'\')" style="width:100%;display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:9px 12px"><span>📎</span> Attach Signed SO to Client Portal</button>';
+      h+='<div style="margin-top:6px;font-size:9px;color:var(--tx3);text-align:center">Makes the signed PDF link visible on the quote\'s portal page and notifies the client</div>';
+    }
     h+='</div>';
   }
 
-  h+='<div style="margin-top:8px;font-size:10px;color:var(--tx3);line-height:1.4">Pick a template, hit Send — your mail client opens with the PDF link pre-filled (approval goes to <strong>randy@microflexfilm.com</strong>). <strong>Mark Approved</strong> stamps the SO and auto-opens the client email.</div>';
+  h+='<div style="margin-top:8px;font-size:10px;color:var(--tx3);line-height:1.4">Approval emails go to <strong>randy@microflexfilm.com</strong>. Manual signature entry above stamps the SO directly. <strong>Attach to Portal</strong> exposes the signed PDF on the client\'s quote page.</div>';
   h+='</div>';
   h+='</div>';
 }
@@ -2569,6 +2623,15 @@ function saveSOField(soId,key,val){
     // 2026-05-27 round 50: visible confirmation. Save indicator alone
     // is too subtle — user kept asking "is this saving?"
     if(typeof toast==='function') toast('Saved · '+key,'ok');
+    // 2026-05-27 round 55: live-refresh the SO Preview pane when any
+    // field changes. Keeps the rendered preview in sync without a
+    // full editor re-render.
+    try{
+      var _soPage=document.getElementById('soPage');
+      if(_soPage && typeof window.buildSOPrintHTML==='function' && so){
+        _soPage.innerHTML=window.buildSOPrintHTML(so);
+      }
+    }catch(_e){console.warn('[saveSOField] preview refresh failed',_e.message);}
     // 2026-05-27 round 50: mirror identity fields back to the linked
     // quote so the SO + quote stay in sync (otherwise next edit of
     // the quote could clobber the SO with the old client info).
@@ -2595,6 +2658,99 @@ function saveSOField(soId,key,val){
   });
 }
 window.saveSOField=saveSOField;
+
+// 2026-05-27 round 53: helpers for SO manual signature entry +
+// portal-attach button.
+function _dateLocal(ts){
+  if(!ts)return '';
+  try{
+    var d=ts && ts.toDate?ts.toDate():new Date(ts);
+    if(isNaN(d.getTime()))return '';
+    // format YYYY-MM-DDTHH:mm for <input type="datetime-local">
+    var pad=function(n){return String(n).padStart(2,'0')};
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+  }catch(_e){return ''}
+}
+window._dateLocal=_dateLocal;
+
+function saveSOFieldDate(soId,key,val){
+  // Convert datetime-local string (YYYY-MM-DDTHH:mm) to ISO string.
+  // Empty value clears the field.
+  if(!val){saveSOField(soId,key,null);return}
+  try{
+    var iso=new Date(val).toISOString();
+    saveSOField(soId,key,iso);
+  }catch(e){
+    console.error('[saveSOFieldDate] parse failed',e);
+    toast('Invalid date — use the picker','err');
+  }
+}
+window.saveSOFieldDate=saveSOFieldDate;
+
+// 2026-05-27 round 53: Attach signed SO PDF to the client quote portal.
+// Stamps the SO so the portal SO card shows the "Attached on …" badge,
+// and (optionally) opens a pre-filled email to the client letting them
+// know the signed copy is available. Skips email if reAttach=true so
+// the staff can just bump the timestamp without re-spamming the client.
+function attachSOToPortal(soId, reAttach){
+  if(typeof fbDb==='undefined')return toast&&toast('DB unavailable','err');
+  var sos=typeof getSalesOrders==='function'?getSalesOrders():[];
+  var so=sos.find(function(x){return x.id===soId});
+  if(!so)return toast&&toast('SO not found','err');
+  if(!so.driveLink)return toast&&toast('Save the PDF to Drive first — no link to attach','err');
+  if(!reAttach && so.attachedToPortalAt){
+    if(!confirm('Already attached to portal on '+(typeof fD==='function'?fD(so.attachedToPortalAt):so.attachedToPortalAt)+'. Re-attach?'))return;
+  }
+  var who=(typeof getUserName==='function'?getUserName():'Staff');
+  var nowIso=new Date().toISOString();
+  if(window.setSaveState)window.setSaveState('saving');
+  fbDb.collection('salesOrders').doc(soId).update({
+    attachedToPortalAt:nowIso,
+    attachedToPortalBy:who,
+    portalSignedPdfLink:so.driveLink, // pinned link the portal will show
+    updatedAt:nowIso,
+    updatedBy:who
+  }).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
+    // mirror to local cache
+    so.attachedToPortalAt=nowIso;
+    so.attachedToPortalBy=who;
+    so.portalSignedPdfLink=so.driveLink;
+    toast&&toast('✓ Signed SO attached to portal','ok');
+    if(typeof renderAll==='function')renderAll();
+    // Offer to email the client
+    if(!reAttach && so.email){
+      setTimeout(function(){
+        if(confirm('Email '+so.email+' to let them know the signed SO is now available on their portal?')){
+          var to=so.email;
+          var subj='Signed Sales Order '+so.soNum+' is available on your portal';
+          var portalUrl='https://os.microflexfilm.com/portal?id='+encodeURIComponent(so.quoteId||'')+'&q='+encodeURIComponent(so.quoteNum||'');
+          var body=[
+            'Hi '+(so.contact||'there')+',',
+            '',
+            'Your signed Sales Order '+so.soNum+' is now available on your portal page.',
+            '',
+            'View on portal:',
+            portalUrl,
+            '',
+            'Direct PDF link:',
+            so.driveLink,
+            '',
+            'Thanks,',
+            who
+          ].join('\n');
+          var url='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
+          window.open(url,'_blank');
+        }
+      },300);
+    }
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    console.error('[attachSOToPortal] failed',e);
+    toast&&toast('Attach failed: '+e.message,'err');
+  });
+}
+window.attachSOToPortal=attachSOToPortal;
 window.saveSkuPPField=saveSkuPPField;window.toggleSkuPPCheck=toggleSkuPPCheck;
 
 // ─── Publish artwork proof to client portal ─────────────────────────
