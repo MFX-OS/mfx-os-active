@@ -1257,12 +1257,19 @@ const mkOptV=(opts,cur)=>opts.map(([v,l])=>`<option value="${v}" ${cur===v?'sele
 
 $('v-editor').innerHTML=`${(function(){
   // ─── Confirm Incoming PO banner ────────────────────────────────────
-  // Shows when a client has submitted a PO via the portal but staff
-  // hasn't yet confirmed it. SO is NOT generated until staff clicks
-  // Confirm — manual gate added 2026-05-27.
+  // Shows when a client has submitted a PO via the portal but no SO
+  // has been generated for this quote yet. Manual gate added 2026-05-27.
+  // Round 46 rev: re-gated from "no poConfirmedBy" → "no linked SO" so
+  // staff doesn't get locked out if a previous confirm failed silently
+  // (e.g., autoCreateSO threw, browser closed mid-flow). Idempotent:
+  // re-clicking the button just re-triggers autoCreateSO.
   var qq=getQ(S.editId);
-  if(!qq||!qq.poNumber||qq.poConfirmedBy)return'';
+  if(!qq||!qq.poNumber)return'';
   if(qq.status!=='won'&&qq.status!=='sent')return'';
+  // Has an SO already been created for this quote? Then we're past this gate.
+  var _hasSO=(typeof getSalesOrders==='function')
+    && getSalesOrders().some(function(s){return s.quoteId===qq.id||s.quoteNum===qq.quoteNum});
+  if(_hasSO)return'';
   var poTotal=qq.poSelectedTotal||qq.poTotal||0;
   var poQty=qq.poSelectedQty||qq.poQty||0;
   var poFileCount=(qq.poFiles&&qq.poFiles.length)||0;

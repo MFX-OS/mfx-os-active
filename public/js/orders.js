@@ -1293,20 +1293,29 @@ function confirmIncomingPO(quoteId){
   var q=all.find(function(x){return x.id===quoteId});
   if(!q){toast&&toast('Quote not found','err');return}
   if(!q.poNumber){toast&&toast('No PO submitted yet on this quote','err');return}
-  if(q.poConfirmedBy){toast&&toast('PO already confirmed by '+q.poConfirmedBy,'info');return}
-  // Stamp + persist
-  q.poConfirmedBy = (typeof getUserName==='function')?getUserName():'Staff';
-  q.poConfirmedAt = new Date().toISOString();
-  q.updatedAt = q.poConfirmedAt;
-  if(!q.activityLog)q.activityLog=[];
-  q.activityLog.push({action:'po_confirmed', by:q.poConfirmedBy, at:q.poConfirmedAt, detail:'PO# '+q.poNumber+' confirmed — generating sales order'});
-  DB.saveQ(all, q.id);
-  toast&&toast('PO confirmed — generating sales order…','ok');
-  // Trigger SO generation through the event the listener above handles
+  // If an SO already exists, bail — the gate's done its job.
+  var existingSO=(typeof _soCache!=='undefined') && _soCache.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
+  if(existingSO){toast&&toast('Sales Order '+existingSO.soNum+' already exists for this quote','info');return}
+  // 2026-05-27 round 46: idempotent. If poConfirmedBy was set but no SO
+  // got created (autoCreateSO threw, browser closed mid-flow, etc.),
+  // re-clicking just re-triggers SO generation without re-stamping.
+  if(!q.poConfirmedBy){
+    q.poConfirmedBy = (typeof getUserName==='function')?getUserName():'Staff';
+    q.poConfirmedAt = new Date().toISOString();
+    q.updatedAt = q.poConfirmedAt;
+    if(!q.activityLog)q.activityLog=[];
+    q.activityLog.push({action:'po_confirmed', by:q.poConfirmedBy, at:q.poConfirmedAt, detail:'PO# '+q.poNumber+' confirmed — generating sales order'});
+    DB.saveQ(all, q.id);
+    toast&&toast('PO confirmed — generating sales order…','ok');
+  } else {
+    toast&&toast('PO already confirmed — retrying SO generation…','ok');
+  }
+  // Trigger SO generation. MFX.emit fires the listener registered by
+  // initAutoSOCreation, which calls autoCreateSO. Direct fallback only
+  // when MFX is unavailable (would otherwise double-create the SO).
   if(typeof MFX!=='undefined'&&typeof MFX.emit==='function'){
     MFX.emit('quote.po_confirmed',{quote:q});
-  } else {
-    // Fallback — call autoCreateSO directly
+  } else if(typeof autoCreateSO==='function'){
     autoCreateSO(q);
   }
   // Re-render editor so the banner disappears
