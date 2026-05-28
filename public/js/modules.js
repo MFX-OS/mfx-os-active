@@ -1502,8 +1502,12 @@ function unlockField(id){
 }
 function saveUserProfile(){var f={displayName:($('up-name')||{}).value||'',flexId:($('up-flexid')||{}).value||'',position:($('up-position')||{}).value||'',role:($('up-role')||{}).value||'',dept:($('up-dept')||{}).value||''};Object.keys(f).forEach(function(k){saveMFXProfile(k,f[k])});if(typeof syncUserAccessProfile==='function')syncUserAccessProfile();closeModal();toast('Saved!','ok');populateHamUser()}
 
-// Send-as email aliases for the org
-var MFX_SEND_AS=['quotes@microflexfilm.com','info@microflexfilm.com'];
+// Send-as email aliases for the org. flex@ is the canonical OS-comms sender
+// (2026-05-27) — used by the auto-send Cloud Function and listed first here
+// so the staff dropdown defaults to it. Each staff Gmail account needs flex@
+// configured as a verified "Send mail as" alias for client-side sends to
+// actually deliver from this address.
+var MFX_SEND_AS=['flex@microflexfilm.com','quotes@microflexfilm.com','info@microflexfilm.com'];
 
 // Email templates for quote sending
 function getSendTemplates(q){
@@ -1559,7 +1563,7 @@ h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span
 if(emailValid){
 h+='<span style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(custEmail)+'</span><span style="color:var(--gn);font-size:10px">✓</span>';
 }else{
-h+='<input id="send-cust-email" placeholder="Enter customer email" value="'+esc(custEmail)+'" style="flex:1;padding:6px 8px;border:1px solid var(--or);border-radius:6px;background:var(--inp);color:var(--tx);font-size:11px" oninput="var q=getQ(S.editId);if(q)q.fields.custEmail=this.value">';
+h+='<input id="send-cust-email" placeholder="Enter customer email" value="'+esc(custEmail)+'" style="flex:1;padding:6px 8px;border:1px solid var(--or);border-radius:6px;background:var(--inp);color:var(--tx);font-size:11px" oninput="var q=getQ(S.editId);if(q){q.fields.custEmail=this.value;var _le=String(this.value||\'\').trim().toLowerCase();if(_le&&/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(_le))q.poClientEmail=_le;}">';
 }
 h+='</div>';
 h+='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:var(--tx3);width:60px">My Email:</span><span style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(myEmail)+'</span><span style="color:var(--gn);font-size:10px">✓</span></div>';
@@ -1749,6 +1753,12 @@ _gmailSend(clientRaw, token, 'client').then(function(clientResp){
     q=getQ(S.editId);
     if(q){
       q.sentAt=q.sentAt||new Date().toISOString();
+      // Portal access key — Firebase Auth normalizes emails to lowercase, so
+      // the firestore.rules .lower() comparison only works if the stored
+      // value is lowercase too (queries are exact-case). Stamping at send
+      // time ensures the recipient can find this quote on the portal.
+      var _portalEmail=String(ov.to||'').split(/[,;]/)[0].trim().toLowerCase();
+      if(_portalEmail)q.poClientEmail=_portalEmail;
       if(!q.workflow)q.workflow={};
       q.workflow.emailSent=true;
       q.workflow.registryUpdated=true;
@@ -1863,6 +1873,12 @@ setQStatus(q.id,'sent');
 q = getQ(S.editId); if(!q) return;
 // Explicitly set sentAt + workflow flags in case setQStatus async hasn't completed
 q.sentAt=q.sentAt||new Date().toISOString();
+// Stamp lowercased portal access email — Firebase Auth lowercases emails,
+// firestore.rules .lower()-matches against this field, and Firestore where('==')
+// is exact-case. Without this stamp the client's magic-link login can't find
+// the quote. First recipient in allTo wins (extras are CCs).
+var _portalEmail2=String(to||'').split(/[,;]/)[0].trim().toLowerCase();
+if(_portalEmail2)q.poClientEmail=_portalEmail2;
 if(!q.workflow)q.workflow={};
 q.workflow.emailSent=true;
 upsertRegistryRow(q.id,'Emailed to '+allTo+(cc?' cc:'+cc:''));

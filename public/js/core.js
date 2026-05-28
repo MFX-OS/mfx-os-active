@@ -1706,6 +1706,14 @@ for(const k of Object.keys(q.fields)){const v=el(k);if(v!==undefined)q.fields[k]
 // Also capture checkbox fields that might not be in FDEF yet
 ['showSetupOnPDF','showShippingOnPDF','showPlateOnPDF'].forEach(function(k){const v=el(k);if(v!==undefined)q.fields[k]=v});
 const descEl=document.querySelector('#v-editor [data-field="description"]');if(descEl)q.description=descEl.value;
+// 2026-05-27: keep poClientEmail (the portal-access lookup key) in sync with
+// whatever the rep types into the main editor's email field. Firestore queries
+// are exact-case but Firebase Auth lowercases magic-link tokens, so the stored
+// value must be lowercase or the client's portal workspace query won't find
+// this quote. Mirroring on every save catches edits via any path — Send tab,
+// main editor, customer-load autofill, dropdown picker, etc. — without having
+// to wire each one individually.
+{const _custEmailRaw=String((q.fields&&q.fields.custEmail)||'').trim();const _lowered=_custEmailRaw.toLowerCase();if(_lowered && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_lowered) && q.poClientEmail!==_lowered){q.poClientEmail=_lowered}}
 if(!q.activityLog)q.activityLog=[];q.activityLog.push({action:'edit',by:getUserName(),at:new Date().toISOString(),detail:'Fields updated'})
 const qe=document.querySelectorAll('#v-editor .qty-row input');if(qe.length&&S.etab===4)q.qtys=[...qe].map(e=>parseInt(e.value)||0).filter(n=>n>0);
 q.updatedAt=new Date().toISOString();DB.saveQ(all,S.editId)}

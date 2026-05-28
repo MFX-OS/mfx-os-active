@@ -123,6 +123,13 @@
           }
         },
         {
+          "source": "/api/backfillPortalEmails",
+          "function": {
+            "functionId": "backfillPortalEmails",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "/api/uploadToDrive",
           "function": {
             "functionId": "uploadToDrive",

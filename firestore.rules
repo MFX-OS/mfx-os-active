@@ -114,16 +114,21 @@ service cloud.firestore {
 
       // Portal messages subcollection — scoped to portal client of THIS quote.
       // Uses get() on parent quote to verify email match.
+      // 2026-05-27 fix: comparisons are now case-insensitive, matching the
+      // SEC-01 follow-up on the parent /quotes rule. Without .lower() here,
+      // the parent quote could load but the message thread silently failed
+      // with permission-denied whenever fields.custEmail wasn't already
+      // lowercase (which Firebase Auth tokens always are).
       match /portalMessages/{msgId} {
         allow read: if signedIn()
           && request.auth.token.email != null
-          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '') == request.auth.token.email
-              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '') == request.auth.token.email
+          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '').lower() == request.auth.token.email.lower()
+              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '').lower() == request.auth.token.email.lower()
               || companyUser());
         allow create: if signedIn()
           && request.auth.token.email != null
-          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '') == request.auth.token.email
-              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '') == request.auth.token.email
+          && (get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('poClientEmail', '').lower() == request.auth.token.email.lower()
+              || get(/databases/$(database)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '').lower() == request.auth.token.email.lower()
               || companyUser());
       }
 
@@ -170,11 +175,20 @@ service cloud.firestore {
       allow get, list: if signedIn()
         && request.auth.token.email != null
         && resource.data.get('email', '').lower() == request.auth.token.email.lower();
+      // 2026-05-27: extended allowed update fields for artwork approval.
+      // Portal client can sign the SO AND approve/reject the artwork proof
+      // — both gate the order moving into production. Email-match still
+      // required so a client can only update their own SO.
       allow update: if signedIn()
         && request.auth.token.email != null
         && resource.data.get('email', '').lower() == request.auth.token.email.lower()
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['clientSignature','clientSignedAt','clientEmail','clientApproved']);
+            .hasOnly([
+              'clientSignature','clientSignedAt','clientEmail','clientApproved',
+              'artworkApproved','artworkApprovedAt','artworkApprovedBy',
+              'artworkRevisionRequestedAt','artworkRevisionNote','artworkRevisionRequestedBy',
+              'updatedAt'
+            ]);
     }
 
     match /jobPassports/{passportId} {

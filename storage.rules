@@ -23,12 +23,17 @@ service firebase.storage {
     // /portal-uploads/quotes/{quoteId}/** when their authed email matches
     // the quote's stored poClientEmail or fields.custEmail. Company users
     // (@microflexfilm.com) retain full access for internal review.
+    // 2026-05-27 fix: case-insensitive email match (mirrors the Firestore
+    // rules .lower() fix from round 2). Firebase Auth tokens are always
+    // lowercased; quote docs may have mixed-case emails stored. Without
+    // .lower() on both sides, portal clients get storage/unauthorized on
+    // every upload even when the data should match.
     function isQuoteCustomer(quoteId) {
       return request.auth != null
         && request.auth.token.email != null
         && (
-          firestore.get(/databases/(default)/documents/quotes/$(quoteId)).data.get('poClientEmail', '') == request.auth.token.email
-          || firestore.get(/databases/(default)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '') == request.auth.token.email
+          firestore.get(/databases/(default)/documents/quotes/$(quoteId)).data.get('poClientEmail', '').lower() == request.auth.token.email.lower()
+          || firestore.get(/databases/(default)/documents/quotes/$(quoteId)).data.get('fields', {}).get('custEmail', '').lower() == request.auth.token.email.lower()
         );
     }
     function isAllowedUploadType() {

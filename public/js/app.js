@@ -1255,7 +1255,79 @@ const f=q.fields;
 const mkOpts=(opts,cur)=>opts.map(o=>`<option ${cur===o?'selected':''}>${o}</option>`).join('');
 const mkOptV=(opts,cur)=>opts.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l||v}</option>`).join('');
 
-$('v-editor').innerHTML=`<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO','SO Preview','Passport','Timeline','Workflow'].map(function(t,i){return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
+$('v-editor').innerHTML=`${(function(){
+  // ─── Confirm Incoming PO banner ────────────────────────────────────
+  // Shows when a client has submitted a PO via the portal but staff
+  // hasn't yet confirmed it. SO is NOT generated until staff clicks
+  // Confirm — manual gate added 2026-05-27.
+  var qq=getQ(S.editId);
+  if(!qq||!qq.poNumber||qq.poConfirmedBy)return'';
+  if(qq.status!=='won'&&qq.status!=='sent')return'';
+  var poTotal=qq.poSelectedTotal||qq.poTotal||0;
+  var poQty=qq.poSelectedQty||qq.poQty||0;
+  var poFileCount=(qq.poFiles&&qq.poFiles.length)||0;
+  var artFileCount=(qq.artFiles&&qq.artFiles.length)||0;
+  var b='<div style="background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04));border:1.5px solid rgba(245,158,11,.5);border-radius:10px;padding:14px 18px;margin:8px 12px 12px;display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">';
+  b+='<div style="flex:1;min-width:240px">';
+  b+='<div style="font-size:10px;color:#f59e0b;font-weight:800;letter-spacing:2px;margin-bottom:6px">📋 PO RECEIVED — CONFIRMATION NEEDED</div>';
+  b+='<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc((qq.fields&&qq.fields.custCo)||'Client')+' submitted PO# <span style="color:var(--ac)">'+esc(qq.poNumber)+'</span></div>';
+  b+='<div style="font-size:11px;color:var(--tx2);line-height:1.6">';
+  b+='Signed by <strong>'+esc(qq.poSignature||'—')+'</strong>'+(qq.poSignedAt?' on '+fD(qq.poSignedAt):'')+' · ';
+  if(poQty)b+='Qty <strong>'+Number(poQty).toLocaleString()+'</strong> · ';
+  if(poTotal)b+='Total <strong style="color:var(--ac)">$'+Number(poTotal).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong> · ';
+  b+='Files: <strong>'+poFileCount+' PO</strong>, <strong>'+artFileCount+' art</strong>';
+  b+='</div>';
+  b+='<div style="font-size:10px;color:var(--tx3);margin-top:6px">Review the PO details + uploaded files in the PO tab, then click Confirm to generate the sales order. SO will not be created until you confirm.</div>';
+  b+='</div>';
+  b+='<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
+  b+='<button onclick="confirmIncomingPO(\''+esc(qq.id)+'\')" style="padding:11px 22px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap">✓ Confirm & Generate SO</button>';
+  b+='<button onclick="switchET(8)" style="padding:7px 12px;background:transparent;color:#f59e0b;border:1px solid rgba(245,158,11,.5);border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">Review PO Details →</button>';
+  b+='</div>';
+  b+='</div>';
+  return b;
+})()}${(function(){
+  // ─── Backup CEO sign banner — only when validation failed at SO gen ───
+  // 2026-05-27 (rev): SOs are normally auto-signed by Moises Santillan at
+  // generation time. This banner only appears for SOs where validation
+  // FAILED (ceoSignNeeded=true && !ceoSignedAt) — i.e., the customer email
+  // was missing, total was zero, etc. The staffer fixes the underlying
+  // quote data, then clicks Sign here to manually trigger the send.
+  var qq2=getQ(S.editId);
+  if(!qq2)return'';
+  var soForQuote = (typeof getSalesOrders==='function')
+    ? getSalesOrders().find(function(s){return s.quoteId===qq2.id||s.quoteNum===qq2.quoteNum})
+    : null;
+  if(!soForQuote)return'';
+  if(!soForQuote.ceoSignNeeded || soForQuote.ceoSignedAt)return'';
+  var missing = soForQuote.autoApprovalChecks
+    ? Object.keys(soForQuote.autoApprovalChecks).filter(function(k){return !soForQuote.autoApprovalChecks[k]})
+    : [];
+  var c='<div style="background:linear-gradient(135deg,rgba(239,68,68,.10),rgba(239,68,68,.03));border:1.5px solid rgba(239,68,68,.5);border-radius:10px;padding:14px 18px;margin:8px 12px 12px">';
+  c+='<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">';
+  c+='<div style="flex:1;min-width:240px">';
+  c+='<div style="font-size:10px;color:#ef4444;font-weight:800;letter-spacing:2px;margin-bottom:6px">⚠ AUTO-SIGN BLOCKED — FIX & SIGN MANUALLY</div>';
+  c+='<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc(soForQuote.soNum||'—')+' for '+esc(soForQuote.company||'Client')+'</div>';
+  c+='<div style="font-size:11px;color:var(--tx2);line-height:1.6">Auto-sign blocked because: <strong style="color:#ef4444">'+esc(missing.join(', ')||'unknown')+'</strong>. Fix in the quote, then click Sign as CEO.</div>';
+  c+='</div>';
+  c+='<button onclick="switchET(10)" style="padding:7px 14px;background:transparent;color:#ef4444;border:1px solid rgba(239,68,68,.5);border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;height:32px;align-self:flex-start">Open SO Tab →</button>';
+  c+='</div>';
+  c+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px dashed rgba(239,68,68,.25)">';
+  c+='<label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);cursor:pointer;white-space:nowrap"><input type="checkbox" id="ceoSignAuth" style="accent-color:#ef4444" onchange="(function(){var b=document.getElementById(\'ceoSignBtn\');var s=document.getElementById(\'ceoSignName\');if(b&&s)b.disabled=!(s.value.trim()&&document.getElementById(\'ceoSignAuth\').checked)})()"> I approve as CEO</label>';
+  c+='<input id="ceoSignName" type="text" placeholder="Type CEO name (Moises Santillan)" style="flex:1;min-width:180px;background:var(--inp);border:none;border-bottom:2px solid #ef4444;padding:8px 0 4px;font-size:16px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:var(--tx);outline:none">';
+  c+='<button id="ceoSignBtn" disabled onclick="signSOAsCEO(\''+esc(soForQuote.id)+'\',document.getElementById(\'ceoSignName\').value)" style="padding:10px 22px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap;opacity:.5;transition:opacity .15s">✍ Sign & Send</button>';
+  c+='</div>';
+  c+='</div>';
+  setTimeout(function(){
+    var b=document.getElementById('ceoSignBtn'), s=document.getElementById('ceoSignName'), a=document.getElementById('ceoSignAuth');
+    if(b)b.style.opacity=b.disabled?'.5':'1';
+    if(b&&s&&a){
+      var refresh=function(){b.disabled=!(s.value.trim()&&a.checked);b.style.opacity=b.disabled?'.5':'1'};
+      s.addEventListener('input',refresh);
+      a.addEventListener('change',refresh);
+    }
+  },20);
+  return c;
+})()}<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO',null,'Passport','Timeline','Workflow'].map(function(t,i){if(t==null)return'';/* 2026-05-27: SO Preview tab hidden — SO preview lives inside the SO tab now */ return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
 <style>#statusBar{max-width:250px}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
 
 <div class="epane ${S.etab===13?'active':''}" id="ep-timeline">
@@ -1305,7 +1377,7 @@ if(qq.status==='sent'){
   h+='<div style="font-size:12px;font-weight:700;color:#38bdf8;margin-bottom:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Quote Sent — Awaiting Client PO</div>';
   h+='<div style="font-size:11px;color:var(--tx2);margin-bottom:8px">Client portal link for PO submission:</div>';
   h+='<a href="https://os.microflexfilm.com/portal?id='+qq.id+'&q='+qq.quoteNum+'" target="_blank" style="display:block;background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:8px 12px;color:var(--ac);font-size:11px;text-decoration:none;word-break:break-all">https://os.microflexfilm.com/portal?id='+qq.id+'&q='+qq.quoteNum+'</a>';
-  h+='<button class="btn btn-ghost btn-sm" onclick="openPortalMessages(\''+qq.id+'\')" style="margin-top:8px;width:100%"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Portal Messages</button>';
+  // Portal Messages button removed 2026-05-27 — client comms moved to email.
   h+='</div>';
 }
 return h})()}
@@ -1877,6 +1949,76 @@ h+='<div class="fg"><label>Artwork File Name</label><input id="so-artworkFileNam
 h+='<div class="fg"><label>Version</label><input id="so-artworkVersion" value="'+esc(_s.artworkVersion||'')+'" placeholder="e.g., v3" '+_soSave('artworkVersion')+'></div>';
 h+='<div class="fg"><label>PMS / CMYK Colors</label><input id="so-pmsColors" value="'+esc(_s.pmsColors||'')+'" placeholder="e.g., PMS 286, CMYK Black" '+_soSave('pmsColors')+'></div>';
 h+='</div></div>';
+
+// ─── Proof Management ───────────────────────────────────────────────
+// 2026-05-27: pre-press uploads/links a proof PDF here, bumps the
+// version, and pushes to the client portal where the customer reviews +
+// approves or requests revisions. Once artworkApproved=true on the SO,
+// the Shipping/Production status pills flip green automatically (round
+// 7, 11, 14 helpers all key off artworkApproved / artworkApprovedAt).
+if(linkedSO){
+  var _proofVer = _s.artworkProofVersion || 0;
+  var _proofUrl = _s.artworkProofUrl || '';
+  var _proofUploadedAt = _s.artworkProofUploadedAt ? fD(_s.artworkProofUploadedAt) : '';
+  var _proofUploadedBy = _s.artworkProofUploadedBy || '';
+  var _artApproved = !!_s.artworkApproved;
+  var _artRevisionRequested = !!(_s.artworkRevisionRequestedAt && (!_s.artworkProofUploadedAt || new Date(_s.artworkRevisionRequestedAt) >= new Date(_s.artworkProofUploadedAt)));
+
+  // Status pill colors per state
+  var _statusBg, _statusFg, _statusLabel;
+  if(_artApproved){_statusBg='rgba(34,197,94,.15)';_statusFg='#22c55e';_statusLabel='APPROVED BY CLIENT';}
+  else if(_artRevisionRequested){_statusBg='rgba(245,158,11,.15)';_statusFg='#f59e0b';_statusLabel='REVISIONS REQUESTED';}
+  else if(_proofUrl){_statusBg='rgba(168,85,247,.15)';_statusFg='#a855f7';_statusLabel='AWAITING CLIENT APPROVAL';}
+  else{_statusBg='rgba(148,163,184,.15)';_statusFg='#94a3b8';_statusLabel='NO PROOF UPLOADED';}
+
+  h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr)">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
+  h+='<div style="font-size:9px;color:#a855f7;font-weight:800;letter-spacing:1.5px">🎨 PROOF MANAGEMENT</div>';
+  h+='<span style="background:'+_statusBg+';color:'+_statusFg+';font-size:9px;font-weight:800;letter-spacing:1px;padding:3px 9px;border-radius:4px">'+_statusLabel+(_proofVer?' · V'+_proofVer:'')+'</span>';
+  h+='</div>';
+
+  // Proof URL + actions row
+  h+='<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end">';
+  h+='<div class="fg"><label>Proof URL (Drive link / public PDF)</label><input id="so-artworkProofUrl" value="'+esc(_proofUrl)+'" placeholder="https://drive.google.com/file/d/.../preview" '+_soSave('artworkProofUrl')+'></div>';
+  h+='<button class="btn btn-pr btn-sm" onclick="publishProofToClient(\''+so.id+'\')" style="white-space:nowrap;height:32px">📤 Publish to Client</button>';
+  if(_proofUrl)h+='<a href="'+esc(_proofUrl)+'" target="_blank" class="btn btn-ghost btn-sm" style="white-space:nowrap;height:32px;display:inline-flex;align-items:center">↗ Open</a>';
+  h+='</div>';
+
+  // Metadata row
+  if(_proofUrl){
+    h+='<div style="margin-top:6px;font-size:10px;color:var(--tx3);line-height:1.6">';
+    h+='Version <strong style="color:var(--tx)">v'+(_proofVer||1)+'</strong>';
+    if(_proofUploadedAt)h+=' · Uploaded <strong style="color:var(--tx)">'+esc(_proofUploadedAt)+'</strong>';
+    if(_proofUploadedBy)h+=' by <strong style="color:var(--tx)">'+esc(_proofUploadedBy)+'</strong>';
+    h+='</div>';
+  }
+
+  // Client approval status detail
+  if(_artApproved){
+    h+='<div style="margin-top:8px;padding:8px 12px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:11px;color:#22c55e;line-height:1.5">';
+    h+='✓ <strong>Approved by '+esc(_s.artworkApprovedBy||'—')+'</strong>'+(_s.artworkApprovedAt?' on '+esc(fD(_s.artworkApprovedAt)):'')+'. Production cleared to begin.';
+    h+='</div>';
+  } else if(_artRevisionRequested){
+    h+='<div style="margin-top:8px;padding:8px 12px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:6px;font-size:11px;color:#f59e0b;line-height:1.5">';
+    h+='⟳ <strong>Revision requested</strong>'+(_s.artworkRevisionRequestedAt?' on '+esc(fD(_s.artworkRevisionRequestedAt)):'')+(_s.artworkRevisionRequestedBy?' by '+esc(_s.artworkRevisionRequestedBy):'')+'.';
+    if(_s.artworkRevisionNote){
+      h+='<div style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:4px;color:#5a4a28;font-style:italic">"'+esc(_s.artworkRevisionNote)+'"</div>';
+    }
+    h+='<div style="margin-top:6px;font-size:10px;color:var(--tx3)">Upload a new proof URL above and click Publish to push v'+((_proofVer||1)+1)+' to the client.</div>';
+    h+='</div>';
+  } else if(_proofUrl){
+    h+='<div style="margin-top:8px;padding:8px 12px;background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.25);border-radius:6px;font-size:11px;color:#a855f7;line-height:1.5">';
+    h+='📨 Proof has been published to the client portal. They can view, approve, or request revisions inline.';
+    h+='</div>';
+  } else {
+    h+='<div style="margin-top:8px;padding:8px 12px;background:rgba(148,163,184,.06);border:1px solid rgba(148,163,184,.2);border-radius:6px;font-size:11px;color:var(--tx3);line-height:1.5">';
+    h+='Paste a Drive preview link (use the <code>/preview</code> URL, not <code>/view</code>) and click <strong>Publish to Client</strong> to push it to the customer portal. They\'ll approve or request changes inline.';
+    h+='</div>';
+  }
+
+  h+='</div>'; // close proof management subsection
+}
+
 // Finishing & converting
 h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr)"><div style="font-size:9px;color:#ea580c;font-weight:800;letter-spacing:1.5px;margin-bottom:6px">FINISHING & CONVERTING</div>';
 h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
@@ -1903,31 +2045,36 @@ if(linkedSO){
   h+='<div class="fg"><label>Required In-Hand Date</label><input id="so-poRequiredDate" type="date" value="'+esc(_s.poRequiredDate||'')+'" '+_soSave('poRequiredDate')+'></div>';
   h+='</div></div></div>';
 }
-// Line items / Pricing
-h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="ttl">Line Items & Pricing</span><span class="arr">▾</span></div><div class="scard-b open">';
-// All quantities as line items
-var allQ=_s.allQtys||qq.qtys||[];
-var selIdx=_s.selectedQtyIndex||(qq.poQtyIndex||0);
-if(allQ.length){
-  h+='<div style="border:1px solid var(--bdr);border-radius:6px;overflow:hidden;margin-bottom:8px">';
-  h+='<div style="display:grid;grid-template-columns:40px 1fr 1fr 1fr;background:var(--bg2);padding:6px 8px;font-size:9px;font-weight:700;color:var(--ac);letter-spacing:1px">';
-  h+='<div></div><div>QTY</div><div>UNIT PRICE</div><div>TOTAL</div></div>';
-  allQ.forEach(function(row,ri){
-    var rQty=typeof row==='object'?row.qty:row;
-    var rPPU=typeof row==='object'?(row.ppu||0):0;
-    var rTot=typeof row==='object'?(row.total||0):0;
-    if(!rPPU&&qq.pricingMatrix&&qq.pricingMatrix[ri]){rPPU=qq.pricingMatrix[ri].ppu||0;rTot=qq.pricingMatrix[ri].total||0}
-    if(!rPPU&&qq.calculatedPrices&&qq.calculatedPrices[ri]){rPPU=qq.calculatedPrices[ri].ppu||0;rTot=qq.calculatedPrices[ri].total||0}
-    var isSel=ri===selIdx;
-    h+='<div style="display:grid;grid-template-columns:40px 1fr 1fr 1fr;padding:6px 8px;font-size:11px;border-top:1px solid var(--bdr);'+(isSel?'background:rgba(0,229,255,.08);border-left:3px solid var(--ac)':'')+'">';
-    h+='<div>'+(isSel?'<span style="color:var(--ac);font-weight:700">✓</span>':'')+'</div>';
-    h+='<div style="font-weight:'+(isSel?'700':'400')+'">'+Number(rQty||0).toLocaleString()+'</div>';
-    h+='<div>$'+(rPPU||0).toFixed(4)+'</div>';
-    h+='<div style="font-weight:700;color:'+(isSel?'var(--ac)':'var(--tx)')+'">$'+Number(rTot||0).toLocaleString(undefined,{minimumFractionDigits:2})+'</div>';
-    h+='</div>';
-  });
-  h+='</div>';
-}
+// Order Status + Confirmed Pricing
+// 2026-05-27: the old "Line Items & Pricing" qty ladder rendered as $0 rows
+// for any SO that predates the autoCreateSO fix, and the user doesn't want a
+// price ladder on the confirmed-order view anyway. Replaced with a Shipping /
+// Production status pair that reflects where the order actually is. Pricing
+// is now condensed to the single Confirmed Qty / Unit Price / Order Total
+// summary card below.
+h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="ttl">Order Status & Pricing</span><span class="arr">▾</span></div><div class="scard-b open">';
+// Status badges — shipping + production both blocked on artwork approval
+var _artApproved=!!(_s.artworkApproved || _s.artApprovedAt || _s.proofApprovedAt);
+var _shipStatus=_s.shippingStatus || (_artApproved?'Scheduling':'Pending');
+var _prodStatus=_s.productionStatus || (_artApproved?'In Queue':'Pending — awaiting artwork approval');
+var _shipColor=_artApproved?'#16a34a':'#f59e0b';
+var _prodColor=_artApproved?'#16a34a':'#f59e0b';
+h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+h+='<div style="background:var(--bg2);border:1px solid var(--bdr);border-left:3px solid '+_shipColor+';border-radius:6px;padding:10px 12px">';
+h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">';
+h+='<div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1.5px">SHIPPING</div>';
+h+='<div style="background:'+_shipColor+'22;color:'+_shipColor+';font-size:9px;font-weight:800;letter-spacing:1px;padding:2px 8px;border-radius:3px">'+esc(_shipStatus.toUpperCase())+'</div>';
+h+='</div>';
+h+='<div style="font-size:11px;color:var(--tx2);margin-top:4px;line-height:1.4">'+(_artApproved?'Carrier and ship date will be confirmed once production schedules the run.':'Carrier and ship date will be set after the artwork proof is approved.')+'</div>';
+h+='</div>';
+h+='<div style="background:var(--bg2);border:1px solid var(--bdr);border-left:3px solid '+_prodColor+';border-radius:6px;padding:10px 12px">';
+h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">';
+h+='<div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1.5px">PRODUCTION TIME</div>';
+h+='<div style="background:'+_prodColor+'22;color:'+_prodColor+';font-size:9px;font-weight:800;letter-spacing:1px;padding:2px 8px;border-radius:3px">'+esc(_prodStatus.toUpperCase())+'</div>';
+h+='</div>';
+h+='<div style="font-size:11px;color:var(--tx2);margin-top:4px;line-height:1.4">'+(_artApproved?'Standard lead time begins from artwork sign-off.':'Production time begins once artwork is approved by the client.')+'</div>';
+h+='</div>';
+h+='</div>';
 // Selected line summary
 var soQty=_s.selectedQty||qq.poSelectedQty||qq.poQty||0;
 var soPPU=_s.ppu||0;
@@ -2123,7 +2270,7 @@ return h})()}
 buildMS('ed-fs',f.faceStock);buildMS('ed-lam',f.lamination);buildDieSelect(f);buildVarnishSelect(f.coating);edMat('faceStock');edMat('lamination');renderMatDetail('coating');edRQ();renderTermsEditor();edCalcAll();renderInternalNotes();renderActivityLog();if(S.etab===6)setTimeout(renderSendPane,100);if(S.etab===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(S.etab===11)setTimeout(function(){if(typeof initSOShipPane==='function')initSOShipPane()},100);if(S.etab===13){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(S.etab===14){setTimeout(renderWorkflow,100)}
 if(f.custCo){var _mc=DB.customers().find(function(x){return x.company&&x.company.toLowerCase()===f.custCo.toLowerCase()});if(_mc)setTimeout(function(){renderClientMiniDash(_mc)},200)}
 // Inject Next/Prev navigation buttons into each pane
-var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Portal','PO','Art','SO','SO Preview','Passport','Timeline','Workflow'];
+var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Portal','PO','Art','SO',null,'Passport','Timeline','Workflow'];
 var _paneIds=['ep-info','ep-specs','ep-mats','ep-pricing','ep-matrix','ep-preview','ep-send','ep-portal','ep-po','ep-art','ep-so','ep-so-send','ep-passport','ep-timeline','ep-workflow'];
 _paneIds.forEach(function(pid,i){var pane=$(pid);if(!pane)return;var nav=document.createElement('div');nav.style.cssText='display:flex;gap:8px;margin-top:16px;padding:12px 0;border-top:1px solid var(--bdr)';if(i>0){var prev=document.createElement('button');prev.className='btn btn-ghost btn-sm';prev.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px';prev.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> '+_tabNames[i-1];prev.onclick=function(){switchET(i-1)};nav.appendChild(prev)}if(i<_paneIds.length-1){var next=document.createElement('button');next.className='btn btn-pr btn-sm';next.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px;margin-left:auto';next.innerHTML=_tabNames[i+1]+' <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';next.onclick=function(){switchET(i+1)};nav.appendChild(next)}pane.appendChild(nav)})}
 
@@ -2289,6 +2436,70 @@ function saveSOField(soId,key,val){
 }
 window.saveSOField=saveSOField;
 window.saveSkuPPField=saveSkuPPField;window.toggleSkuPPCheck=toggleSkuPPCheck;
+
+// ─── Publish artwork proof to client portal ─────────────────────────
+// 2026-05-27: Pastes-in proof URL gets bumped to the next version,
+// metadata stamped (uploadedAt/By), and made visible on the portal SO
+// card. Resets any previous artwork approval so the client must re-
+// approve. Also clears revision request fields so the new version
+// starts in the "awaiting" state from the client's POV. The Shipping/
+// Production status pills automatically flip back to PENDING because
+// artworkApproved is now false.
+function publishProofToClient(soId){
+  if(!soId||typeof fbDb==='undefined')return toast('Cannot publish — no DB','err');
+  var urlInput=document.getElementById('so-artworkProofUrl');
+  var url=urlInput?urlInput.value.trim():'';
+  if(!url) return toast('Paste a proof URL first','err');
+  if(!/^https?:\/\//.test(url)) return toast('Proof URL must start with http:// or https://','err');
+  var sos=typeof getSalesOrders==='function'?getSalesOrders():[];
+  var so=sos.find(function(x){return x.id===soId});
+  if(!so) return toast('Sales order not found','err');
+  var nextVer=(so.artworkProofVersion||0)+1;
+  if(!confirm('Publish proof v'+nextVer+' to '+so.company+'?\n\nThe client will see it on their portal and can approve or request revisions. Any previous approval will be reset.')){
+    return;
+  }
+  var now=new Date().toISOString();
+  var by=typeof getUserName==='function'?getUserName():'Staff';
+  var upd={
+    artworkProofUrl:url,
+    artworkProofVersion:nextVer,
+    artworkProofUploadedAt:now,
+    artworkProofUploadedBy:by,
+    // Reset approval state — client must re-approve the new version
+    artworkApproved:false,
+    // Clear stale revision-request fields (the new version supersedes them)
+    artworkRevisionRequestedAt:null,
+    artworkRevisionNote:null,
+    artworkRevisionRequestedBy:null,
+    updatedAt:now,
+    updatedBy:by
+  };
+  // Mutate in-memory cache so the UI shows the new state without a reload
+  Object.assign(so,upd);
+  if(window.setSaveState)window.setSaveState('saving');
+  fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
+    toast('Proof v'+nextVer+' published to '+(so.company||'client')+' ✓','ok');
+    // Log a portal message so the client sees a heads-up in their thread
+    var quoteId=so.quoteId;
+    if(quoteId){
+      fbDb.collection('quotes').doc(quoteId).collection('portalMessages').add({
+        text:'Artwork proof v'+nextVer+' is ready for your review and approval. Please check the Sales Order section.',
+        name:by,
+        from:'mfx',
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(e){console.warn('proof portal message:',e.message)});
+    }
+    // Re-render editor so the Proof Management status pill updates
+    if(typeof renderEditor==='function')renderEditor();
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    toast('Publish failed: '+e.message,'err');
+    console.error('[publishProofToClient]',e);
+  });
+}
+window.publishProofToClient=publishProofToClient;
+
 window.updateArtStatus=updateArtStatus;window.saveArtNotes=saveArtNotes;
 window.initPortalMsgListener=initPortalMsgListener;window.sendInlinePortalMsg=sendInlinePortalMsg;
 window.savePOFields=savePOFields;window.poFieldChange=poFieldChange;
@@ -3346,7 +3557,7 @@ toast('Generating PDF for attachment...','ok');
 generateQuotePDF(q).then(function(pdf){
 // Build MIME multipart message with PDF attachment
 var boundary='mfx_boundary_'+Date.now();
-var htmlBody='<table cellpadding="0" cellspacing="0" width="100%" style="max-width:660px;margin:0 auto;font-family:Arial,sans-serif;background:#060d14"><tr><td style="height:3px;background:#00e5ff;font-size:0">&nbsp;</td></tr><tr><td style="padding:16px 24px;text-align:center;border-bottom:1px solid #0f1d2b"><div style="font-size:24px;font-weight:900;color:#e0f2fe">Microflex</div><div style="width:70px;height:2px;background:#00e5ff;margin:4px auto"></div><div style="font-size:8px;color:#00838f;letter-spacing:4px">FILM CORPORATION</div></td></tr><tr><td style="padding:5px 24px;background:#0a2e3e;text-align:center;font-size:7px;color:#00e5ff;letter-spacing:1px;border-bottom:1px solid #0f1d2b">FLEXIBLE PACKAGING &nbsp;|&nbsp; LABELS &nbsp;|&nbsp; POUCHES &nbsp;|&nbsp; SHRINK SLEEVES</td></tr><tr><td style="padding:16px 24px;font-size:14px;color:#94a3b8;line-height:1.6">'+body.replace(/\n/g,'<br>')+'</td></tr><tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?q='+q.quoteNum+'" style="display:block;text-align:center;padding:14px;border-radius:6px;font-size:14px;font-weight:700;text-decoration:none;background-color:#00e5ff;color:#060d14">Approve Quote &amp; Submit PO</a></td></tr><tr><td style="padding:10px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation &middot; 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 &middot; Quotes@MicroflexFilm.com<br>SQF Certified | Made in USA</td></tr></table>';
+var htmlBody='<table cellpadding="0" cellspacing="0" width="100%" style="max-width:660px;margin:0 auto;font-family:Arial,sans-serif;background:#060d14"><tr><td style="height:3px;background:#00e5ff;font-size:0">&nbsp;</td></tr><tr><td style="padding:16px 24px;text-align:center;border-bottom:1px solid #0f1d2b"><div style="font-size:24px;font-weight:900;color:#e0f2fe">Microflex</div><div style="width:70px;height:2px;background:#00e5ff;margin:4px auto"></div><div style="font-size:8px;color:#00838f;letter-spacing:4px">FILM CORPORATION</div></td></tr><tr><td style="padding:5px 24px;background:#0a2e3e;text-align:center;font-size:7px;color:#00e5ff;letter-spacing:1px;border-bottom:1px solid #0f1d2b">FLEXIBLE PACKAGING &nbsp;|&nbsp; LABELS &nbsp;|&nbsp; POUCHES &nbsp;|&nbsp; SHRINK SLEEVES</td></tr><tr><td style="padding:16px 24px;font-size:14px;color:#94a3b8;line-height:1.6">'+body.replace(/\n/g,'<br>')+'</td></tr><tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?id='+encodeURIComponent(q.id||'')+'&q='+encodeURIComponent(q.quoteNum||'')+'" style="display:block;text-align:center;padding:14px;border-radius:6px;font-size:14px;font-weight:700;text-decoration:none;background-color:#00e5ff;color:#060d14">Approve Quote &amp; Submit PO</a></td></tr><tr><td style="padding:10px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation &middot; 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 &middot; Quotes@MicroflexFilm.com<br>SQF Certified | Made in USA</td></tr></table>';
 var raw='Content-Type: multipart/mixed; boundary="'+boundary+'"\r\n';
 raw+='To: '+to+'\r\n';
 if(cc)raw+='Cc: '+cc+'\r\n';

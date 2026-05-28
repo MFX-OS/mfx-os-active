@@ -34,6 +34,88 @@ function saveSO(so){
   return fbDb.collection('salesOrders').doc(so.id).set(so,{merge:true});
 }
 
+// ─── SO Self-Heal ──────────────────────────────────────────────────
+// 2026-05-27: SOs created before the round-2 autoCreateSO fix were
+// populated with q.qtys[idx] (plain numbers) instead of pricing rows
+// from q.pricedQtys. Result: so.selectedQty/total/ppu are undefined/0
+// and so.allQtys is an array of numbers, not {qty,ppu,total} objects.
+// Every preview surface (preview modal, send flow, PDF, email body)
+// then renders zeros. This helper detects that shape, looks up the
+// linked quote, derives the correct pricing, mutates the SO in place,
+// and persists the patch so the next read sees clean data.
+function _soPricingIsBroken(so){
+  if(!so)return false;
+  // selectedQty missing, total missing, or allQtys is array of plain numbers
+  if(!so.selectedQty || !so.total)return true;
+  if(Array.isArray(so.allQtys) && so.allQtys.length){
+    var first=so.allQtys[0];
+    if(typeof first === 'number')return true; // legacy plain-number array
+    if(first && typeof first === 'object' && !('qty' in first) && !('total' in first))return true;
+  }
+  return false;
+}
+
+function _findQuoteForSO(so){
+  // Try in-memory quotes first (staff app keeps them loaded), then Firestore.
+  var quotes=(typeof DB!=='undefined' && DB.quotes) ? DB.quotes() : [];
+  var q=null;
+  if(so.quoteId) q=quotes.find(function(x){return x.id===so.quoteId});
+  if(!q && so.quoteNum) q=quotes.find(function(x){return x.quoteNum===so.quoteNum});
+  if(q) return Promise.resolve(q);
+  // Fall back to Firestore
+  if(so.quoteId && typeof fbDb !== 'undefined'){
+    return fbDb.collection('quotes').doc(so.quoteId).get().then(function(doc){
+      if(doc.exists) return Object.assign({id:doc.id}, doc.data());
+      return null;
+    }).catch(function(){return null});
+  }
+  return Promise.resolve(null);
+}
+
+function hydrateSOFromQuote(so){
+  if(!so || !_soPricingIsBroken(so))return Promise.resolve(so);
+  return _findQuoteForSO(so).then(function(q){
+    if(!q){
+      console.warn('[SO heal] could not find quote for',so.soNum||so.id);
+      return so;
+    }
+    var selIdx=q.poQtyIndex||so.selectedQtyIndex||0;
+    var skuCount=q.poSkuCount||so.skuCount||1;
+    var pricedQtys=q.pricedQtys||[];
+    var newAllQtys=pricedQtys.map(function(pr){
+      var c=pr && pr.skus ? pr.skus[skuCount] : null;
+      return {qty:(pr&&pr.qty)||0, ppu:(c&&c.ppu)||0, total:(c&&c.tot)||0};
+    });
+    var sel={qty:q.poSelectedQty||0, ppu:0, total:q.poSelectedTotal||0};
+    if(pricedQtys[selIdx]){
+      var c=pricedQtys[selIdx].skus && pricedQtys[selIdx].skus[skuCount];
+      sel={
+        qty:pricedQtys[selIdx].qty || q.poSelectedQty || 0,
+        ppu:(c&&c.ppu) || 0,
+        total:(c&&c.tot) || q.poSelectedTotal || 0
+      };
+    }
+    // Mutate in place so caller sees fresh data
+    so.allQtys=newAllQtys;
+    so.selectedQtyIndex=selIdx;
+    so.selectedQty=sel.qty;
+    so.skuCount=skuCount;
+    so.ppu=sel.ppu;
+    so.total=sel.total || so.total || 0;
+    // Persist (best-effort — don't block the caller on the write)
+    if(typeof fbDb !== 'undefined'){
+      fbDb.collection('salesOrders').doc(so.id).set({
+        allQtys:so.allQtys, selectedQtyIndex:so.selectedQtyIndex,
+        selectedQty:so.selectedQty, skuCount:so.skuCount,
+        ppu:so.ppu, total:so.total, updatedAt:new Date().toISOString()
+      },{merge:true}).then(function(){
+        console.log('[SO heal] '+so.soNum+' pricing rehydrated from quote '+q.quoteNum);
+      }).catch(function(e){console.warn('[SO heal] save failed:',e.message)});
+    }
+    return so;
+  });
+}
+
 function genSONUMLocal(){
   var d=new Date();var yy=String(d.getFullYear()).slice(2);var mm=String(d.getMonth()+1).padStart(2,'0');
   var r=Math.floor(Math.random()*9000)+1000;
@@ -107,7 +189,10 @@ function renderQuotePipeline(sentQs,sos){
     var so=sos.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
     var hasPO=!!q.poNumber;
     var hasArt=(q.artFiles&&q.artFiles.length>0)||(q.poFiles&&q.poFiles.length>0);
-    var portalLink='https://os.microflexfilm.com/portal?q='+(q.quoteNum||q.id);
+    // Include id= so the portal does a direct doc GET; without it the portal
+    // falls back to where('quoteNum','==',…) which Firestore's list rule
+    // can't satisfy for portal clients (the rule requires an email WHERE).
+    var portalLink='https://os.microflexfilm.com/portal?id='+encodeURIComponent(q.id||'')+'&q='+encodeURIComponent(q.quoteNum||q.id||'');
 
     // Status colors
     var statusColor=q.status==='won'?'#2ee89e':q.status==='sent'?'#38bdf8':'#fb923c';
@@ -153,7 +238,7 @@ function renderQuotePipeline(sentQs,sos){
     if(so&&so.status==='approved'){
       h+='<button class="btn btn-pr btn-xs" onclick="event.stopPropagation();sendSOToClient(\''+so.id+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Send SO</button>';
     }
-    h+='<button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openPortalMessages(\''+q.id+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Messages</button>';
+    // Messages button removed 2026-05-27 — client comms moved to email.
     h+='<button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openEditor(\''+q.id+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Quote</button>';
     if(so){
       h+='<button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openSODetail(\''+so.id+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> SO Detail</button>';
@@ -406,6 +491,16 @@ function approveSO(soId){
 // ─── SO Detail View ───
 function openSODetail(soId){
   var so=getSO(soId);if(!so)return;
+  // Self-heal broken pricing before rendering. Fast no-op when data is clean.
+  // hydrateSOFromQuote mutates `so` in place, so just await and render — no
+  // recursion (which would loop forever if heal couldn't find a quote).
+  if(_soPricingIsBroken(so)){
+    hydrateSOFromQuote(so).then(function(){_renderSODetail(so)}).catch(function(){_renderSODetail(so)});
+    return;
+  }
+  _renderSODetail(so);
+}
+function _renderSODetail(so){
   var h='<div class="modal-title">'+esc(so.soNum)+'</div>';
   h+='<div style="font-size:10px;color:var(--tx3);margin-bottom:12px">From Quote: '+esc(so.quoteNum)+' Rev '+esc(so.quoteRev||'A')+' · PO# '+esc(so.poNumber)+'</div>';
 
@@ -467,7 +562,9 @@ function openSODetail(soId){
 function previewSOPDF(soId){
   var so=getSO(soId);if(!so)return;
   toast('Generating PDF preview...','ok');
-  generateSOPDF(so).then(function(pdf){
+  hydrateSOFromQuote(so).then(function(){
+  return generateSOPDF(so);
+  }).then(function(pdf){
     var url=URL.createObjectURL(pdf.blob);
     var h='<div class="modal-title">PDF Preview — '+esc(so.soNum)+'</div>';
     h+='<div style="margin-bottom:10px;font-size:11px;color:var(--tx3)">'+esc(pdf.filename)+'</div>';
@@ -495,8 +592,10 @@ function downloadSOPDF(soId){
 // ─── SO Send Flow — document preview + editable email template + send ───
 function openSOSendFlow(soId){
   var so=getSO(soId);if(!so)return;
-  // Ensure latest overrides loaded
-  loadSOTemplateOverrides().finally(function(){_renderSOSendFlow(so)});
+  // Heal pricing if this SO predates the autoCreateSO fix, then render.
+  hydrateSOFromQuote(so).then(function(){
+    loadSOTemplateOverrides().finally(function(){_renderSOSendFlow(so)});
+  });
 }
 
 function _renderSOSendFlow(so){
@@ -810,7 +909,7 @@ function executeSendSO(soId){
       // (matches the Quote BCC fix shipped earlier). Reply-To routes
       // client replies to quotes@ instead of the staffer's personal inbox.
       var raw='Content-Type: text/html; charset=utf-8\r\n'
-        +'From: MFX OS <info@microflexfilm.com>\r\n'
+        +'From: MFX OS <flex@microflexfilm.com>\r\n'
         +'To: '+so.email+'\r\n'
         +'Bcc: team@microflexfilm.com, quotes@microflexfilm.com\r\n'
         +'Reply-To: quotes@microflexfilm.com\r\n'
@@ -939,28 +1038,89 @@ function findOrCreateClientFolder(token,company,quoteNum){
 
 // ─── Build SO Email HTML ───
 function buildSOEmailHTML(so){
+  // 2026-05-27 rebuild — old layout rendered a 3-row qty/$/total ladder
+  // that showed all zeros for SOs created before the autoCreateSO fix
+  // (allQtys was plain numbers, not {qty,ppu,total} objects). Customer
+  // saw "0 / $0.0000 / $0.00" rows. Replaced with:
+  //   - single confirmed Order Summary card (qty + PPU + total)
+  //   - Shipping / Production status pills that flip to "Pending"
+  //     until artwork is approved (matches the staff editor's Order
+  //     Status & Pricing card from round 5)
+  //   - cleaner client/order details split
+  // Sign + portal CTA preserved.
   so=so||{};
   var _n=function(v){var n=Number(v);return isFinite(n)?n:0};
   var _fN=function(v){return _n(v).toLocaleString()};
   var _f$=function(v){return '$'+_n(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})};
-  var rows='';
-  if(so.allQtys&&so.allQtys.length){
-    so.allQtys.forEach(function(r,i){
-      r=r||{};
-      var sel=i===so.selectedQtyIndex;
-      rows+='<tr style="'+(sel?'background:#0a2e3e':'')+'"><td style="padding:8px 14px;font-size:12px;color:'+(sel?'#00e5ff':'#94a3b8')+';border-bottom:1px solid #1a2d40">'+(sel?'→ ':'')+_fN(r.qty)+'</td><td style="padding:8px 14px;font-size:12px;color:#94a3b8;text-align:right;border-bottom:1px solid #1a2d40">$'+_n(r.ppu).toFixed(4)+'</td><td style="padding:8px 14px;font-size:12px;color:'+(sel?'#e0f2fe':'#94a3b8')+';font-weight:'+(sel?'700':'400')+';text-align:right;border-bottom:1px solid #1a2d40">'+_f$(r.total)+'</td></tr>';
-    });
-  }
+  var _fD=function(d){try{return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch(e){return ''}};
+
+  var artApproved=!!(so.artworkApproved || so.artApprovedAt || so.proofApprovedAt);
+  var shipLabel = artApproved ? 'SCHEDULING' : 'PENDING';
+  var shipDesc  = artApproved
+    ? 'Carrier and ship date being confirmed.'
+    : 'Carrier and ship date confirmed after artwork approval.';
+  var prodLabel = artApproved ? 'IN QUEUE' : 'PENDING';
+  var prodDesc  = artApproved
+    ? 'Standard lead time begins from artwork sign-off.'
+    : 'Production begins once your artwork proof is approved.';
+  var statusColor = artApproved ? '#22c55e' : '#f59e0b';
+
+  // Pricing — use confirmed values; derive PPU when missing
+  var confQty = _n(so.selectedQty);
+  var confTotal = _n(so.total);
+  var confPPU = _n(so.ppu) || (confQty ? confTotal/confQty : 0);
 
   return '<table cellpadding="0" cellspacing="0" width="100%" style="max-width:660px;margin:0 auto;font-family:Arial,sans-serif;background:#060d14">'
+
+    // Accent bar + brand header
     +'<tr><td style="height:3px;background:#00e5ff;font-size:0">&nbsp;</td></tr>'
-    +'<tr><td style="padding:16px 24px;text-align:center;border-bottom:1px solid #0f1d2b"><div style="font-size:24px;font-weight:900;color:#e0f2fe">Microflex</div><div style="width:70px;height:2px;background:#00e5ff;margin:4px auto"></div><div style="font-size:8px;color:#00838f;letter-spacing:4px">FILM CORPORATION</div></td></tr>'
-    +'<tr><td style="padding:5px 24px;background:#0a2e3e;text-align:center;font-size:7px;color:#00e5ff;letter-spacing:1px;border-bottom:1px solid #0f1d2b">SALES ORDER CONFIRMATION</td></tr>'
-    +'<tr><td style="padding:20px 24px"><div style="font-size:20px;font-weight:900;color:#e0f2fe">'+esc(so.soNum||'—')+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">Quote: '+esc(so.quoteNum||'—')+' · PO# '+esc(so.poNumber||'—')+'</div></td></tr>'
-    +'<tr><td style="padding:0 24px 16px"><table width="100%" style="border:1px solid #1a2d40;border-radius:6px;border-collapse:collapse"><tr><td style="padding:12px 14px;background:#0a1a28;border-bottom:1px solid #1a2d40" colspan="3"><div style="font-size:8px;color:#00e5ff;letter-spacing:2px">ORDER DETAILS</div></td></tr><tr><td style="padding:8px 14px;font-size:11px;color:#64748b;border-bottom:1px solid #1a2d40" colspan="3">'+esc(so.jobDesc||'—')+'</td></tr>'+rows+'<tr style="background:#0a2e3e"><td style="padding:10px 14px;font-size:13px;font-weight:700;color:#e0f2fe" colspan="2">Selected Total</td><td style="padding:10px 14px;font-size:14px;font-weight:900;color:#00e5ff;text-align:right">'+_f$(so.total)+'</td></tr></table></td></tr>'
-    +'<tr><td style="padding:0 24px 16px"><table width="100%" style="font-size:11px;color:#64748b"><tr><td>Ship To: <b style="color:#e0f2fe">'+esc(so.shipTo||'—')+'</b></td></tr><tr><td>Terms: <b style="color:#e0f2fe">'+esc(so.payTerms||'Net 30')+'</b></td></tr>'+(so.poInstructions?'<tr><td>Instructions: '+esc(so.poInstructions)+'</td></tr>':'')+'</table></td></tr>'
-    +'<tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:12px 32px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#00e5ff;color:#060d14">View in Client Portal</a></td></tr>'
-    +'<tr><td style="padding:12px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation · 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 · Quotes@MicroflexFilm.com · SQF Certified | Made in USA</td></tr></table>';
+    +'<tr><td style="padding:18px 24px;text-align:center;border-bottom:1px solid #0f1d2b"><div style="font-size:26px;font-weight:900;color:#e0f2fe;letter-spacing:-.5px">Microflex</div><div style="width:70px;height:2px;background:#00e5ff;margin:5px auto"></div><div style="font-size:8px;color:#00838f;letter-spacing:4px">FILM CORPORATION</div></td></tr>'
+
+    // Section header strip
+    +'<tr><td style="padding:6px 24px;background:#0a2e3e;text-align:center;font-size:8px;color:#00e5ff;letter-spacing:3px;font-weight:700;border-bottom:1px solid #0f1d2b">◆ SALES ORDER CONFIRMATION ◆</td></tr>'
+
+    // SO identity (number + quote/PO refs)
+    +'<tr><td style="padding:22px 24px 8px"><div style="font-size:22px;font-weight:900;color:#e0f2fe;letter-spacing:-.3px">'+esc(so.soNum||'—')+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">Quote: <b style="color:#94a3b8">'+esc(so.quoteNum||'—')+'</b> · PO# <b style="color:#94a3b8">'+esc(so.poNumber||'—')+'</b>'+(so.poSignature?' · Signed by '+esc(so.poSignature):'')+'</div></td></tr>'
+
+    // Friendly opener
+    +'<tr><td style="padding:12px 24px;font-size:14px;color:#94a3b8;line-height:1.55">Hi'+(so.contact?' '+esc(String(so.contact).split(/\s+/)[0]):'')+',<br><br>Thanks for your order. We\'ve received PO# <b style="color:#e0f2fe">'+esc(so.poNumber||'—')+'</b> and your sales order is now in our system. Here\'s a confirmation of what we\'re building.</td></tr>'
+
+    // Order summary card — single confirmed total, no zero ladder
+    +'<tr><td style="padding:8px 24px 16px"><table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #1a2d40;border-radius:8px;border-collapse:separate;overflow:hidden">'
+    +  '<tr><td style="padding:12px 16px;background:#0a1a28;border-bottom:1px solid #1a2d40"><div style="font-size:9px;color:#00e5ff;letter-spacing:2px;font-weight:700">ORDER SUMMARY</div></td></tr>'
+    +  '<tr><td style="padding:14px 16px;font-size:14px;color:#e0f2fe;font-weight:700;border-bottom:1px solid #1a2d40;line-height:1.4">'+esc(so.jobDesc||'—')+'</td></tr>'
+    +  '<tr><td style="padding:0">'
+    +    '<table width="100%" cellpadding="0" cellspacing="0">'
+    +      '<tr>'
+    +        '<td style="padding:14px 16px;width:33%;border-right:1px solid #1a2d40"><div style="font-size:8px;color:#64748b;letter-spacing:1.5px;font-weight:700">QUANTITY</div><div style="font-size:22px;font-weight:900;color:#e0f2fe;margin-top:4px">'+_fN(confQty)+'</div></td>'
+    +        '<td style="padding:14px 16px;width:33%;border-right:1px solid #1a2d40"><div style="font-size:8px;color:#64748b;letter-spacing:1.5px;font-weight:700">UNIT PRICE</div><div style="font-size:16px;font-weight:800;color:#e0f2fe;margin-top:6px">$'+confPPU.toFixed(4)+'</div></td>'
+    +        '<td style="padding:14px 16px;width:33%;background:#0a2e3e"><div style="font-size:8px;color:#00e5ff;letter-spacing:1.5px;font-weight:700">ORDER TOTAL</div><div style="font-size:18px;font-weight:900;color:#00e5ff;margin-top:4px">'+_f$(confTotal)+'</div></td>'
+    +      '</tr>'
+    +    '</table>'
+    +  '</td></tr>'
+    +'</table></td></tr>'
+
+    // Status pills row — Shipping / Production / Terms
+    +'<tr><td style="padding:0 24px 16px"><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate"><tr>'
+    +  '<td style="padding:0 4px 0 0;width:50%;vertical-align:top"><div style="border:1px solid #1a2d40;border-left:3px solid '+statusColor+';border-radius:6px;padding:10px 12px;background:#0a1520"><div style="display:block"><span style="font-size:8px;color:#64748b;letter-spacing:1.5px;font-weight:700">SHIPPING</span><span style="float:right;background:'+statusColor+'22;color:'+statusColor+';font-size:8px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:3px">'+shipLabel+'</span></div><div style="font-size:11px;color:#94a3b8;line-height:1.45;margin-top:6px;clear:both">'+shipDesc+'</div></div></td>'
+    +  '<td style="padding:0 0 0 4px;width:50%;vertical-align:top"><div style="border:1px solid #1a2d40;border-left:3px solid '+statusColor+';border-radius:6px;padding:10px 12px;background:#0a1520"><div style="display:block"><span style="font-size:8px;color:#64748b;letter-spacing:1.5px;font-weight:700">PRODUCTION TIME</span><span style="float:right;background:'+statusColor+'22;color:'+statusColor+';font-size:8px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:3px">'+prodLabel+'</span></div><div style="font-size:11px;color:#94a3b8;line-height:1.45;margin-top:6px;clear:both">'+prodDesc+'</div></div></td>'
+    +'</tr></table></td></tr>'
+
+    // Ship-to + Terms strip
+    +'<tr><td style="padding:0 24px 16px"><table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #1a2d40;border-radius:6px;border-collapse:separate"><tr>'
+    +  '<td style="padding:10px 14px;width:50%;border-right:1px solid #1a2d40"><div style="font-size:8px;color:#64748b;letter-spacing:1.5px;font-weight:700">SHIP TO</div><div style="font-size:12px;color:#e0f2fe;font-weight:600;margin-top:3px;line-height:1.4">'+esc(so.shipTo||so.company||'—')+'</div></td>'
+    +  '<td style="padding:10px 14px;width:50%"><div style="font-size:8px;color:#64748b;letter-spacing:1.5px;font-weight:700">PAYMENT TERMS</div><div style="font-size:12px;color:#e0f2fe;font-weight:600;margin-top:3px">'+esc(so.payTerms||'Net 30')+'</div></td>'
+    +'</tr></table></td></tr>'
+
+    // Next-steps note
+    +'<tr><td style="padding:0 24px 16px"><div style="background:#0a1520;border:1px solid #1a2d40;border-radius:6px;padding:12px 14px;font-size:11px;color:#94a3b8;line-height:1.6"><b style="color:#e0f2fe;font-size:9px;letter-spacing:1.5px;display:block;margin-bottom:4px">NEXT STEPS</b>Our pre-press team will send you an artwork proof for approval. Once you sign off, production schedules the run and shipping confirms the carrier and ETA.</div></td></tr>'
+
+    // Portal CTA
+    +'<tr><td style="padding:14px 24px 20px;text-align:center"><a href="https://os.microflexfilm.com/portal?id='+encodeURIComponent(so.quoteId||'')+'&q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:14px 36px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#00e5ff;color:#060d14;letter-spacing:.5px">View in Client Portal</a><div style="font-size:10px;color:#64748b;margin-top:8px">Sign the sales order and track production status</div></td></tr>'
+
+    // Footer
+    +'<tr><td style="padding:14px 24px;background:#0a1520;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b;line-height:1.6"><b style="color:#94a3b8">Microflex Film Corporation</b><br>4130 Garner Rd · Riverside CA 92501 · (909) 360-9066<br><a href="mailto:Orders@MicroflexFilm.com" style="color:#00e5ff;text-decoration:none">Orders@MicroflexFilm.com</a> · <a href="https://www.microflexfilm.com" style="color:#00e5ff;text-decoration:none">MicroflexFilm.com</a><br><span style="color:#1e3a4f">SQF Certified · Made in USA</span></td></tr>'
+    +'</table>';
 }
 
 // ═══════════════════════════════════════
@@ -1047,7 +1207,7 @@ function buildSOFollowUpHTML(so){
     +'<tr><td style="padding:5px 24px;background:#0a2e3e;text-align:center;font-size:7px;color:#00e5ff;letter-spacing:1px;border-bottom:1px solid #0f1d2b">ORDER STATUS UPDATE</td></tr>'
     +'<tr><td style="padding:20px 24px"><div style="font-size:20px;font-weight:900;color:#e0f2fe">'+esc(so.soNum||'—')+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">Quote: '+esc(so.quoteNum||'—')+' · PO# '+esc(so.poNumber||'—')+'</div></td></tr>'
     +'<tr><td style="padding:0 24px 20px"><div style="background:#0a1a28;border:1px solid #1a2d40;border-radius:6px;padding:16px"><div style="font-size:12px;color:#94a3b8;line-height:1.6">Dear '+esc(so.contact||'Valued Customer')+',</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px">We wanted to provide you with an update on your order <strong style="color:#00e5ff">'+esc(so.soNum||'—')+'</strong> for <strong style="color:#e0f2fe">'+esc(so.jobDesc||'—')+'</strong>.</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px">Your order is currently <strong style="color:#00e5ff">'+esc((so.status||'pending').toUpperCase())+'</strong>. Quantity: '+_fN(so.selectedQty)+' units at '+_f$(so.total)+' total.</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px">Please don\'t hesitate to reach out if you have any questions.</div></div></td></tr>'
-    +'<tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:12px 32px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#00e5ff;color:#060d14">View in Client Portal</a></td></tr>'
+    +'<tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?id='+encodeURIComponent(so.quoteId||'')+'&q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:12px 32px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#00e5ff;color:#060d14">View in Client Portal</a></td></tr>'
     +'<tr><td style="padding:12px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation · 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 · Quotes@MicroflexFilm.com · SQF Certified | Made in USA</td></tr></table>';
 }
 
@@ -1061,7 +1221,7 @@ function buildSOShippingHTML(so){
     +'<tr><td style="padding:5px 24px;background:#0a3e1e;text-align:center;font-size:7px;color:#4ade80;letter-spacing:1px;border-bottom:1px solid #0f1d2b">SHIPPING NOTIFICATION</td></tr>'
     +'<tr><td style="padding:20px 24px"><div style="font-size:20px;font-weight:900;color:#e0f2fe">'+esc(so.soNum||'—')+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">Quote: '+esc(so.quoteNum||'—')+' · PO# '+esc(so.poNumber||'—')+'</div></td></tr>'
     +'<tr><td style="padding:0 24px 20px"><div style="background:#0a1a28;border:1px solid #1a2d40;border-radius:6px;padding:16px"><div style="font-size:12px;color:#94a3b8;line-height:1.6">Dear '+esc(so.contact||'Valued Customer')+',</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px">Great news! Your order <strong style="color:#4ade80">'+esc(so.soNum||'—')+'</strong> for <strong style="color:#e0f2fe">'+esc(so.jobDesc||'—')+'</strong> has been shipped.</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px"><strong style="color:#e0f2fe">Ship To:</strong> '+esc(so.shipTo||'—')+'</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:4px"><strong style="color:#e0f2fe">Quantity:</strong> '+_fN(so.selectedQty)+' units</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px">Please allow standard transit time for delivery. Contact us if you have any questions about your shipment.</div></div></td></tr>'
-    +'<tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:12px 32px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#4ade80;color:#060d14">View in Client Portal</a></td></tr>'
+    +'<tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?id='+encodeURIComponent(so.quoteId||'')+'&q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:12px 32px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#4ade80;color:#060d14">View in Client Portal</a></td></tr>'
     +'<tr><td style="padding:12px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation · 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 · Quotes@MicroflexFilm.com · SQF Certified | Made in USA</td></tr></table>';
 }
 
@@ -1073,7 +1233,7 @@ function buildSOThankYouHTML(so){
     +'<tr><td style="padding:5px 24px;background:#2e1a3e;text-align:center;font-size:7px;color:#c084fc;letter-spacing:1px;border-bottom:1px solid #0f1d2b">ORDER COMPLETE</td></tr>'
     +'<tr><td style="padding:20px 24px"><div style="font-size:20px;font-weight:900;color:#e0f2fe">'+esc(so.soNum||'—')+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">Quote: '+esc(so.quoteNum||'—')+' · PO# '+esc(so.poNumber||'—')+'</div></td></tr>'
     +'<tr><td style="padding:0 24px 20px"><div style="background:#0a1a28;border:1px solid #1a2d40;border-radius:6px;padding:16px"><div style="font-size:12px;color:#94a3b8;line-height:1.6">Dear '+esc(so.contact||'Valued Customer')+',</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px">Thank you for your business! Order <strong style="color:#c084fc">'+esc(so.soNum||'—')+'</strong> for <strong style="color:#e0f2fe">'+esc(so.jobDesc||'—')+'</strong> has been fulfilled and delivered.</div><div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-top:10px">We truly appreciate your partnership with Microflex and look forward to working with you again. If you need reorders or have any feedback, please don\'t hesitate to reach out.</div></div></td></tr>'
-    +'<tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:12px 32px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#c084fc;color:#060d14">View in Client Portal</a></td></tr>'
+    +'<tr><td style="padding:12px 24px;text-align:center"><a href="https://os.microflexfilm.com/portal?id='+encodeURIComponent(so.quoteId||'')+'&q='+encodeURIComponent(so.quoteNum||'')+'" style="display:inline-block;padding:12px 32px;border-radius:6px;font-size:13px;font-weight:700;text-decoration:none;background:#c084fc;color:#060d14">View in Client Portal</a></td></tr>'
     +'<tr><td style="padding:12px 24px;text-align:center;font-size:9px;color:#3a5060;border-top:1px solid #0f1d2b">Microflex Film Corporation · 4130 Garner Rd, Riverside CA 92501<br>(909) 360-9066 · Quotes@MicroflexFilm.com · SQF Certified | Made in USA</td></tr></table>';
 }
 
@@ -1083,29 +1243,269 @@ function buildSOThankYouHTML(so){
 function initAutoSOCreation(){
   if(typeof MFX==='undefined'||typeof MFX.on!=='function')return;
 
+  // 2026-05-27: Replaced auto-create-on-won with manual "Confirm PO" gate.
+  // A client-submitted PO transitions the quote to 'won' via portalSubmitPO,
+  // but the SO is NOT generated until a staff member reviews the incoming
+  // PO and clicks Confirm in the quote editor. This listener now surfaces a
+  // notification so staff knows there's a PO awaiting confirmation; the
+  // actual SO creation moved to the 'quote.po_confirmed' listener below.
   MFX.on('quote.status',function(d){
     if(!d||d.status!=='won')return;
     var q=d.quote;if(!q)return;
+    if(!q.poNumber)return;
+    var existing=_soCache.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
+    if(existing)return; // SO already exists (legacy auto-created flow)
+    if(q.poConfirmedBy)return; // already confirmed (handled by po_confirmed listener)
+    console.log('[PO] '+q.quoteNum+' awaiting staff confirmation before SO is generated');
+    if(typeof addNotification==='function'){
+      addNotification({
+        type:'alert',
+        title:'New PO — Confirmation Needed',
+        body:q.quoteNum+' has a new PO# '+esc(q.poNumber)+' from '+esc((q.fields&&q.fields.custCo)||'?')+'. Open the quote and click Confirm to generate the sales order.',
+        sourceView:'editor',
+        sourceId:q.id,
+        priority:'high'
+      });
+    }
+    if(typeof MFX.emit==='function')MFX.emit('quote.po_awaiting_confirmation',{quote:q});
+  });
 
-    // Only auto-create if PO exists and SO doesn't already exist
-    if(!q.poNumber){console.log('SO auto-create skipped: no PO on '+q.quoteNum);return}
+  // Staff clicks "Confirm PO" → this fires → SO gets generated.
+  MFX.on('quote.po_confirmed',function(d){
+    if(!d||!d.quote)return;
+    var q=d.quote;
+    if(!q.poNumber){console.warn('[PO confirm] no PO on '+q.quoteNum);return}
     var existing=_soCache.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
     if(existing){console.log('SO already exists for '+q.quoteNum+': '+existing.soNum);return}
-
-    console.log('Auto-creating Sales Order for '+q.quoteNum+'...');
+    console.log('[PO confirm] generating SO for '+q.quoteNum+' (confirmed by '+(q.poConfirmedBy||'staff')+')');
     autoCreateSO(q);
   });
+}
+
+// ─── Staff action: Confirm Incoming PO ──────────────────────────────
+// Called from the quote editor's "Confirm PO" banner. Stamps the quote
+// with poConfirmedBy + poConfirmedAt, persists, then emits the event
+// that triggers SO creation. Idempotent — re-confirming does nothing.
+function confirmIncomingPO(quoteId){
+  if(!quoteId){toast&&toast('Quote not specified','err');return}
+  if(typeof DB==='undefined'||!DB.quotes){toast&&toast('Database unavailable','err');return}
+  var all=DB.quotes();
+  var q=all.find(function(x){return x.id===quoteId});
+  if(!q){toast&&toast('Quote not found','err');return}
+  if(!q.poNumber){toast&&toast('No PO submitted yet on this quote','err');return}
+  if(q.poConfirmedBy){toast&&toast('PO already confirmed by '+q.poConfirmedBy,'info');return}
+  // Stamp + persist
+  q.poConfirmedBy = (typeof getUserName==='function')?getUserName():'Staff';
+  q.poConfirmedAt = new Date().toISOString();
+  q.updatedAt = q.poConfirmedAt;
+  if(!q.activityLog)q.activityLog=[];
+  q.activityLog.push({action:'po_confirmed', by:q.poConfirmedBy, at:q.poConfirmedAt, detail:'PO# '+q.poNumber+' confirmed — generating sales order'});
+  DB.saveQ(all, q.id);
+  toast&&toast('PO confirmed — generating sales order…','ok');
+  // Trigger SO generation through the event the listener above handles
+  if(typeof MFX!=='undefined'&&typeof MFX.emit==='function'){
+    MFX.emit('quote.po_confirmed',{quote:q});
+  } else {
+    // Fallback — call autoCreateSO directly
+    autoCreateSO(q);
+  }
+  // Re-render editor so the banner disappears
+  if(typeof renderEditor==='function')renderEditor();
+}
+
+// ─── Staff action: CEO Electronic Signature on SO ──────────────────────
+// 2026-05-27: replaces the round-15 auto-approval. After an SO is
+// generated (and validation passed), it sits in 'pending' with
+// ceoSignNeeded=true until a CEO/management user opens the quote editor
+// and types their name into the banner. This function stamps
+// ceoSignedAt/By/Signature, flips status to 'approved' + autoApproved=true,
+// then fires the existing 'so.auto_approved' event so the auto-send
+// (client-side or server-side) does the actual send.
+function signSOAsCEO(soId, typedName){
+  if(!soId||typeof fbDb==='undefined')return toast&&toast('Cannot sign — DB unavailable','err');
+  var name=String(typedName||'').trim();
+  if(!name)return toast&&toast('Type your name to sign','err');
+  if(!confirm('Sign Sales Order as CEO?\n\nThis approves the order and sends it to the customer for their signature. You can\'t undo this without contacting them.')){
+    return;
+  }
+  var sos=typeof getSalesOrders==='function'?getSalesOrders():[];
+  var so=sos.find(function(x){return x.id===soId});
+  if(!so)return toast&&toast('Sales order not found','err');
+  if(so.ceoSignedAt)return toast&&toast('Already signed by '+so.ceoSignedBy,'info');
+  var now=new Date().toISOString();
+  var by=typeof getUserName==='function'?getUserName():'CEO';
+  var upd={
+    ceoSignedAt:now,
+    ceoSignedBy:by,
+    ceoSignature:name,
+    ceoSignNeeded:false,
+    status:'approved',
+    autoApproved:true,
+    approvedAt:now,
+    approvedBy:by,
+    updatedAt:now,
+    updatedBy:by
+  };
+  // Append note for audit trail
+  var notes=Array.isArray(so.notes)?so.notes.slice():[];
+  notes.push({
+    text:'✍ CEO electronic signature applied by '+by+' (signed as: "'+name+'"). Auto-send to customer triggered.',
+    by:by,
+    at:now
+  });
+  upd.notes=notes;
+  // Mutate in-memory cache so the UI reflects the new state immediately
+  Object.assign(so, upd);
+  if(window.setSaveState)window.setSaveState('saving');
+  fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
+    toast&&toast('SO '+so.soNum+' signed — dispatching to customer…','ok');
+    // Fire the existing auto-send pipeline. The server-side Firestore
+    // trigger ALSO sees the autoApproved flip and will send via the
+    // delegated Gmail service account if no staff is online.
+    if(typeof MFX!=='undefined'&&typeof MFX.emit==='function'){
+      MFX.emit('so.auto_approved',{so:so,quote:null});
+    }
+    if(typeof renderEditor==='function')renderEditor();
+    if(typeof renderOrdersView==='function')renderOrdersView();
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    toast&&toast('Sign failed: '+e.message,'err');
+    console.error('[signSOAsCEO]',e);
+  });
+}
+window.signSOAsCEO=signSOAsCEO;
+
+// ─── Auto-send when an SO passes validation + auto-approval ──────────
+// 2026-05-27: SOs that pass autoCreateSO's validation gate emit
+// 'so.auto_approved'. Here we run the standard send-to-customer flow
+// automatically. executeSendSO() reads its inputs (template, subject,
+// body) from the send modal's DOM and Gmail OAuth from the active staff
+// session — so we open the modal first, give it a moment to render, then
+// click Send programmatically. If no staff is online or the Gmail token
+// is stale, the modal sits open ready for a one-click manual confirm.
+// (Full hands-free send when nobody is signed in would need a Cloud
+// Function trigger — left as a follow-up.)
+function initSOAutoSendListener(){
+  if(typeof MFX==='undefined'||typeof MFX.on!=='function')return;
+  MFX.on('so.auto_approved',function(d){
+    if(!d||!d.so)return;
+    var so=d.so;
+    // 2026-05-27: server-side autoSendSOOnApproval trigger now races with
+    // this client-side path. Whichever stamps sentAt first wins; the other
+    // should bow out. We give the server a small head-start window since
+    // its trigger fires within ~1s of the Firestore write, before this
+    // listener runs (we're triggered from MFX events on the local app).
+    // If sentAt or serverAutoSendAt is already set, skip and toast.
+    var refresh=function(){
+      if(typeof fbDb==='undefined')return Promise.resolve(so);
+      return fbDb.collection('salesOrders').doc(so.id).get().then(function(snap){
+        var fresh=snap.exists?Object.assign({id:snap.id},snap.data()):so;
+        // Reflect the fresh state into the cached SO so renderers stay in sync
+        var cached=_soCache.find(function(x){return x.id===so.id});
+        if(cached)Object.assign(cached,fresh);
+        return fresh;
+      }).catch(function(){return so});
+    };
+    refresh().then(function(fresh){
+      if(fresh.sentAt){
+        try{toast('SO '+fresh.soNum+' already sent — '+(fresh.serverAutoSendStatus==='sent'?'server delivered':'client delivered'),'ok')}catch(_){}
+        console.log('[SO auto-send] '+fresh.soNum+' already has sentAt — skipping client send');
+        if(typeof renderOrdersView==='function')renderOrdersView();
+        return;
+      }
+      if(fresh.serverAutoSendAt && fresh.serverAutoSendStatus==='in_progress'){
+        try{toast('Server is sending '+fresh.soNum+' — give it a moment','ok')}catch(_){}
+        console.log('[SO auto-send] '+fresh.soNum+' server send in progress — skipping client send');
+        return;
+      }
+      _runClientAutoSend(fresh);
+    });
+  });
+}
+
+// Pulled out so the wait-for-fresh-state logic above stays readable.
+function _runClientAutoSend(so){
+  try{toast('Auto-send queued for '+so.soNum+' — opening send flow','ok')}catch(_){}
+    // Open the send flow modal — this hydrates the SO, loads template
+    // overrides, and renders the template selector + subject/body editors.
+    if(typeof openSOSendFlow==='function'){
+      try{openSOSendFlow(so.id)}catch(e){console.warn('[SO auto-send] openSOSendFlow:',e.message);return}
+    } else {
+      console.warn('[SO auto-send] openSOSendFlow not available — staff must send manually');
+      return;
+    }
+    // Wait for the modal + PDF preview pipeline to settle, then click
+    // the Send button. 1500ms covers SO_TEMPLATES load + DOM render.
+    setTimeout(function(){
+      // Find the modal's Send button — search by onclick text since the
+      // modal builds button HTML inline without a stable id.
+      var modal=document.querySelector('.modal') || document.getElementById('modalContent');
+      if(!modal){console.warn('[SO auto-send] no modal found');return}
+      var btns=modal.querySelectorAll('button');
+      var sendBtn=null;
+      for(var i=0;i<btns.length;i++){
+        var onclick=btns[i].getAttribute('onclick')||'';
+        if(onclick.indexOf('executeSendSO')>=0){sendBtn=btns[i];break}
+      }
+      if(sendBtn){
+        console.log('[SO auto-send] firing Send for '+so.soNum);
+        sendBtn.click();
+      } else {
+        console.warn('[SO auto-send] Send button not found — staff must click manually');
+        try{toast('SO '+so.soNum+' is ready — click Send to dispatch','ok')}catch(_){}
+      }
+    },1500);
 }
 
 async function autoCreateSO(q){
   var f=q.fields||{};
   if(!f.custCo||!f.custCo.trim())return;
   var selIdx=q.poQtyIndex||0;
-  var selRow=q.qtys&&q.qtys[selIdx]?q.qtys[selIdx]:{qty:0,ppu:0,total:0};
+  var skuCount=q.poSkuCount||1;
+  // q.qtys is a plain array of quantity numbers; pricing lives in q.pricedQtys
+  // as [{qty:N, skus:{1:{tot,ppu}, 2:{tot,ppu}, ...}}, ...]. The portal also
+  // stores the client's final selection on the quote as poSelectedQty /
+  // poSelectedTotal — use those as the authoritative source for the selected
+  // row, and derive the priced grid for the email body from pricedQtys.
+  var selRow={qty:0,ppu:0,total:0};
+  if(q.pricedQtys&&q.pricedQtys[selIdx]){
+    var _pr=q.pricedQtys[selIdx];
+    var _cell=_pr.skus&&_pr.skus[skuCount];
+    selRow={qty:_pr.qty||q.poSelectedQty||0,ppu:(_cell&&_cell.ppu)||0,total:(_cell&&_cell.tot)||q.poSelectedTotal||0};
+  } else {
+    selRow={qty:q.poSelectedQty||0,ppu:0,total:q.poSelectedTotal||0};
+  }
+  var allQtysForEmail=(q.pricedQtys||[]).map(function(pr){
+    var c=pr&&pr.skus?pr.skus[skuCount]:null;
+    return {qty:pr&&pr.qty||0,ppu:(c&&c.ppu)||0,total:(c&&c.tot)||0};
+  });
 
   var soId='so_'+Date.now();
   var soNum;
   try{soNum=await genSONUM()}catch(e){soNum=genSONUMLocal()}
+
+  // ─── Validation + auto-sign as CEO ─────────────────────────────────
+  // 2026-05-27 (rev): SOs that pass validation are auto-signed by the
+  // designated CEO (Moises Santillan, configurable via SO_CEO_NAME) at
+  // generation time. No manual click required. This is the workflow:
+  //   PO confirm → SO auto-created → auto-signed as CEO → auto-sent
+  //   to client → client countersigns in portal.
+  // If validation fails, ceoSignedAt stays null and the SO sits in
+  // 'pending' for a human to complete the missing fields and trigger
+  // sign manually (signSOAsCEO() still works as a backup).
+  var _custEmail=String(f.custEmail||q.poClientEmail||'').trim().toLowerCase();
+  var _emailValid=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_custEmail);
+  var _validation={
+    hasCompany: !!(f.custCo && f.custCo.trim()),
+    hasEmail: _emailValid,
+    hasPO: !!(q.poNumber && q.poSignature),
+    hasTotal: !!(selRow.total || q.poSelectedTotal),
+    hasShipTo: !!(q.poShipTo || f.cityState)
+  };
+  var _validationPassed = Object.keys(_validation).every(function(k){return _validation[k]});
+  var _ceoName = (typeof window!=='undefined' && window.SO_CEO_NAME) || 'Moises Santillan';
+  var _signedAt = _validationPassed ? new Date().toISOString() : null;
 
   var so={
     id:soId,
@@ -1113,11 +1513,25 @@ async function autoCreateSO(q){
     quoteId:q.id,
     quoteNum:q.quoteNum,
     quoteRev:q.rev,
-    status:'pending',
+    // Validated → auto-signed + auto-approved (status='approved',
+    // autoApproved=true). Server-side trigger sees both ceoSignedAt +
+    // autoApproved and fires the customer email via flex@ delegation.
+    // Validation failed → status='pending', ceoSignNeeded=true so the
+    // signSOAsCEO() backup flow can resolve it once fields are filled in.
+    status: _validationPassed ? 'approved' : 'pending',
+    autoApproved: _validationPassed,
+    autoApprovalChecks:_validation,
+    ceoSignNeeded: !_validationPassed,
+    ceoSignedAt: _signedAt,
+    ceoSignedBy: _validationPassed ? _ceoName : null,
+    ceoSignature: _validationPassed ? _ceoName : null,
 
     company:f.custCo||'',
     contact:f.custAttn||'',
-    email:f.custEmail||q.poClientEmail||'',
+    // Lowercased — portal SO list query uses where('email','==', authToken.email)
+    // which is exact-case. Firebase Auth normalizes tokens to lowercase, so the
+    // stored value must also be lowercase or the SO won't surface in the portal.
+    email:String(f.custEmail||q.poClientEmail||'').trim().toLowerCase(),
     phone:f.phone||'',
     industry:f.industry||'',
     cityState:f.cityState||'',
@@ -1145,10 +1559,14 @@ async function autoCreateSO(q){
     windDir:f.windDir||f.copyPos||'',
 
     selectedQtyIndex:selIdx,
-    selectedQty:selRow.qty,
+    selectedQty:selRow.qty||q.poSelectedQty||0,
+    skuCount:skuCount,
     ppu:selRow.ppu||0,
-    total:selRow.total||0,
-    allQtys:q.qtys||[],
+    total:selRow.total||q.poSelectedTotal||0,
+    // Email body iterates over allQtys expecting {qty,ppu,total} per row.
+    // q.qtys is plain numbers — use the priced grid we derived above so the
+    // SO confirmation email actually shows real prices instead of $0.0000.
+    allQtys:allQtysForEmail.length?allQtysForEmail:(q.qtys||[]).map(function(n){return {qty:n,ppu:0,total:0}}),
     terms:q.terms||[],
 
     estimator:f.estimator||'',
@@ -1158,28 +1576,53 @@ async function autoCreateSO(q){
     createdBy:'System (Auto)',
     updatedAt:new Date().toISOString(),
     updatedBy:'System (Auto)',
-    approvedBy:null,
-    approvedAt:null,
+    approvedBy: _validationPassed ? _ceoName : null,
+    approvedAt: _signedAt,
     sentAt:null,
     sentTo:null,
     driveLink:null,
-    notes:[{text:'📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+')',by:'System',at:new Date().toISOString()}]
+    notes:[{
+      text: _validationPassed
+        ? '📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+') · ✍ Auto-signed as CEO by '+_ceoName+' · sending to customer for countersignature.'
+        : '📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+'). Auto-sign blocked — fix missing fields first: '+Object.keys(_validation).filter(function(k){return !_validation[k]}).join(', '),
+      by:'System',
+      at:new Date().toISOString()
+    }]
   };
 
   saveSO(so).then(function(){
-    toast('Sales Order '+soNum+' auto-created — pending CEO approval','ok');
-    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.auto_created',soNum+' auto-created from '+q.quoteNum);
-    if(typeof MFX!=='undefined'&&MFX.track)MFX.track('so.auto_created',{soId:soId,soNum:soNum,quoteNum:q.quoteNum,company:f.custCo});
-    if(typeof MFX!=='undefined'&&MFX.emit)MFX.emit('so.pending_approval',{so:so,quote:q});
+    if(_validationPassed){
+      toast('SO '+soNum+' signed by '+_ceoName+' — dispatching to customer','ok');
+    } else {
+      var missing=Object.keys(_validation).filter(function(k){return !_validation[k]});
+      toast('SO '+soNum+' created — fix missing fields, then CEO can sign ('+missing.join(', ')+')','err');
+    }
+    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.auto_created',soNum+' auto-created from '+q.quoteNum+(_validationPassed?' · auto-signed by '+_ceoName:' · pending fixes'));
+    if(typeof MFX!=='undefined'&&MFX.track)MFX.track('so.auto_created',{soId:soId,soNum:soNum,quoteNum:q.quoteNum,company:f.custCo,autoSigned:_validationPassed});
+    if(typeof MFX!=='undefined'&&MFX.emit){
+      if(_validationPassed){
+        // Fires the existing auto-send pipeline (client modal + server trigger).
+        MFX.emit('so.auto_approved',{so:so,quote:q});
+      } else {
+        MFX.emit('so.awaiting_ceo_signature',{so:so,quote:q});
+      }
+    }
+    // After SO generation, switch the editor to the SO tab so the staff
+    // immediately sees the SO preview. S.etab===10 is the SO tab.
+    if(typeof S!=='undefined' && S.editId===q.id){
+      S.etab=10;
+      if(typeof renderEditor==='function')renderEditor();
+    }
 
-    // Notify CEO via notification system
+    // Always notify CEO — every SO requires electronic signature now.
     if(typeof addNotification==='function'){
+      var needsFix = !_validationPassed;
       addNotification({
         type:'alert',
-        title:'Sales Order Needs Approval',
-        body:soNum+' for '+esc(f.custCo)+' ($'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})+') — auto-created from '+q.quoteNum,
-        sourceView:'orders',
-        sourceId:soId,
+        title:needsFix ? 'SO Needs Fixing Before CEO Sign' : 'Sales Order Awaiting CEO Signature',
+        body:soNum+' for '+esc(f.custCo)+' ($'+Number(so.total).toLocaleString(undefined,{minimumFractionDigits:2})+') — '+(needsFix?'missing fields: '+Object.keys(_validation).filter(function(k){return !_validation[k]}).join(', '):'open the quote and sign as CEO to dispatch'),
+        sourceView:'editor',
+        sourceId:q.id,
         priority:'high'
       });
     }
@@ -1586,27 +2029,43 @@ function buildSOPrintHTML(so){
     +'All plates, dies, and tooling remain Microflex property until paid in full. '
     +'Full terms at <span style="text-decoration:underline">MicroflexFilm.com/Terms</span>.'
     +'</div></div>'
-    // Signature blocks
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid #e8ecf0">'
-    // CEO Approval block
-    +'<div style="padding:14px 24px;border-right:1px solid #e8ecf0;background:'+(so.approvedBy?'#f0fdf4':'#fafcfd')+'">'
-    +'<div style="font-size:7px;color:#16a34a;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Authorized By (Microflex)</div>'
-    +(so.approvedBy?'<div style="font-size:11px;color:#0a2030;font-weight:800">'+esc(so.approvedBy)+'</div>'
-      +'<div style="font-size:9px;color:#16a34a;margin-top:2px;font-weight:700">✓ APPROVED '+_fD(so.approvedAt)+'</div>'
-      :'<div style="font-size:10px;color:#94a3b0;font-style:italic">Pending CEO approval</div>'
-      +'<div style="border-bottom:1.5px solid #cbd5e1;margin-top:18px;width:70%"></div>'
-      +'<div style="font-size:6px;color:#94a3b0;margin-top:2px">Signature · Date</div>')
-    +'</div>'
-    // Client signature block
-    +'<div style="padding:14px 24px;background:'+(so.clientSignature?'#f0fdf4':'#fafcfd')+'">'
-    +'<div style="font-size:7px;color:#00BCD4;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Client Acknowledgement</div>'
-    +(so.clientSignature?'<div style="font-size:11px;color:#0a2030;font-weight:800">'+esc(so.clientSignature)+'</div>'
-      +'<div style="font-size:9px;color:#16a34a;margin-top:2px;font-weight:700">✓ SIGNED '+_fD(so.clientSignedAt)+'</div>'
-      :'<div style="font-size:10px;color:#94a3b0;font-style:italic">Awaiting client signature</div>'
-      +'<div style="border-bottom:1.5px solid #cbd5e1;margin-top:18px;width:70%"></div>'
-      +'<div style="font-size:6px;color:#94a3b0;margin-top:2px">Signature · Date</div>')
-    +'</div>'
-    +'</div>'
+    // Signature blocks — 2026-05-27 enhanced to render typed-name italic
+    // signatures (matches portal-side render). CEO half pulls from
+    // ceoSignedBy/ceoSignature/ceoSignedAt (set by autoCreateSO auto-sign
+    // round 16); falls back to approvedBy for legacy SOs. Client half is
+    // populated by submitSOApproval() on the portal.
+    +(function(){
+      var _ceoSigned = !!(so.ceoSignedAt || so.approvedBy);
+      var _ceoName   = so.ceoSignedBy   || so.approvedBy || '';
+      var _ceoSigTxt = so.ceoSignature  || so.ceoSignedBy || so.approvedBy || '';
+      var _ceoDate   = so.ceoSignedAt   || so.approvedAt;
+      var _cliSigned = !!so.clientSignedAt;
+      return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid #e8ecf0">'
+        // CEO Approval block
+        +'<div style="padding:14px 24px;border-right:1px solid #e8ecf0;background:'+(_ceoSigned?'#f0fdf4':'#fafcfd')+'">'
+          +'<div style="font-size:7px;color:'+(_ceoSigned?'#16a34a':'#94a3b0')+';font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Authorized By (Microflex)'+(_ceoSigned?' · ✓':'')+'</div>'
+          +(_ceoSigned
+            ? '<div style="font-size:22px;font-family:Outfit,Georgia,serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:1.5px solid #16a34a;padding-bottom:3px;line-height:1.2;margin-bottom:4px">'+esc(_ceoSigTxt)+'</div>'
+              +'<div style="font-size:10px;color:#0a2030;font-weight:700">'+esc(_ceoName)+'</div>'
+              +'<div style="font-size:9px;color:#16a34a;font-weight:700;margin-top:2px">Approved on '+_fD(_ceoDate)+'</div>'
+            : '<div style="font-size:10px;color:#94a3b0;font-style:italic">Pending CEO approval</div>'
+              +'<div style="border-bottom:1.5px solid #cbd5e1;margin-top:18px;width:70%"></div>'
+              +'<div style="font-size:6px;color:#94a3b0;margin-top:2px">Signature · Date</div>')
+        +'</div>'
+        // Client signature block
+        +'<div style="padding:14px 24px;background:'+(_cliSigned?'#f0fdf4':'#fafcfd')+'">'
+          +'<div style="font-size:7px;color:'+(_cliSigned?'#16a34a':'#00BCD4')+';font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Client Acknowledgement'+(_cliSigned?' · ✓':'')+'</div>'
+          +(_cliSigned
+            ? '<div style="font-size:22px;font-family:Outfit,Georgia,serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:1.5px solid #16a34a;padding-bottom:3px;line-height:1.2;margin-bottom:4px">'+esc(so.clientSignature||'—')+'</div>'
+              +'<div style="font-size:10px;color:#0a2030;font-weight:700">'+esc(so.clientSignature||'—')+'</div>'
+              +'<div style="font-size:9px;color:#16a34a;font-weight:700;margin-top:2px">Signed on '+_fD(so.clientSignedAt)+(so.clientEmail?' · '+esc(so.clientEmail):'')+'</div>'
+            : '<div style="font-size:10px;color:#94a3b0;font-style:italic">Awaiting client signature</div>'
+              +'<div style="border-bottom:1.5px solid #cbd5e1;margin-top:18px;width:70%"></div>'
+              +'<div style="font-size:6px;color:#94a3b0;margin-top:2px">Signature · Date</div>')
+        +'</div>'
+      +'</div>'
+      +(_ceoSigned && _cliSigned ? '<div style="text-align:center;font-size:8px;color:#16a34a;font-weight:800;letter-spacing:2px;padding:8px 0;border-top:1px solid #d1fae5;border-bottom:1px solid #d1fae5;background:#f0fdf4">✓ FULLY EXECUTED — BOTH SIGNATURES ON FILE</div>' : '');
+    })()
 
     // ═══ BOTTOM NAVY BAR ═══
     +'<div style="padding:6px 24px;background:#0a2e3e;text-align:center">'
@@ -1688,7 +2147,7 @@ function openPortalMessages(quoteId){
 
   var h='<div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">';
   h+='<span>Portal Messages — '+esc(qNum)+'</span>';
-  h+='<a href="https://os.microflexfilm.com/portal?q='+esc(qNum)+'" target="_blank" style="font-size:10px;color:var(--ac);text-decoration:none">Open Portal ↗</a></div>';
+  h+='<a href="https://os.microflexfilm.com/portal?id='+esc(quoteId)+'&q='+esc(qNum)+'" target="_blank" style="font-size:10px;color:var(--ac);text-decoration:none">Open Portal ↗</a></div>';
   h+='<div style="font-size:11px;color:var(--tx3);margin-bottom:10px">'+esc(co)+'</div>';
   h+='<div id="pmThread" style="max-height:340px;overflow-y:auto;margin-bottom:12px;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--bg3);border-radius:8px;min-height:80px">';
   h+='<div style="text-align:center;font-size:10px;color:var(--tx3);padding:20px">Loading messages...</div></div>';
@@ -1852,7 +2311,7 @@ function shipSOFromPane(soId){
       // other SO send paths.
       var boundary='----=mfx_so_ship_'+Date.now();
       var raw=''
-        +'From: MFX OS <info@microflexfilm.com>\r\n'
+        +'From: MFX OS <flex@microflexfilm.com>\r\n'
         +'To: '+to+'\r\n'
         +'Bcc: team@microflexfilm.com, quotes@microflexfilm.com\r\n'
         +'Reply-To: quotes@microflexfilm.com\r\n'
@@ -1901,5 +2360,14 @@ if(typeof fbDb!=='undefined'){
   setTimeout(startSOListeners,1000);
 }
 setTimeout(initAutoSOCreation,1500);
+setTimeout(initSOAutoSendListener,1500);
+window.confirmIncomingPO=confirmIncomingPO;
+// 2026-05-27: legacy buttons in the quote editor (Workflow tab, SO tab,
+// orders pipeline card, orders SO list) call createSOFromPO(quoteId) but
+// no function by that name was ever defined — they were silently
+// failing with "SO module not loaded" toast. Alias to the canonical PO
+// confirmation gate so all 4 buttons run the same flow:
+//   confirmIncomingPO → autoCreateSO → auto-sign as Moises → auto-send.
+window.createSOFromPO=confirmIncomingPO;
 
 })();

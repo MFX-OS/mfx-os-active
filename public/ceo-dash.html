@@ -586,6 +586,46 @@
       grid-row: 3;
     }
 
+    /* Admin Tools (full-width row beneath the dashboard) */
+    .admin-tools-section {
+      grid-column: 1 / -1;
+      grid-row: 4;
+    }
+    .admin-tool-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.08);
+    }
+    .admin-tool-row:last-child { border-bottom: none; }
+    .admin-tool-info { flex: 1; min-width: 0; }
+    .admin-tool-title { font-size: 12px; font-weight: 600; color: #f5f2ed; margin-bottom: 0.2rem; }
+    .admin-tool-desc { font-size: 10px; color: #8aa8b8; line-height: 1.4; }
+    .admin-tool-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+    .admin-tool-toggle {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 10px; color: #8aa8b8; cursor: pointer; user-select: none;
+    }
+    .admin-tool-toggle input { accent-color: #00e5ff; cursor: pointer; }
+    .admin-tool-btn {
+      background: #00e5ff; color: #060d14; border: none;
+      padding: 0.5rem 1rem; border-radius: 4px;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      font-family: inherit; letter-spacing: 0.5px;
+    }
+    .admin-tool-btn:hover { background: #33ebff; }
+    .admin-tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .admin-tool-result {
+      margin-top: 0.5rem; padding: 0.75rem;
+      background: #060d14; border: 1px solid rgba(0, 229, 255, 0.18);
+      border-radius: 4px; font-family: 'DM Mono', monospace;
+      font-size: 10px; color: #8aa8b8; line-height: 1.5;
+      white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow-y: auto;
+    }
+    .admin-tool-result.err { border-color: rgba(255, 100, 116, 0.4); color: #ffb4be; }
+    .admin-tool-result.ok { border-color: rgba(46, 232, 158, 0.4); color: #d9fce8; }
+
     .hours-chart {
       display: flex;
       align-items: flex-end;
@@ -1275,6 +1315,90 @@
       );
     };
 
+    // ─── Admin Tools (CEO-only maintenance actions) ────────────────────
+    // 2026-05-27: portal email backfill UI. Calls /api/backfillPortalEmails
+    // (gated server-side to @microflexfilm.com via requireInternalUser).
+    // Lets staff lowercase the email keys on existing /quotes and /salesOrders
+    // so portal clients can actually find their records (Firestore queries
+    // are exact-case but Firebase Auth normalizes tokens to lowercase).
+    const AdminTools = ({ user }) => {
+      const [dryRun, setDryRun] = useState(true);
+      const [running, setRunning] = useState(false);
+      const [result, setResult] = useState(null);
+      const [resultKind, setResultKind] = useState('');
+
+      const runBackfill = async () => {
+        if (running) return;
+        if (!user || !/@microflexfilm\.com$/i.test(user.email || '')) {
+          setResultKind('err');
+          setResult('Only @microflexfilm.com staff can run this maintenance action.');
+          return;
+        }
+        if (!dryRun) {
+          const confirmed = window.confirm(
+            'Run portal email backfill for REAL?\n\n' +
+            'This will lowercase poClientEmail on /quotes and email on /salesOrders ' +
+            'so portal clients can find their records. Idempotent — safe to re-run.'
+          );
+          if (!confirmed) return;
+        }
+        setRunning(true);
+        setResult('Running…');
+        setResultKind('');
+        try {
+          const token = await firebase.auth().currentUser.getIdToken();
+          const resp = await fetch('/api/backfillPortalEmails', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryRun })
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            setResultKind('err');
+            setResult('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2));
+          } else {
+            setResultKind('ok');
+            setResult(JSON.stringify(data, null, 2));
+          }
+        } catch (err) {
+          setResultKind('err');
+          setResult('Error: ' + (err && err.message ? err.message : String(err)));
+        } finally {
+          setRunning(false);
+        }
+      };
+
+      return (
+        <div className="panel admin-tools-section">
+          <div className="panel-header">
+            <div className="panel-title">ADMIN TOOLS</div>
+          </div>
+          <div className="panel-body">
+            <div className="admin-tool-row">
+              <div className="admin-tool-info">
+                <div className="admin-tool-title">Portal Email Backfill</div>
+                <div className="admin-tool-desc">
+                  Lowercases <code>poClientEmail</code> on every quote and <code>email</code> on every sales order so portal clients can find their records. Idempotent — re-running is safe. Always do a Dry Run first to preview the diff.
+                </div>
+              </div>
+              <div className="admin-tool-controls">
+                <label className="admin-tool-toggle">
+                  <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+                  Dry Run
+                </label>
+                <button className="admin-tool-btn" onClick={runBackfill} disabled={running}>
+                  {running ? 'Running…' : (dryRun ? 'Preview' : 'Run Backfill')}
+                </button>
+              </div>
+            </div>
+            {result !== null && (
+              <div className={'admin-tool-result' + (resultKind ? ' ' + resultKind : '')}>{result}</div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
     // Header Component
     const Header = ({ user, onSignOut }) => {
       const [currentTime, setCurrentTime] = useState(new Date());
@@ -1536,6 +1660,7 @@
             <TasksSection loading={loading} onActionClick={handleQuickAction} />
             <EmployeeStatus loading={loading} />
             <TimeClock loading={loading} />
+            <AdminTools user={user} />
           </div>
           {toast && (
             <Toast

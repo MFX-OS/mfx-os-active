@@ -453,6 +453,67 @@ function portalSignIn(landingMode){
 
 function escPortal(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
+// 2026-05-27: navigate from a specific quote view back to the workspace
+// (the client's home dashboard with all quotes/SOs/activity). Clears the
+// per-quote params from URL + localStorage so loadQuote falls into the
+// landing-page branch and renders renderClientWorkspace.
+function portalBackToWorkspace(){
+  try{localStorage.removeItem('mfxPortalPendingId')}catch(_){}
+  try{localStorage.removeItem('mfxPortalPendingQ')}catch(_){}
+  window.location.href=window.location.pathname; // drop ?id=… ?q=… from URL
+}
+
+// ─── Client-facing status mapping ──────────────────────────────────────
+// Internal Firestore statuses (draft/ready/approval/sent/won/lost) are
+// staff-oriented. The customer's portal needs labels that describe what's
+// happening from THEIR perspective — e.g. "won" internally = "PO RECEIVED"
+// for the client. Centralized here so the workspace, quote page, and any
+// future surfaces stay consistent.
+function clientQuoteStatus(rawStatus){
+  var s=String(rawStatus||'').toLowerCase();
+  var map={
+    draft:    {bg:'#64748b22',                color:'#94a3b8', label:'DRAFT'},
+    ready:    {bg:'rgba(14,165,233,.15)',     color:'#0ea5e9', label:'READY'},
+    approval: {bg:'rgba(168,85,247,.15)',     color:'#a855f7', label:'IN REVIEW'},
+    sent:     {bg:'rgba(0,229,255,.15)',      color:'#00e5ff', label:'AWAITING YOUR PO'},
+    won:      {bg:'rgba(34,197,94,.15)',      color:'#22c55e', label:'PO RECEIVED'},
+    lost:     {bg:'rgba(239,68,68,.15)',      color:'#ef4444', label:'DECLINED'},
+    rejected: {bg:'rgba(239,68,68,.15)',      color:'#ef4444', label:'DECLINED'}
+  };
+  return map[s] || map.draft;
+}
+
+// Sales-order lifecycle from the client's POV. Combines so.status with
+// signing/clientSignedAt + production markers to surface the right stage:
+//   pending (internal)       → PENDING
+//   approved (no sign link)  → WAITING FOR APPROVAL
+//   approved/sent + sign link, not signed → AWAITING YOUR SIGNATURE
+//   clientSignedAt set       → SIGNED  (or IN PRODUCTION if jobPassportId / inProduction flag)
+//   completed                → COMPLETE
+//   cancelled                → CANCELLED
+function clientSOStatus(so){
+  so=so||{};
+  var st=String(so.status||'').toLowerCase();
+  if(st==='cancelled') return {bg:'rgba(239,68,68,.15)', color:'#ef4444', label:'CANCELLED'};
+  if(st==='completed') return {bg:'rgba(34,197,94,.15)', color:'#22c55e', label:'COMPLETE'};
+  if(so.clientSignedAt){
+    // Signed. Show "IN PRODUCTION" if there are downstream production markers,
+    // else "SIGNED" (i.e. just-signed, not yet on the floor).
+    var inProd = !!(so.jobPassportId || so.jobTicketId || so.inProduction || so.productionStartedAt);
+    if(inProd) return {bg:'rgba(0,229,255,.15)', color:'#00e5ff', label:'IN PRODUCTION'};
+    return {bg:'rgba(34,197,94,.15)', color:'#22c55e', label:'SIGNED'};
+  }
+  if(so.signingDocLink && (st==='approved' || st==='sent')){
+    return {bg:'rgba(245,158,11,.15)', color:'#f59e0b', label:'AWAITING YOUR SIGNATURE'};
+  }
+  if(st==='approved'){
+    // CEO approved but signing link not yet generated/sent
+    return {bg:'rgba(245,158,11,.15)', color:'#f59e0b', label:'WAITING FOR APPROVAL'};
+  }
+  // Default for 'pending' (just auto-created) and any other intermediate state
+  return {bg:'rgba(168,85,247,.15)', color:'#a855f7', label:'PENDING'};
+}
+
 // ─── Landing page: list of all quotes for this signed-in client ──────────
 // Runs two Firestore queries (poClientEmail OR fields.custEmail) because
 // Firestore doesn't support OR across different fields. Both queries are
@@ -520,15 +581,7 @@ function loadQuoteList(){
 function renderQuoteList(quotes){
   var wrap=document.querySelector('.wrap');
   if(!wrap)return;
-  var STATUS_STYLE={
-    draft:{bg:'#64748b22',color:'#94a3b8',label:'DRAFT'},
-    ready:{bg:'rgba(14,165,233,.15)',color:'#0ea5e9',label:'READY'},
-    approval:{bg:'rgba(168,85,247,.15)',color:'#a855f7',label:'PENDING'},
-    sent:{bg:'rgba(0,229,255,.15)',color:'#00e5ff',label:'SENT'},
-    won:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'WON'},
-    lost:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'LOST'},
-    rejected:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'REJECTED'}
-  };
+  // Client-facing status labels — see clientQuoteStatus() helper above.
   var h='<div style="margin-bottom:18px;display:flex;flex-direction:column;gap:6px">'
     +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">'
     +'<div><div style="font-family:Outfit;font-size:26px;font-weight:900;color:var(--h1);line-height:1.1">Your Quotes</div>'
@@ -549,7 +602,7 @@ function renderQuoteList(quotes){
   h+='<div style="display:flex;flex-direction:column;gap:10px">';
   quotes.forEach(function(q){
     var status=String(q.status||'draft').toLowerCase();
-    var ss=STATUS_STYLE[status]||STATUS_STYLE.draft;
+    var ss=clientQuoteStatus(status);
     var quoteNum=q.quoteNum||q.id;
     var jobDesc=(q.fields&&q.fields.jobDesc)||(q.description)||'(no description)';
     var company=(q.fields&&q.fields.custCo)||q.poClientCo||'';
@@ -690,20 +743,8 @@ function renderClientWorkspace(quotes,salesOrders){
   activity.sort(function(a,b){return new Date(b.at||0).getTime()-new Date(a.at||0).getTime();});
   activity=activity.slice(0,25);
 
-  // ─── Status pill colors (shared with renderQuoteList) ────────────
-  var STATUS_STYLE={
-    draft:{bg:'#64748b22',color:'#94a3b8',label:'DRAFT'},
-    ready:{bg:'rgba(14,165,233,.15)',color:'#0ea5e9',label:'READY'},
-    approval:{bg:'rgba(168,85,247,.15)',color:'#a855f7',label:'PENDING'},
-    sent:{bg:'rgba(0,229,255,.15)',color:'#00e5ff',label:'SENT'},
-    won:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'WON'},
-    lost:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'LOST'},
-    rejected:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'REJECTED'},
-    pending:{bg:'rgba(245,158,11,.15)',color:'#f59e0b',label:'AWAITING APPROVAL'},
-    approved:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'APPROVED'},
-    completed:{bg:'rgba(34,197,94,.15)',color:'#22c55e',label:'COMPLETE'},
-    cancelled:{bg:'rgba(239,68,68,.15)',color:'#ef4444',label:'CANCELLED'}
-  };
+  // Client-facing labels live in clientQuoteStatus() / clientSOStatus() —
+  // those map internal Firestore statuses to what the customer should see.
   var formatDate=function(when){if(!when)return '';try{return new Date(when).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});}catch(e){return '';}};
 
   // ─── Build HTML ──────────────────────────────────────────────────
@@ -784,7 +825,7 @@ function renderClientWorkspace(quotes,salesOrders){
     h+='<div style="display:flex;flex-direction:column;gap:8px">';
     quotes.forEach(function(q){
       var status=String(q.status||'draft').toLowerCase();
-      var ss=STATUS_STYLE[status]||STATUS_STYLE.draft;
+      var ss=clientQuoteStatus(status);
       var quoteNum=q.quoteNum||q.id;
       var jobDesc=(q.fields&&q.fields.jobDesc)||(q.description)||'(no description)';
       var company=(q.fields&&q.fields.custCo)||q.poClientCo||'';
@@ -815,8 +856,7 @@ function renderClientWorkspace(quotes,salesOrders){
     h+='<div style="font-family:Outfit;font-size:16px;font-weight:800;color:var(--h1);margin-bottom:10px">Sales Orders ('+salesOrders.length+')</div>';
     h+='<div style="display:flex;flex-direction:column;gap:8px">';
     salesOrders.forEach(function(so){
-      var status=String(so.status||'pending').toLowerCase();
-      var ss=STATUS_STYLE[status]||STATUS_STYLE.pending;
+      var ss=clientSOStatus(so);
       var jobDesc=so.jobDesc||'(no description)';
       var when=so.updatedAt||so.sentAt||so.createdAt;
       var total=so.total||0;
@@ -829,7 +869,7 @@ function renderClientWorkspace(quotes,salesOrders){
         +'<div style="font-family:Outfit;font-size:15px;font-weight:800;color:var(--h1);letter-spacing:-.2px">'+escPortal(so.soNum||so.id)+'</div>'
         +(so.company?'<div style="font-size:10px;color:var(--sub);margin-top:1px">'+escPortal(so.company)+(so.poNumber?' · PO# '+escPortal(so.poNumber):'')+'</div>':'')
         +'</div>'
-        +'<span style="font-size:9px;font-weight:800;letter-spacing:1px;padding:3px 8px;border-radius:4px;background:'+ss.bg+';color:'+ss.color+';flex-shrink:0;white-space:nowrap">'+(needsSign?'AWAITING SIGNATURE':ss.label)+'</span>'
+        +'<span style="font-size:9px;font-weight:800;letter-spacing:1px;padding:3px 8px;border-radius:4px;background:'+ss.bg+';color:'+ss.color+';flex-shrink:0;white-space:nowrap">'+ss.label+'</span>'
         +'</div>'
         +'<div style="font-size:12px;color:var(--body);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escPortal(jobDesc)+'</div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px;color:var(--sub);flex-wrap:wrap">'
@@ -867,8 +907,25 @@ function renderClientWorkspace(quotes,salesOrders){
 
 function doLoadQuote(){
   var params=new URLSearchParams(window.location.search);
-  var docId=params.get('id')||localStorage.getItem('mfxPortalPendingId')||'';
-  var qNum=params.get('q')||localStorage.getItem('mfxPortalPendingQ')||'';
+  // 2026-05-27 cross-quote leak fix: the previous code used independent OR-
+  // fallbacks per param (docId = url.id || localStorage.id). If a client
+  // clicked Quote A first (saving A's id to localStorage) and then clicked an
+  // older SO email link that only had ?q=<num> (no id), docId silently fell
+  // back to A's id and the portal loaded Quote A — even though the URL named
+  // Quote B. That leaked one client's quote into another client's view path.
+  // Fix: only consult localStorage when BOTH url params are missing (the
+  // legitimate Firebase magic-link-redirect recovery case). When the URL
+  // names a quote, use ONLY the url's values.
+  var urlId=params.get('id')||'';
+  var urlQ=params.get('q')||'';
+  var docId, qNum;
+  if(urlId || urlQ){
+    docId=urlId;
+    qNum=urlQ;
+  } else {
+    docId=localStorage.getItem('mfxPortalPendingId')||'';
+    qNum=localStorage.getItem('mfxPortalPendingQ')||'';
+  }
   if(!docId&&!qNum){document.querySelector('.wrap').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)"><h2 style="color:var(--h1)">No quote specified</h2><p>This link should include a quote number.</p></div>';return}
   document.querySelector('.status h2').textContent='Loading quote '+(qNum||docId)+'...';
   // Clean up URL if params were recovered from localStorage
@@ -1084,14 +1141,30 @@ function renderPortalData(){
     sh+='<div style="margin-top:12px;padding:10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:6px;font-size:11px;color:#4ade80;font-weight:600;text-align:center">Your order is being processed by the Microflex team.</div>';
     sumDiv.innerHTML=sh;
     var pricingEl=document.querySelector('.pricing');if(pricingEl)pricingEl.after(sumDiv);
-    // Show SO approval section if SO exists
-    renderPortalSOSection(q, sumDiv);
   }else{
     document.querySelector('.status h2').textContent='Your quote is ready for approval';
     document.querySelector('.status p').textContent='Review the details below, select your quantity, and submit your PO.';
   }
+  // 2026-05-27: SO section anchors to the END of the quote portal body,
+  // after the Approval + Submit row. That way the customer's natural eye
+  // path is quote → PO submission → and the SO summary + sign-here lives
+  // at the bottom for return visits. The function queries /salesOrders
+  // for a linked SO and gracefully no-ops (renders a placeholder card)
+  // if none exists yet.
+  var soAnchor = document.querySelector('.submit-wrap')
+    || document.getElementById('artUploadSection')
+    || document.querySelector('.section:last-of-type')
+    || document.querySelector('.wrap');
+  if(soAnchor) renderPortalSOSection(q, soAnchor);
   // Load messages
   loadMessages();
+  // Reveal the Back-to-workspace nav row at the top of the quote view
+  var navRow=document.getElementById('portalNavRow');
+  if(navRow && CLIENT_EMAIL){
+    navRow.style.display='flex';
+    var navEmail=document.getElementById('portalNavEmail');
+    if(navEmail)navEmail.textContent=CLIENT_EMAIL;
+  }
   // Show logged-in user
   if(CLIENT_EMAIL){
     var hdrContact=document.querySelector('.hdr-contact');
@@ -1369,15 +1442,50 @@ function renderPortalSOSection(q, afterEl){
   if(!QUOTE_ID)return;
   // Look for a linked SO in salesOrders collection
   db.collection('salesOrders').where('quoteId','==',QUOTE_ID).get().then(function(snap){
-    if(snap.empty){
-      // Also try by quoteNum
-      db.collection('salesOrders').where('quoteNum','==',q.quoteNum).get().then(function(snap2){
-        if(!snap2.empty)_renderSOBlock(snap2.docs[0],afterEl);
-      }).catch(function(){});
-      return;
-    }
-    _renderSOBlock(snap.docs[0],afterEl);
-  }).catch(function(e){console.warn('SO lookup:',e.message)});
+    if(!snap.empty){_renderSOBlock(snap.docs[0],afterEl);return}
+    // Fallback by quoteNum
+    db.collection('salesOrders').where('quoteNum','==',q.quoteNum).get().then(function(snap2){
+      if(!snap2.empty){_renderSOBlock(snap2.docs[0],afterEl);return}
+      // No SO yet — render a placeholder so the client knows what's coming.
+      _renderSOPlaceholder(q, afterEl);
+    }).catch(function(){_renderSOPlaceholder(q, afterEl);});
+  }).catch(function(e){console.warn('SO lookup:',e.message);_renderSOPlaceholder(q, afterEl);});
+}
+
+// 2026-05-27: when no SO has been generated yet for this quote, show a
+// gentle placeholder card explaining what'll appear here. Adapts copy to
+// the quote's current state — "submit PO first" vs "team is preparing"
+// vs "awaiting confirmation."
+function _renderSOPlaceholder(q, afterEl){
+  if(!afterEl || !afterEl.parentNode)return;
+  // Don't duplicate the placeholder if it's already on screen
+  if(document.getElementById('soPlaceholderCard'))return;
+  var headline, body, icon;
+  if(!q.poNumber){
+    headline='Sales Order will appear here';
+    body='Once you submit your PO above, we\'ll review and generate your sales order. It\'ll show up here for you to view, download, and sign.';
+    icon='📋';
+  } else if(!q.poConfirmedBy){
+    headline='Your PO is being reviewed';
+    body='Thanks for your purchase order. Our team is confirming the details — your sales order will be generated and posted here shortly.';
+    icon='⏳';
+  } else {
+    headline='Generating your sales order';
+    body='Your PO is confirmed. We\'re preparing the sales order document — it\'ll appear here in a moment.';
+    icon='⚙️';
+  }
+  var ph=document.createElement('div');
+  ph.id='soPlaceholderCard';
+  ph.className='section';
+  ph.style.cssText='padding:0;background:transparent;border:none';
+  ph.innerHTML='<div style="background:var(--card);border:1px dashed var(--border-lt);border-radius:10px;padding:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
+    +'<div style="font-size:36px;line-height:1;flex-shrink:0">'+icon+'</div>'
+    +'<div style="flex:1;min-width:200px">'
+    +'<div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:2px;margin-bottom:4px">SALES ORDER</div>'
+    +'<div style="font-size:15px;color:var(--h1);font-weight:700;margin-bottom:6px">'+escPortal(headline)+'</div>'
+    +'<div style="font-size:12px;color:var(--sub);line-height:1.5">'+escPortal(body)+'</div>'
+    +'</div></div>';
+  afterEl.parentNode.insertBefore(ph, afterEl.nextSibling);
 }
 
 function _renderSOBlock(soDoc,afterEl){
@@ -1518,24 +1626,195 @@ function buildPortalSOHTML(so,soId){
     h+='<div style="padding:10px 24px;background:#fffbea;border-bottom:1px solid #e8ecf0;font-size:10px;color:#8B6914;text-align:center;font-weight:600">Deposit required — payment link will be provided shortly.</div>';
   }
 
-  // Signing surface — Google Doc that the client edits to sign.
-  // Server-created on PO submit (createSOSigningDoc in functions/index.js).
-  // Shown above PDF because signing is the actionable step.
-  if(so.signingDocLink){
-    var signed=!!so.clientSignedAt;
-    h+='<div style="padding:18px 24px;background:'+(signed?'#f0fdf4':'#fef3c7')+';border-top:2px solid '+(signed?'#16a34a':'#f59e0b')+';border-bottom:1px solid '+(signed?'#d1fae5':'#fde68a')+';text-align:center">'
-     +'<div style="font-size:10px;color:'+(signed?'#15803d':'#92400e')+';font-weight:800;letter-spacing:2px;margin-bottom:10px">'+(signed?'✓ SIGNED · '+escPortal(_fD(so.clientSignedAt)):'✍ ACTION REQUIRED — SIGN YOUR SALES ORDER')+'</div>'
-     +'<a href="'+escPortal(so.signingDocLink)+'" target="_blank" rel="noopener" style="display:inline-block;padding:12px 28px;background:'+(signed?'#16a34a':'#f59e0b')+';color:#fff;font-size:13px;font-weight:700;border-radius:6px;text-decoration:none">'+(signed?'View Signed Order':'Open & Sign in Google Drive')+'</a>'
-     +'<div style="font-size:10px;color:'+(signed?'#15803d':'#92400e')+';margin-top:8px;line-height:1.5">'+(signed?'Your signed copy is saved in your Sales Order folder.':'Opens in Google Docs. Type your name + date in the signature lines, then save.')+'</div>'
+  // ─── Artwork Proof surface ──────────────────────────────────────────
+  // 2026-05-27: pre-press uploads a proof PDF/image (artworkProofUrl on the
+  // SO doc). Client reviews here and either approves (typed-name signature)
+  // or requests revisions. Approval flips artworkApproved=true on the doc,
+  // which is what the Shipping/Production status pills key off to flip from
+  // PENDING to SCHEDULING/IN QUEUE. Three states surface here:
+  //   1. No proof uploaded yet → small "waiting on proof" note (skipped if
+  //      so.artworkProofUrl is empty)
+  //   2. Proof uploaded, awaiting approval → iframe preview + buttons
+  //   3. Approved → green confirmation with signer + version
+  //   4. Revisions requested → amber state showing the request note
+  if(so.artworkProofUrl){
+    var artVersion = so.artworkProofVersion || 1;
+    var artUploadedAt = so.artworkProofUploadedAt ? _fD(so.artworkProofUploadedAt) : '';
+    if(so.artworkApproved){
+      // Approved — green confirmation
+      h+='<div style="padding:18px 24px;background:#f0fdf4;border-top:2px solid #16a34a;border-bottom:1px solid #d1fae5;text-align:center">'
+       +'<div style="font-size:10px;color:#15803d;font-weight:800;letter-spacing:2px;margin-bottom:6px">✓ ARTWORK APPROVED · V'+escPortal(String(artVersion))+'</div>'
+       +'<div style="font-size:14px;color:#0a2030;font-weight:700;margin-bottom:4px">Approved by '+escPortal(so.artworkApprovedBy||'—')+'</div>'
+       +'<div style="font-size:11px;color:#15803d;line-height:1.5">on '+escPortal(_fD(so.artworkApprovedAt))+' · Production will begin shortly.</div>'
+       +'<a href="'+escPortal(so.artworkProofUrl)+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;padding:8px 18px;background:transparent;color:#15803d;font-size:11px;font-weight:700;border:1px solid #16a34a;border-radius:5px;text-decoration:none">View Approved Proof</a>'
+       +'</div>';
+    } else if(so.artworkRevisionRequestedAt && (!so.artworkProofUploadedAt || new Date(so.artworkRevisionRequestedAt) >= new Date(so.artworkProofUploadedAt))){
+      // Revisions requested on the current version, pre-press hasn't uploaded a newer one yet
+      h+='<div style="padding:18px 24px;background:#fef3c7;border-top:2px solid #f59e0b;border-bottom:1px solid #fde68a">'
+       +'<div style="font-size:10px;color:#92400e;font-weight:800;letter-spacing:2px;margin-bottom:6px;text-align:center">⟳ REVISIONS REQUESTED · V'+escPortal(String(artVersion))+'</div>'
+       +'<div style="font-size:12px;color:#5a4a28;text-align:center;margin-bottom:10px">You\'ve asked for changes to this proof. Our pre-press team is working on the next version.</div>'
+       +(so.artworkRevisionNote?'<div style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:10px 14px;max-width:480px;margin:0 auto"><div style="font-size:9px;color:#92400e;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Your Notes</div><div style="font-size:12px;color:#0a2030;line-height:1.5">'+escPortal(so.artworkRevisionNote)+'</div></div>':'')
+       +'<div style="text-align:center;margin-top:10px"><a href="'+escPortal(so.artworkProofUrl)+'" target="_blank" rel="noopener" style="font-size:10px;color:#92400e;text-decoration:underline">View original proof v'+escPortal(String(artVersion))+'</a></div>'
+       +'</div>';
+    } else {
+      // Awaiting approval — inline preview + buttons
+      h+='<div style="padding:18px 24px;background:#fef3c7;border-top:2px solid #f59e0b;border-bottom:1px solid #fde68a">'
+       +'<div style="font-size:10px;color:#92400e;font-weight:800;letter-spacing:2px;margin-bottom:6px;text-align:center">🎨 ARTWORK PROOF · V'+escPortal(String(artVersion))+' · REVIEW & APPROVE</div>'
+       +'<div style="font-size:13px;color:#0a2030;font-weight:600;margin-bottom:12px;text-align:center;line-height:1.4">Review the proof below, then either approve to send to production or request revisions.'+(artUploadedAt?' Uploaded '+escPortal(artUploadedAt)+'.':'')+'</div>'
+       // Embedded preview — iframe for PDFs, img tag fallback for image URLs.
+       // Client can also click "Open Proof in New Tab" if the iframe is awkward
+       // on mobile. Drive-hosted previews work fine in iframes thanks to
+       // Google's /preview viewer URLs (recommend uploading with /preview path).
+       +'<div style="background:#fff;border:1.5px solid #fde68a;border-radius:6px;overflow:hidden;margin-bottom:12px;max-width:560px;margin-left:auto;margin-right:auto">'
+       +'<iframe src="'+escPortal(so.artworkProofUrl)+'" style="width:100%;height:420px;border:none;display:block" title="Artwork proof v'+escPortal(String(artVersion))+'"></iframe>'
+       +'</div>'
+       +'<div style="text-align:center;margin-bottom:14px"><a href="'+escPortal(so.artworkProofUrl)+'" target="_blank" rel="noopener" style="font-size:11px;color:#92400e;text-decoration:underline">Open proof in new tab ↗</a></div>'
+
+       // Approve form — typed-name + checkbox + button (matches SO sign flow)
+       +'<div style="max-width:420px;margin:0 auto">'
+       +'<div style="background:#fff;border:1.5px solid #f59e0b;border-radius:6px;padding:12px 14px;margin-bottom:10px">'
+       +'<div style="font-size:9px;color:#92400e;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Approve This Proof</div>'
+       +'<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">'
+       +'<input type="checkbox" id="artApproveCheck" style="width:16px;height:16px;accent-color:#16a34a;flex-shrink:0;margin-top:2px">'
+       +'<span style="font-size:11px;color:#5a4a28;line-height:1.5">I\'ve reviewed this artwork and confirm it\'s correct. I authorize Microflex to proceed with production.</span>'
+       +'</label>'
+       +'<input id="artSigInput" type="text" placeholder="Type your full name to approve" style="width:100%;background:transparent;border:none;border-bottom:2px solid #fde68a;padding:8px 0 4px;font-size:18px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:#0a2030;outline:none;box-sizing:border-box">'
+       +'<button id="artApproveBtn" disabled onclick="approveArtwork(\''+escPortal(soId)+'\')" style="width:100%;margin-top:10px;padding:12px;background:#16a34a;color:#fff;font-size:13px;font-weight:800;font-family:Outfit,sans-serif;border:none;border-radius:6px;cursor:pointer;letter-spacing:.5px;opacity:.5;transition:opacity .15s">✓ Approve Artwork & Start Production</button>'
+       +'</div>'
+
+       // Request revisions — toggle-open form
+       +'<div style="text-align:center"><button onclick="toggleArtRevisionForm()" id="artRevisionToggle" style="background:transparent;border:none;color:#92400e;font-size:11px;font-weight:600;text-decoration:underline;cursor:pointer;padding:6px">Need changes? Request revisions</button></div>'
+       +'<div id="artRevisionForm" style="display:none;margin-top:8px;background:#fff;border:1.5px solid #fde68a;border-radius:6px;padding:12px 14px">'
+       +'<div style="font-size:9px;color:#92400e;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">What needs to change?</div>'
+       +'<textarea id="artRevisionNote" placeholder="e.g. Logo color should be PMS 286, not 285. Move barcode 1/8&quot; left." style="width:100%;min-height:80px;background:transparent;border:1px solid #fde68a;border-radius:4px;padding:8px;font-size:12px;color:#0a2030;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none"></textarea>'
+       +'<button onclick="requestArtworkRevision(\''+escPortal(soId)+'\')" style="width:100%;margin-top:8px;padding:10px;background:#f59e0b;color:#fff;font-size:12px;font-weight:700;border:none;border-radius:5px;cursor:pointer">Send Revision Request</button>'
+       +'</div>'
+       +'</div>'
+       +'</div>';
+      // Enable the Approve button when both name + checkbox are set
+      setTimeout(function(){
+        var btn=document.getElementById('artApproveBtn');
+        var chk=document.getElementById('artApproveCheck');
+        var sig=document.getElementById('artSigInput');
+        if(btn && chk && sig){
+          var refresh=function(){btn.disabled=!(chk.checked && sig.value && sig.value.trim().length>0); btn.style.opacity=btn.disabled?'.5':'1'};
+          chk.addEventListener('change',refresh);
+          sig.addEventListener('input',refresh);
+          refresh();
+        }
+      },50);
+    }
+  }
+
+  // ─── Signatures block ───────────────────────────────────────────────
+  // 2026-05-27: dual-signature card showing both parties side-by-side. CEO
+  // half fills in the moment autoCreateSO runs (Moises Santillan auto-sign).
+  // Customer half stays "Awaiting" until they sign via the form below. This
+  // gives both sides a "complete signed copy" view once both halves are
+  // filled, on portal AND in the staff editor (same render function).
+  var _ceoSigned = !!so.ceoSignedAt;
+  var _ceoName = so.ceoSignedBy || 'Moises Santillan';
+  var _ceoSig = so.ceoSignature || _ceoName;
+  var _clientSigned = !!so.clientSignedAt;
+  h+='<div style="padding:18px 24px;background:#fafbfc;border-top:1px solid #e8ecf0;border-bottom:1px solid #e8ecf0">'
+   +'<div style="font-size:9px;color:#0a2e3e;font-weight:800;letter-spacing:2.5px;margin-bottom:12px;text-align:center">SIGNATURES</div>'
+   +'<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:separate"><tr>'
+     // CEO half
+     +'<td style="vertical-align:top;width:50%;padding:0 6px 0 0">'
+       +'<div style="background:#fff;border:1.5px solid '+(_ceoSigned?'#16a34a':'#dce2e8')+';border-radius:8px;padding:12px 14px;min-height:110px">'
+         +'<div style="font-size:8px;color:'+(_ceoSigned?'#15803d':'#94a3b0')+';font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Microflex / CEO'+(_ceoSigned?' · ✓ SIGNED':'')+'</div>'
+         +(_ceoSigned
+           ? '<div style="font-size:22px;font-family:Outfit,sans-serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:6px;line-height:1.2">'+escPortal(_ceoSig)+'</div>'
+             +'<div style="font-size:11px;color:#0a2030;font-weight:600">'+escPortal(_ceoName)+'</div>'
+             +'<div style="font-size:9px;color:#15803d">Approved on '+escPortal(_fD(so.ceoSignedAt))+'</div>'
+           : '<div style="font-size:11px;color:#94a3b0;font-style:italic;padding:18px 0;text-align:center">Awaiting CEO sign-off</div>')
+       +'</div>'
+     +'</td>'
+     // Client half
+     +'<td style="vertical-align:top;width:50%;padding:0 0 0 6px">'
+       +'<div style="background:#fff;border:1.5px solid '+(_clientSigned?'#16a34a':'#dce2e8')+';border-radius:8px;padding:12px 14px;min-height:110px">'
+         +'<div style="font-size:8px;color:'+(_clientSigned?'#15803d':'#94a3b0')+';font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Customer / Authorized Signatory'+(_clientSigned?' · ✓ SIGNED':'')+'</div>'
+         +(_clientSigned
+           ? '<div style="font-size:22px;font-family:Outfit,sans-serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:6px;line-height:1.2">'+escPortal(so.clientSignature||'—')+'</div>'
+             +'<div style="font-size:11px;color:#0a2030;font-weight:600">'+escPortal(so.clientSignature||'—')+'</div>'
+             +'<div style="font-size:9px;color:#15803d">Signed on '+escPortal(_fD(so.clientSignedAt))+(so.clientEmail?' · '+escPortal(so.clientEmail):'')+'</div>'
+           : '<div style="font-size:11px;color:#94a3b0;font-style:italic;padding:18px 0;text-align:center">Awaiting your signature — sign below</div>')
+       +'</div>'
+     +'</td>'
+   +'</tr></table>'
+   +(_ceoSigned && _clientSigned ? '<div style="margin-top:10px;text-align:center;font-size:10px;color:#15803d;font-weight:700;letter-spacing:1px">✓ FULLY EXECUTED — both signatures on file</div>' : '')
+   +'</div>';
+
+  // ─── Signing surface — inline typed-name signature (client only) ────
+  // The CEO half is already filled in above. This block handles the
+  // CLIENT'S signature collection: typed-name field + Approve checkbox +
+  // Sign button. Writes clientSignature/clientSignedAt/clientEmail/
+  // clientApproved to the SO doc. Once stamped, the Signatures block
+  // above shows both halves filled in ("Fully Executed").
+  var signed=!!so.clientSignedAt;
+  var soState=clientSOStatus(so);
+  var readyToSign=(String(so.status||'').toLowerCase()==='approved'||String(so.status||'').toLowerCase()==='sent') && !signed;
+  if(signed){
+    // No-op — the Signatures block above already shows the signed state
+    // for both parties. Nothing to render here.
+  } else if(readyToSign){
+    // Inline sign UI — typed name + approve checkbox + sign button
+    h+='<div style="padding:18px 24px;background:#fef3c7;border-top:2px solid #f59e0b;border-bottom:1px solid #fde68a">'
+     +'<div style="font-size:10px;color:#92400e;font-weight:800;letter-spacing:2px;margin-bottom:6px;text-align:center">✍ '+escPortal(soState.label)+'</div>'
+     +'<div style="font-size:13px;color:#0a2030;font-weight:600;margin-bottom:14px;text-align:center;line-height:1.4">Review the order above, then type your full name to sign.</div>'
+     +'<div style="max-width:420px;margin:0 auto">'
+     +'<label style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:rgba(255,255,255,.6);border:1px solid rgba(245,158,11,.4);border-radius:6px;cursor:pointer;margin-bottom:10px">'
+     +'<input type="checkbox" id="soApproveCheck" style="width:16px;height:16px;accent-color:#f59e0b;flex-shrink:0;margin-top:2px" onchange="document.getElementById(\'soApproveBtn\').disabled=!(this.checked && (document.getElementById(\'soSigInput\')||{}).value && document.getElementById(\'soSigInput\').value.trim().length>0)">'
+     +'<span style="font-size:11px;color:#5a4a28;line-height:1.5">I authorize Microflex Film Corporation to proceed with this order at the quantity, pricing, and specifications shown above. I confirm payment terms of <strong>'+escPortal(so.payTerms||'Net 30')+'</strong> and acknowledge the standard terms below.</span>'
+     +'</label>'
+     +'<div style="background:#fff;border:1.5px solid #f59e0b;border-radius:6px;padding:10px 14px;margin-bottom:12px">'
+     +'<div style="font-size:9px;color:#92400e;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Type Your Full Name to Sign</div>'
+     +'<input id="soSigInput" type="text" placeholder="e.g. Jane Smith" style="width:100%;background:transparent;border:none;border-bottom:2px solid #fde68a;padding:8px 0 4px;font-size:20px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:#0a2030;outline:none" oninput="document.getElementById(\'soApproveBtn\').disabled=!((document.getElementById(\'soApproveCheck\')||{}).checked && this.value && this.value.trim().length>0)">'
+     +'<div style="font-size:9px;color:#92400e;margin-top:6px">Signed on '+escPortal(new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}))+(CLIENT_EMAIL?' · '+escPortal(CLIENT_EMAIL):'')+'</div>'
+     +'</div>'
+     +'<button id="soApproveBtn" disabled onclick="submitSOApproval(\''+escPortal(soId)+'\')" style="width:100%;padding:14px;background:#f59e0b;color:#fff;font-size:14px;font-weight:800;font-family:Outfit,sans-serif;border:none;border-radius:6px;cursor:pointer;letter-spacing:.5px;opacity:.5;transition:opacity .15s">Sign Sales Order</button>'
+     +(so.signingDocLink?'<div style="text-align:center;margin-top:10px"><a href="'+escPortal(so.signingDocLink)+'" target="_blank" rel="noopener" style="font-size:10px;color:#92400e;text-decoration:underline">Prefer to review the full Google Doc first? Open in Drive</a></div>':'')
+     +'</div>'
+     +'</div>';
+    // Enable the sign button when both conditions are met (the inline oninput handles this).
+    // Also patch the button enable logic to look at the checked state immediately.
+    setTimeout(function(){
+      var btn=document.getElementById('soApproveBtn');
+      var chk=document.getElementById('soApproveCheck');
+      var sig=document.getElementById('soSigInput');
+      if(btn && chk && sig){
+        var refresh=function(){btn.disabled=!(chk.checked && sig.value && sig.value.trim().length>0); btn.style.opacity=btn.disabled?'.5':'1'};
+        chk.addEventListener('change',refresh);
+        sig.addEventListener('input',refresh);
+        refresh();
+      }
+    },50);
+  } else {
+    // Pre-approval state — surface the current lifecycle status, no action available yet
+    h+='<div style="padding:18px 24px;background:#f5f7f9;border-top:2px solid '+soState.color+';border-bottom:1px solid #e8ecf0;text-align:center">'
+     +'<div style="font-size:10px;color:'+soState.color+';font-weight:800;letter-spacing:2px;margin-bottom:6px">⏳ '+escPortal(soState.label)+'</div>'
+     +'<div style="font-size:12px;color:#4a5a68;line-height:1.5;max-width:480px;margin:0 auto">Your sales order is being prepared by the Microflex team. You\'ll be able to sign it here once it\'s ready for your approval. We\'ll email you when it\'s your turn.</div>'
      +'</div>';
   }
 
-  // PDF download — only when a Drive link is present (server-set by saveSalesOrderPDF)
+  // PDF download — primary path uses the Drive link (server-set by
+  // saveSalesOrderPDF when staff sends the SO). Fallback path prints this
+  // very SO block to PDF via the browser's Save-as-PDF, so the customer
+  // always has a way to download even before staff has hit Send.
   if(so.driveLink){
     h+='<div style="padding:14px 24px;background:#f0fdf4;border-top:1px solid #d1fae5;border-bottom:1px solid #d1fae5;text-align:center">'
      +'<div style="font-size:9px;color:#15803d;font-weight:700;letter-spacing:1.5px;margin-bottom:8px">📄 SALES ORDER PDF AVAILABLE</div>'
+     +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">'
      +'<a href="'+escPortal(so.driveLink)+'" target="_blank" rel="noopener" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;border-radius:6px;text-decoration:none">Download Sales Order PDF</a>'
+     +'<button onclick="printPortalSO()" style="padding:10px 18px;background:transparent;color:#15803d;font-size:12px;font-weight:700;border:1px solid #16a34a;border-radius:6px;cursor:pointer">🖨 Print / Save as PDF</button>'
+     +'</div>'
      +'<div style="font-size:9px;color:#16a34a;margin-top:6px">Opens '+escPortal(so.soNum||'SO')+' in Google Drive</div>'
+     +'</div>';
+  } else {
+    h+='<div style="padding:14px 24px;background:#f0fdf4;border-top:1px solid #d1fae5;border-bottom:1px solid #d1fae5;text-align:center">'
+     +'<div style="font-size:9px;color:#15803d;font-weight:700;letter-spacing:1.5px;margin-bottom:8px">📄 DOWNLOAD YOUR SALES ORDER</div>'
+     +'<button onclick="printPortalSO()" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;font-size:12px;font-weight:700;border-radius:6px;border:none;cursor:pointer">🖨 Print / Save as PDF</button>'
+     +'<div style="font-size:9px;color:#16a34a;margin-top:6px">Opens your browser\'s print dialog — choose "Save as PDF" to download '+escPortal(so.soNum||'SO')+'</div>'
      +'</div>';
   }
 
@@ -1550,6 +1829,138 @@ function buildPortalSOHTML(so,soId){
 }
 
 // Submit SO client approval from portal
+// Print-to-PDF fallback for the SO block. Adds a <style> rule that hides
+// everything except the rendered SO card during print, calls window.print()
+// (browser shows Save-as-PDF in the destination dropdown), then cleans up.
+// Used both when so.driveLink is missing AND as a secondary option alongside
+// the Drive download.
+// ─── Artwork approval handlers ─────────────────────────────────────
+function toggleArtRevisionForm(){
+  var form=document.getElementById('artRevisionForm');
+  var toggle=document.getElementById('artRevisionToggle');
+  if(!form)return;
+  var willShow=form.style.display==='none';
+  form.style.display=willShow?'block':'none';
+  if(toggle)toggle.textContent=willShow?'Cancel revision request':'Need changes? Request revisions';
+}
+
+function approveArtwork(soId){
+  var sigEl=document.getElementById('artSigInput');
+  var chkEl=document.getElementById('artApproveCheck');
+  var btn=document.getElementById('artApproveBtn');
+  if(!sigEl||!sigEl.value.trim()){alert('Please type your name to approve');return}
+  if(!chkEl||!chkEl.checked){alert('Please check the authorization box');return}
+  var sig=sigEl.value.trim();
+  if(btn){btn.textContent='Approving…';btn.disabled=true}
+  var now=new Date().toISOString();
+  db.collection('salesOrders').doc(soId).update({
+    artworkApproved:true,
+    artworkApprovedAt:now,
+    artworkApprovedBy:sig,
+    updatedAt:now
+  }).then(function(){
+    // Log a portal message so staff sees it in the comms thread
+    if(QUOTE_ID){
+      db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').add({
+        text:'Artwork proof approved by '+sig+'. Production cleared to begin.',
+        name:CLIENT_EMAIL||'Client', from:'client',
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    }
+    if(btn){btn.textContent='Approved ✓';btn.style.background='#22c55e'}
+    // Re-render the SO block so the surface flips to the approved state
+    if(typeof renderPortalSOSection==='function'&&QUOTE_DATA){
+      // Refresh from server — local SO copy is stale
+      setTimeout(function(){
+        var anchor=document.querySelector('.section:last-of-type')||document.querySelector('.wrap');
+        // Remove any existing rendered SO block so renderPortalSOSection doesn't duplicate
+        document.querySelectorAll('.section').forEach(function(s){
+          if(s.querySelector('[style*="ARTWORK PROOF"]')||s.querySelector('[style*="ARTWORK APPROVED"]'))s.remove();
+        });
+        renderPortalSOSection(QUOTE_DATA, anchor);
+      },500);
+    }
+  }).catch(function(e){
+    console.error('[approveArtwork]',e);
+    if(btn){btn.textContent='Error — Try Again';btn.disabled=false;btn.style.background='#ef4444'}
+    var msg=e&&e.message?e.message:String(e);
+    if(/permission/i.test(msg)){
+      alert('Approval failed: your signed-in email doesn\'t match the order.\n\nSigned in as: '+(CLIENT_EMAIL||'(none)')+'\n\nReach out to quotes@microflexfilm.com to fix.');
+    } else {
+      alert('Approval failed: '+msg);
+    }
+  });
+}
+
+function requestArtworkRevision(soId){
+  var noteEl=document.getElementById('artRevisionNote');
+  if(!noteEl||!noteEl.value.trim()){alert('Please describe what needs to change');return}
+  var note=noteEl.value.trim();
+  var now=new Date().toISOString();
+  db.collection('salesOrders').doc(soId).update({
+    artworkRevisionRequestedAt:now,
+    artworkRevisionNote:note,
+    artworkRevisionRequestedBy:CLIENT_EMAIL||'Client',
+    artworkApproved:false,
+    updatedAt:now
+  }).then(function(){
+    if(QUOTE_ID){
+      db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').add({
+        text:'Revision requested on artwork proof: '+note,
+        name:CLIENT_EMAIL||'Client', from:'client',
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    }
+    // Re-render to flip surface to "Revisions Requested" state
+    if(typeof renderPortalSOSection==='function'&&QUOTE_DATA){
+      setTimeout(function(){
+        var anchor=document.querySelector('.section:last-of-type')||document.querySelector('.wrap');
+        document.querySelectorAll('.section').forEach(function(s){
+          if(s.querySelector('[style*="ARTWORK PROOF"]')||s.querySelector('[style*="REVISIONS REQUESTED"]'))s.remove();
+        });
+        renderPortalSOSection(QUOTE_DATA, anchor);
+      },500);
+    }
+  }).catch(function(e){
+    console.error('[requestArtworkRevision]',e);
+    alert('Could not send revision request: '+(e&&e.message?e.message:String(e)));
+  });
+}
+
+function printPortalSO(){
+  // Find the inline SO card — wrapped in a .section by _renderSOBlock
+  var soCard=document.querySelector('.section [style*="background:#fff"]');
+  if(!soCard){
+    // Fallback — try the parent section
+    soCard=Array.prototype.find.call(document.querySelectorAll('.section'),function(el){return el.querySelector('table') && /SALES ORDER/.test(el.textContent);});
+  }
+  if(!soCard){
+    alert('Could not find the sales order to print. Please refresh and try again.');
+    return;
+  }
+  // Tag the card with a unique id and inject a print stylesheet that hides
+  // everything else on the page. Cleanup happens in onafterprint.
+  var printId='mfx-print-target-'+Date.now();
+  soCard.setAttribute('data-print-id',printId);
+  var style=document.createElement('style');
+  style.id='mfx-print-style-'+printId;
+  style.textContent='@media print {'
+    +'  body * { visibility: hidden !important; }'
+    +'  [data-print-id="'+printId+'"], [data-print-id="'+printId+'"] * { visibility: visible !important; }'
+    +'  [data-print-id="'+printId+'"] { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }'
+    +'  #staffPreviewBanner, .hdr, .portal-footer { display: none !important; }'
+    +'}';
+  document.head.appendChild(style);
+  var cleanup=function(){
+    try{ soCard.removeAttribute('data-print-id'); }catch(_){}
+    try{ style.remove(); }catch(_){}
+    window.removeEventListener('afterprint',cleanup);
+  };
+  window.addEventListener('afterprint',cleanup);
+  // Small delay so the style applies before print() captures the page
+  setTimeout(function(){ window.print(); }, 50);
+}
+
 function submitSOApproval(soId){
   var sigInput=document.getElementById('soSigInput');
   if(!sigInput||!sigInput.value.trim()){alert('Please type your name to sign');return}
@@ -1585,24 +1996,30 @@ function submitSOApproval(soId){
 }
 
 // ─── Portal Messages ───
+// 2026-05-27 (restored): in-portal messenger thread lives alongside the
+// email CTA. System events (PO submit, artwork published, etc.) flow
+// through here too, rendered with a distinct dashed style so clients can
+// tell them apart from human messages.
 function loadMessages(){
   if(!QUOTE_ID)return;
   db.collection('quotes').doc(QUOTE_ID).collection('portalMessages').orderBy('timestamp','asc').onSnapshot(function(snap){
     var el=document.getElementById('msgThread');if(!el)return;
     el.innerHTML='';
+    if(snap.empty){
+      el.innerHTML='<div style="text-align:center;padding:20px;color:var(--sub);font-size:11px;line-height:1.5">No messages yet. Send us a note below or email quotes@microflexfilm.com.</div>';
+      return;
+    }
     snap.docs.forEach(function(doc){
       var m=doc.data();
       var isClient=m.from==='client';
       var isSystem=m.from==='system';
       var div=document.createElement('div');
       div.className='msg '+(isSystem?'system':(isClient?'client':'mfx'));
-      var who=isSystem?'System':(isClient?'Client':'Microflex');
+      var who=isSystem?'System':(isClient?'You':'Microflex');
       var time=m.timestamp?new Date(m.timestamp.toDate()).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
       if(isSystem){
-        // Compact, distinct rendering for automated events (file drops, signing, etc.)
         div.style.cssText='background:rgba(0,229,255,.06);border:1px dashed rgba(0,229,255,.3);border-radius:6px;padding:8px 12px;margin:6px 0;font-size:11px;color:var(--sub)';
         div.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1.5px;margin-bottom:3px">SYSTEM · '+escPortal(time)+'</div>'+escPortal(m.text);
-        // If it's a folder_drop, render file names as a compact list
         if(m.type==='folder_drop'&&Array.isArray(m.fileNames)&&m.fileNames.length){
           var list='<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">';
           m.fileNames.slice(0,8).forEach(function(n){
@@ -1629,7 +2046,9 @@ function sendPortalMessage(){
     name:CLIENT_EMAIL||'Client',
     from:'client',
     timestamp:firebase.firestore.FieldValue.serverTimestamp()
-  }).then(function(){input.value='';});
+  }).then(function(){input.value='';}).catch(function(e){
+    alert('Could not send: '+(e&&e.message?e.message:String(e)));
+  });
 }
 
 // ─── Submit PO ───
@@ -1751,6 +2170,17 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 
 <div class="wrap">
 
+<!-- BACK-TO-WORKSPACE NAV — visible on every quote view so clients can
+     jump back to their dashboard of all quotes/SOs. Rendered as a clean
+     subtle row, not a button so it doesn't compete with primary CTAs. -->
+<div id="portalNavRow" style="display:none;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;font-size:11px;color:var(--sub);flex-wrap:wrap">
+  <a href="?" onclick="event.preventDefault();portalBackToWorkspace()" style="color:var(--accent);text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    Back to your workspace
+  </a>
+  <span style="font-size:10px;color:var(--sub)">Signed in as <strong style="color:var(--h1)" id="portalNavEmail"></strong></span>
+</div>
+
 <!-- STATUS BANNER -->
 <div class="status">
 <div class="status-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
@@ -1840,12 +2270,17 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 </div>
 </div>
 
-<!-- MESSAGES -->
+<!-- MESSAGES + EMAIL CTA — restored 2026-05-27 after round 26 removal.
+     Inline thread is the primary surface for quick back-and-forth; email
+     CTA stays as a secondary path for clients who prefer their inbox. -->
 <div class="section">
 <h3>Messages</h3>
-<div class="msg-thread" id="msgThread"></div>
+<div class="msg-thread" id="msgThread" style="max-height:280px;overflow-y:auto"></div>
 <div class="field" style="margin-top:10px"><textarea id="portalMsgInput" placeholder="Type a message to the Microflex team..." rows="3"></textarea>
 <div style="text-align:right;margin-top:6px"><button onclick="sendPortalMessage()" style="background:var(--accent);border:none;color:#060d14;padding:8px 20px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">Send Message</button></div></div>
+<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--sub);text-align:center;line-height:1.5">
+  Prefer email? Reach us anytime at <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent);text-decoration:none;font-weight:600">quotes@microflexfilm.com</a> — include your quote or SO number in the subject.
+</div>
 </div>
 
 <!-- ACCEPTANCE + SIGNATURE -->

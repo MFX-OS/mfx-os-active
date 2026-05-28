@@ -1,5 +1,16 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { defineSecret } = require("firebase-functions/params");
+
+// 2026-05-27: Gmail service account JSON for domain-wide-delegated sends
+// (info/flex@microflexfilm.com via gmail.send scope). Set with:
+//   firebase functions:secrets:set GMAIL_SERVICE_ACCOUNT_JSON
+// Then paste the entire service-account JSON file when prompted. Any
+// function that uses sendDelegatedEmail() or getDelegatedGmailClient()
+// must include this secret in its options.secrets list so the runtime
+// injects it into process.env at cold start.
+const GMAIL_SA_SECRET = defineSecret("GMAIL_SERVICE_ACCOUNT_JSON");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
@@ -237,7 +248,7 @@ async function sendDelegatedEmail({ from, to, bcc, subject, html, replyTo }) {
 // Build the SO confirmation email HTML — branded, matches Quote look-and-feel.
 // Leads with the "Sign in Google Drive" CTA when signingDocLink is available
 // (the auto-flow always tries to create one). Portal link is the backup path.
-function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, selectedQty, ppu, total, payTerms, portalUrl, signingDocLink }) {
+function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, selectedQty, ppu, total, payTerms, portalUrl, signingDocLink, ceoSignedBy, ceoSignedAt }) {
   const fmt$ = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtN = (n) => Number(n || 0).toLocaleString();
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
@@ -251,9 +262,17 @@ function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, 
     <p style="color:#334155;font-size:13px;line-height:1.6;margin:0 0 20px">
       Thank you for your purchase order. We've created Sales Order
       <strong style="color:#0a1929">${soNum}</strong> from your accepted quote
-      <strong>${quoteNum || ""}</strong>. <strong>Please review and sign</strong>
-      to lock in pricing and lead time.
+      <strong>${quoteNum || ""}</strong>${ceoSignedBy ? `, already signed by <strong>${ceoSignedBy}</strong> on behalf of Microflex` : ""}.
+      <strong>Please review and countersign</strong> to lock in pricing and lead time.
     </p>
+    ${ceoSignedBy ? `<div style="background:#f0fdf4;border:1px solid #d1fae5;border-radius:6px;padding:14px 18px;margin:0 0 20px;display:flex;align-items:center;gap:14px">
+      <div style="font-size:24px;line-height:1">✓</div>
+      <div style="flex:1">
+        <div style="color:#15803d;font-size:10px;font-weight:700;letter-spacing:1.5px">SIGNED BY MICROFLEX</div>
+        <div style="font-size:18px;font-family:Georgia,serif;font-style:italic;color:#0a1929;font-weight:700;line-height:1.2;margin-top:2px">${ceoSignedBy}</div>
+        <div style="color:#15803d;font-size:10px;margin-top:2px">${ceoSignedAt ? new Date(ceoSignedAt).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : ""}</div>
+      </div>
+    </div>` : ""}
     ${signingDocLink ? `<div style="background:#f0fdf4;border:1.5px solid #16a34a;border-radius:8px;padding:20px;margin:0 0 24px;text-align:center">
       <div style="color:#15803d;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:8px">SIGN IN GOOGLE DRIVE</div>
       <a href="${signingDocLink}" style="background:#16a34a;color:#ffffff;padding:14px 36px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block">Open & Sign Sales Order</a>
@@ -1557,7 +1576,7 @@ exports.transitionStatus = onRequest(
             const portalUrl = so.quoteId
               ? `${portalHost}/portal.html?quoteId=${encodeURIComponent(so.quoteId)}&email=${encodeURIComponent(so.email)}`
               : portalHost;
-            const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+            const senderMailbox = process.env.SO_FROM_MAILBOX || "flex@microflexfilm.com";
             const html = buildSOConfirmationEmail({
               soNum: so.soNum,
               quoteNum: so.quoteNum || "",
@@ -1569,7 +1588,9 @@ exports.transitionStatus = onRequest(
               total: so.total || 0,
               payTerms: so.payTerms || "Net 30",
               portalUrl,
-              signingDocLink
+              signingDocLink,
+              ceoSignedBy: so.ceoSignedBy,
+              ceoSignedAt: so.ceoSignedAt
             });
             const msgId = await sendDelegatedEmail({
               from: senderMailbox,
@@ -1819,6 +1840,116 @@ exports.portalSubmitPO = onRequest(
     } catch (err) {
       console.error("portalSubmitPO error", err);
       sendJson(res, 500, { error: err.message });
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// PORTAL EMAIL BACKFILL — one-shot maintenance endpoint (2026-05-27)
+// Walks /quotes and stamps poClientEmail = lowercased fields.custEmail
+// (or existing poClientEmail) wherever it's missing or mixed-case.
+// Need: Firestore queries are exact-case but Firebase Auth normalizes
+// magic-link emails to lowercase, so quotes stored with mixed-case
+// emails were invisible on the client portal even though firestore.rules
+// .lower()-matches at read time. Run this once after deploy; idempotent.
+// ═══════════════════════════════════════════════════════════════════
+exports.backfillPortalEmails = onRequest(
+  { memory: "512MiB", timeoutSeconds: 540, cors: ["https://mfx-2026.web.app","https://mfx-2026.firebaseapp.com","http://localhost:5000"] },
+  async (req, res) => {
+    if (!ensurePost(req, res)) return;
+    const actor = await requireInternalUser(req, res);
+    if (!actor) return;
+    const dryRun = !!(req.body && req.body.dryRun);
+    const batchSize = 400;
+    let scanned = 0, updated = 0, skipped = 0, lastDocId = null;
+    const samples = [];
+    try {
+      let query = db.collection("quotes").orderBy("__name__").limit(batchSize);
+      while (true) {
+        if (lastDocId) query = db.collection("quotes").orderBy("__name__").startAfter(lastDocId).limit(batchSize);
+        const snap = await query.get();
+        if (snap.empty) break;
+        const writer = db.batch();
+        let batchWrites = 0;
+        snap.docs.forEach(doc => {
+          scanned++;
+          lastDocId = doc.id;
+          const d = doc.data() || {};
+          const f = d.fields || {};
+          const custEmail = String(f.custEmail || "").trim();
+          const currentPo = String(d.poClientEmail || "").trim();
+          // Canonical key: existing poClientEmail wins (someone may have set
+          // it deliberately to a different contact), else fall back to custEmail.
+          const canonical = (currentPo || custEmail).toLowerCase();
+          if (!canonical || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(canonical)) {
+            skipped++;
+            return;
+          }
+          if (canonical === currentPo) {
+            skipped++;
+            return;
+          }
+          if (samples.length < 25) {
+            samples.push({ quoteId: doc.id, quoteNum: d.quoteNum || "", before: currentPo, after: canonical });
+          }
+          if (!dryRun) {
+            writer.update(doc.ref, { poClientEmail: canonical, updatedAt: nowIso() });
+            batchWrites++;
+          }
+          updated++;
+        });
+        if (!dryRun && batchWrites > 0) await writer.commit();
+        if (snap.size < batchSize) break;
+      }
+      // ─── SECOND PASS: /salesOrders.email lowercased ────────────────
+      // SO list query on the portal is where('email','==', authToken.email)
+      // which is exact-case. Stored value must be lowercase to surface.
+      let soScanned = 0, soUpdated = 0, soSkipped = 0, soLast = null;
+      const soSamples = [];
+      while (true) {
+        let soQuery = db.collection("salesOrders").orderBy("__name__").limit(batchSize);
+        if (soLast) soQuery = db.collection("salesOrders").orderBy("__name__").startAfter(soLast).limit(batchSize);
+        const soSnap = await soQuery.get();
+        if (soSnap.empty) break;
+        const soWriter = db.batch();
+        let soBatchWrites = 0;
+        soSnap.docs.forEach(doc => {
+          soScanned++;
+          soLast = doc.id;
+          const d = doc.data() || {};
+          const cur = String(d.email || "").trim();
+          const lower = cur.toLowerCase();
+          if (!cur || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lower)) {
+            soSkipped++;
+            return;
+          }
+          if (cur === lower) {
+            soSkipped++;
+            return;
+          }
+          if (soSamples.length < 25) {
+            soSamples.push({ soId: doc.id, soNum: d.soNum || "", before: cur, after: lower });
+          }
+          if (!dryRun) {
+            soWriter.update(doc.ref, { email: lower, updatedAt: nowIso() });
+            soBatchWrites++;
+          }
+          soUpdated++;
+        });
+        if (!dryRun && soBatchWrites > 0) await soWriter.commit();
+        if (soSnap.size < batchSize) break;
+      }
+
+      await logServerEvent("portal.backfillEmails", { actor: actor.email, dryRun, scanned, updated, skipped, soScanned, soUpdated, soSkipped });
+      sendJson(res, 200, {
+        success: true,
+        dryRun,
+        quotes: { scanned, updated, skipped, samples },
+        salesOrders: { scanned: soScanned, updated: soUpdated, skipped: soSkipped, samples: soSamples }
+      });
+    } catch (err) {
+      console.error("backfillPortalEmails error", err);
+      sendJson(res, 500, { error: err.message, scanned, updated });
     }
   }
 );
@@ -3216,7 +3347,7 @@ async function sendSOStatusChangeNotification(so, newStatus, extras) {
   const portalUrl = so.quoteId
     ? `${portalHost}/portal.html?quoteId=${encodeURIComponent(so.quoteId)}&email=${encodeURIComponent(so.email)}`
     : portalHost;
-  const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+  const senderMailbox = process.env.SO_FROM_MAILBOX || "flex@microflexfilm.com";
   const html = buildSOStatusChangeEmail({
     soNum: so.soNum, company: so.company, contact: so.contact,
     newStatus, jobDesc: so.jobDesc, total: so.total,
@@ -3379,6 +3510,179 @@ async function postInternalEscalation({ kind, docId, soOrQuote, daysOpen }) {
 }
 
 // Scheduled daily reminder cron. Runs at 09:00 Central each weekday morning.
+// ═══════════════════════════════════════════════════════════════════
+// AUTO-SEND SO ON APPROVAL — hands-free server-side flow
+// ═══════════════════════════════════════════════════════════════════
+// 2026-05-27: round-16 client-side auto-send only fires when a staff
+// member is signed in with a fresh Gmail OAuth token. If a customer
+// confirms a PO at 2am and nobody's online, the SO sits in approved
+// status with no email out. This trigger closes that gap: it fires on
+// /salesOrders writes, detects the autoApproved=true && !sentAt state,
+// and uses the existing delegated Gmail service account to send the
+// confirmation email + create the signing doc — no human required.
+//
+// Idempotency: stamps serverAutoSendAt in a transaction so duplicate
+// invocations of the trigger (Firestore sometimes redelivers) become
+// no-ops. The trigger's own write back to the doc re-fires the trigger;
+// the early-exit guards catch that.
+//
+// Coexistence with client-side flow (round 16): the client listener
+// checks so.sentAt (round 25) before opening the send modal. Whichever
+// path stamps sentAt first wins; the other becomes a no-op.
+exports.autoSendSOOnApproval = onDocumentWritten(
+  {
+    document: "salesOrders/{soId}",
+    region: "us-central1",
+    memory: "256MiB",
+    timeoutSeconds: 120,
+    secrets: [GMAIL_SA_SECRET]
+  },
+  async (event) => {
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    if (!after) return; // doc was deleted
+
+    // ─── Skip conditions (each is a normal expected state, not an error) ──
+    // 2026-05-27: gate is now ceoSignedAt (an explicit human electronic
+    // signature), not autoApproved. CEO signature flips autoApproved=true
+    // as a side effect, but we require BOTH to fire so unsigned-but-
+    // auto-approved (legacy or buggy) SOs don't accidentally send.
+    if (!after.autoApproved) return;
+    if (!after.ceoSignedAt) return;
+    if (after.sentAt) return;
+    if (after.serverAutoSendAt) return; // already attempted; success/fail already recorded
+    const recipient = String(after.email || "").trim();
+    if (!recipient) {
+      console.warn(`[autoSendSO] ${after.soNum || event.params.soId}: missing email, skipping`);
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      console.warn(`[autoSendSO] ${after.soNum}: malformed email "${recipient}", skipping`);
+      return;
+    }
+
+    const soId = event.params.soId;
+    const ref = db.collection("salesOrders").doc(soId);
+
+    // ─── Claim the send slot atomically ──────────────────────────────────
+    // If two trigger invocations race (Firestore can redeliver), only one
+    // will succeed in writing serverAutoSendAt; the other re-reads and bails.
+    let claimed = false;
+    try {
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        const d = fresh.data() || {};
+        if (d.sentAt) return; // client-side or earlier server send already
+        if (d.serverAutoSendAt) return; // someone else got there first
+        if (!d.autoApproved) return; // changed state mid-flight
+        tx.update(ref, {
+          serverAutoSendAt: nowIso(),
+          serverAutoSendStatus: "in_progress"
+        });
+        claimed = true;
+      });
+    } catch (err) {
+      console.error(`[autoSendSO] ${after.soNum}: claim transaction failed:`, err.message);
+      return;
+    }
+    if (!claimed) {
+      console.log(`[autoSendSO] ${after.soNum}: another invocation claimed the send slot`);
+      return;
+    }
+
+    // Re-read so we have the latest state (createdAt, etc.)
+    const snap = await ref.get();
+    const so = snap.data() || {};
+    so.id = soId;
+
+    // ─── Create the signing Google Doc if we don't have one yet ──────────
+    // The portal also has an inline typed-name signing path (round 12), so
+    // a missing signing doc isn't fatal — we just continue without it.
+    let signingDocLink = so.signingDocLink || null;
+    if (!signingDocLink) {
+      try {
+        const created = await createSOSigningDoc(so);
+        signingDocLink = created && created.docLink ? created.docLink : null;
+        if (signingDocLink) {
+          await ref.update({ signingDocLink, signingDocId: created.docId, updatedAt: nowIso() });
+        }
+      } catch (err) {
+        console.warn(`[autoSendSO] ${so.soNum}: signing doc creation failed (continuing without):`, err.message);
+      }
+    }
+
+    // ─── Build + send the email ──────────────────────────────────────────
+    const senderMailbox = process.env.SO_FROM_MAILBOX || "flex@microflexfilm.com";
+    const portalHost = process.env.PORTAL_HOST || "https://os.microflexfilm.com";
+    const portalUrl = `${portalHost}/portal?id=${encodeURIComponent(so.quoteId || "")}&q=${encodeURIComponent(so.quoteNum || "")}`;
+
+    const html = buildSOConfirmationEmail({
+      soNum: so.soNum,
+      quoteNum: so.quoteNum,
+      company: so.company,
+      contact: so.contact,
+      jobDesc: so.jobDesc,
+      selectedQty: so.selectedQty,
+      ppu: so.ppu,
+      total: so.total,
+      payTerms: so.payTerms,
+      portalUrl,
+      signingDocLink,
+      ceoSignedBy: so.ceoSignedBy,
+      ceoSignedAt: so.ceoSignedAt
+    });
+    const subject = `Microflex Sales Order ${so.soNum}${so.company ? ` — ${so.company}` : ""}`;
+
+    let msgId = null;
+    try {
+      msgId = await sendDelegatedEmail({
+        from: senderMailbox,
+        to: recipient,
+        bcc: "team@microflexfilm.com,quotes@microflexfilm.com",
+        subject,
+        html,
+        replyTo: "quotes@microflexfilm.com"
+      });
+    } catch (err) {
+      console.error(`[autoSendSO] ${so.soNum}: sendDelegatedEmail threw:`, err.message);
+    }
+
+    // ─── Stamp results back on the SO ────────────────────────────────────
+    const completedAt = nowIso();
+    const update = {
+      serverAutoSendCompletedAt: completedAt,
+      serverAutoSendStatus: msgId ? "sent" : "failed",
+      updatedAt: completedAt
+    };
+    if (msgId) {
+      update.sentAt = completedAt;
+      update.sentTo = recipient;
+      update.serverAutoSendMessageId = msgId;
+      update.status = "sent"; // bump from 'approved' to 'sent' for the lifecycle
+      // Append a note so staff sees the trail in the SO history
+      const notes = Array.isArray(so.notes) ? so.notes.slice() : [];
+      notes.push({
+        text: `📤 Auto-sent to ${recipient} by server (Gmail msg ${msgId})${signingDocLink ? " · signing doc created" : ""}`,
+        by: "System (Auto)",
+        at: completedAt
+      });
+      update.notes = notes;
+    } else {
+      // Failure recorded but sentAt stays null so client-side flow can still
+      // try once a staff session is available, OR a human can manually send.
+      const notes = Array.isArray(so.notes) ? so.notes.slice() : [];
+      notes.push({
+        text: `⚠ Server auto-send failed at ${completedAt}. Configure GMAIL_SERVICE_ACCOUNT_JSON with domain-wide delegation for ${senderMailbox}, or send manually.`,
+        by: "System (Auto)",
+        at: completedAt
+      });
+      update.notes = notes;
+    }
+    await ref.update(update);
+    await logServerEvent("so.auto_sent", { soId, soNum: so.soNum, to: recipient, success: !!msgId, msgId });
+    console.log(`[autoSendSO] ${so.soNum}: ${msgId ? "sent to " + recipient + " (msg " + msgId + ")" : "FAILED"}`);
+  }
+);
+
 // Three responsibilities:
 //   1. Email clients about unsigned SOs (>= REMINDER_SO_FIRST_DAYS)
 //   2. Email clients about stale quotes (>= REMINDER_QUOTE_FIRST_DAYS)
@@ -3390,7 +3694,7 @@ exports.scheduledSendOutstandingReminders = onSchedule(
   async () => {
     const cfg = REMINDER_CFG;
     const portalHost = process.env.PORTAL_HOST || "https://mfx-2026.web.app";
-    const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+    const senderMailbox = process.env.SO_FROM_MAILBOX || "flex@microflexfilm.com";
     const results = { soChecked: 0, soReminded: 0, soEscalated: 0, quoteChecked: 0, quoteReminded: 0, quoteEscalated: 0, errors: 0 };
 
     // ─── Unsigned SOs ───────────────────────────────────────
@@ -3785,7 +4089,7 @@ exports.scheduledPollSOSignings = onSchedule(
           const portalUrl = so.quoteId
             ? `${portalHost}/portal.html?quoteId=${encodeURIComponent(so.quoteId)}&email=${encodeURIComponent(so.email)}`
             : portalHost;
-          const senderMailbox = process.env.SO_FROM_MAILBOX || "info@microflexfilm.com";
+          const senderMailbox = process.env.SO_FROM_MAILBOX || "flex@microflexfilm.com";
           const html = buildSOSignedConfirmationEmail({
             soNum: so.soNum, signerName: result.name,
             company: so.company, total: so.total, portalUrl
