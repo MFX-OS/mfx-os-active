@@ -363,17 +363,17 @@ function renderSOCard(so){
   // Signature requests
   h+='<div style="font-size:9px;color:var(--tx3);font-weight:800;letter-spacing:1.5px;margin-bottom:6px">📨 SIGNATURE REQUESTS</div>';
 
-  // CEO row
+  // Approver row (round 52: goes to randy@microflexfilm.com)
   h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px;align-items:center">';
   h+='<select id="'+_ceoSelId+'" class="input" style="padding:6px 8px;font-size:10px;background:var(--bg);color:var(--tx);border:1px solid var(--bdr);border-radius:5px">'+_ceoTplOpts+'</select>';
-  h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" '+(_hasMaster?'':'title="Save the PDF first"')+' style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'">📧 CEO</button>';
+  h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" '+(_hasMaster?'':'title="Save the PDF first"')+' style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'">📧 Approval</button>';
   h+='</div>';
 
-  // Mark CEO Signed
+  // Mark Approved
   if(_ceoSigned){
-    h+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;margin-bottom:6px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:5px;font-size:10px"><span style="color:var(--ac);font-weight:700">✓ CEO signed</span><span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'CEO')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span></div>';
+    h+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;margin-bottom:6px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:5px;font-size:10px"><span style="color:var(--ac);font-weight:700">✓ Approved</span><span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'Approver')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span></div>';
   } else {
-    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="width:100%;display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:7px 10px;margin-bottom:6px"><span>✍️</span> Mark CEO Signed → auto-send Client</button>';
+    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="width:100%;display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:7px 10px;margin-bottom:6px"><span>✍️</span> Mark Approved → auto-send Client</button>';
   }
 
   // Client row
@@ -1798,7 +1798,12 @@ window.startJob=startJob;
 // (Suggesting mode or "Sign with eSignature" if available). Human
 // finishes the send manually so they can attach the doc, share with
 // edit rights, set the eSignature recipients, etc.
-function _ceoEmail(){ return (typeof window!=='undefined' && window.SO_CEO_EMAIL) || 'flex@microflexfilm.com'; }
+// 2026-05-27 round 52: approval email now goes to randy@microflexfilm.com
+// (the system owner/approver), not the CEO. Templates and labels still
+// say "CEO" / "Approver" interchangeably — internal SO field stays
+// ceoSignedAt for backward compat with downstream triggers.
+function _ceoEmail(){ return (typeof window!=='undefined' && window.SO_CEO_EMAIL) || 'randy@microflexfilm.com'; }
+function _ceoName(){ return (typeof window!=='undefined' && window.SO_CEO_NAME) || 'Randy'; }
 function _mailtoOpen(to, subject, body){
   var url='mailto:'+encodeURIComponent(to)
     +'?subject='+encodeURIComponent(subject)
@@ -1819,23 +1824,24 @@ var _SO_SIGN_TEMPLATES={
     standard:{
       label:'Standard — first send',
       build:function(so){
+        var approverName=_ceoName();
         return {
-          subject:'SIGN REQUIRED — Sales Order '+so.soNum+' · '+so.company,
+          subject:'APPROVAL REQUIRED — Sales Order '+so.soNum+' · '+so.company,
           body:[
-            'Hi Moises,',
+            'Hi '+approverName+',',
             '',
-            'Sales Order '+so.soNum+' is ready for your signature.',
+            'Sales Order '+so.soNum+' is ready for your approval / signature.',
             '',
             'Open the PDF here:',
             so.driveLink,
             '',
-            'How to sign:',
+            'How to approve & sign:',
             '1. Open the link above in Google Docs / Drive.',
             '2. Use "File → Make a copy" or open as a Doc to enable signing.',
             '3. Add your signature (either the eSignature feature, or type/insert image).',
-            '4. Save — the file lives in our shared MFX-CORE drive so the signed copy stays in place.',
+            '4. Save — the file lives in MFX-CORE / Master Sales Orders so the signed copy stays in place.',
             '',
-            'Once you sign, I\'ll forward the same link to '+(so.contact||so.company)+' for their countersignature.',
+            'Once you approve, the system will forward the same link to '+(so.contact||so.company)+' for their countersignature.',
             '',
             'Customer: '+(so.company||'')+(so.contact?' · '+so.contact:'')+(so.email?' <'+so.email+'>':''),
             'PO#: '+(so.poNumber||'—'),
@@ -1851,12 +1857,13 @@ var _SO_SIGN_TEMPLATES={
     urgent:{
       label:'Urgent — needed today',
       build:function(so){
+        var approverName=_ceoName();
         return {
-          subject:'⚡ URGENT SIGN — SO '+so.soNum+' · '+so.company+' (needed today)',
+          subject:'⚡ URGENT APPROVAL — SO '+so.soNum+' · '+so.company+' (needed today)',
           body:[
-            'Moises — quick one:',
+            approverName+' — quick one:',
             '',
-            'SO '+so.soNum+' for '+so.company+' is queued for production but stalled on your signature. The client is waiting for the countersigned copy.',
+            'SO '+so.soNum+' for '+so.company+' is queued for production but stalled on your approval. The client is waiting for the countersigned copy.',
             '',
             'PDF (signs in Google Docs):',
             so.driveLink,
@@ -1867,7 +1874,7 @@ var _SO_SIGN_TEMPLATES={
             '· Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
             '· Customer: '+(so.company||'')+(so.contact?' · '+so.contact:''),
             '',
-            'Soon as you sign I\'ll send to the client and trigger PPD + Logistics.',
+            'Soon as you approve I\'ll send to the client and trigger PPD + Logistics.',
             '',
             'Thanks!',
             (typeof getUserName==='function'?getUserName():'')
@@ -1878,12 +1885,13 @@ var _SO_SIGN_TEMPLATES={
     reminder:{
       label:'Reminder — follow-up',
       build:function(so){
+        var approverName=_ceoName();
         return {
-          subject:'Reminder — Sales Order '+so.soNum+' still needs your signature',
+          subject:'Reminder — Sales Order '+so.soNum+' still needs your approval',
           body:[
-            'Hi Moises,',
+            'Hi '+approverName+',',
             '',
-            'Just a nudge — SO '+so.soNum+' ('+so.company+') is still waiting on your signature so I can route it to the client.',
+            'Just a nudge — SO '+so.soNum+' ('+so.company+') is still waiting on your approval so I can route it to the client.',
             '',
             'PDF:',
             so.driveLink,
@@ -2032,17 +2040,20 @@ function markCEOSigned(soId, templateKey){
   var so=getSO(soId);
   if(!so)return toast&&toast('SO not found','err');
   if(!so.driveLink){
-    if(!confirm('No Drive PDF link yet — mark CEO signed anyway?')) return;
+    if(!confirm('No Drive PDF link yet — mark approved anyway?')) return;
   }
   if(so.ceoSignedAt){
-    if(!confirm('CEO is already marked signed at '+(new Date(so.ceoSignedAt && so.ceoSignedAt.toDate?so.ceoSignedAt.toDate():so.ceoSignedAt)).toLocaleString()+'. Re-stamp?'))return;
+    if(!confirm('Already marked approved at '+(new Date(so.ceoSignedAt && so.ceoSignedAt.toDate?so.ceoSignedAt.toDate():so.ceoSignedAt)).toLocaleString()+'. Re-stamp?'))return;
   }
-  var who=(typeof getUserName==='function'&&getUserName())||'CEO';
-  var ceoName=(typeof window!=='undefined' && window.SO_CEO_NAME) || 'Moises Santillan';
+  var who=(typeof getUserName==='function'&&getUserName())||'Approver';
+  // 2026-05-27 round 52: defaults updated to Randy (approver) instead of
+  // Moises (CEO). Internal field name (ceoSignedAt) stays for backward
+  // compatibility with downstream triggers.
+  var approverName=(typeof window!=='undefined' && window.SO_CEO_NAME) || 'Randy';
   var nowSv=(window.firebase&&firebase.firestore&&firebase.firestore.FieldValue&&firebase.firestore.FieldValue.serverTimestamp)?firebase.firestore.FieldValue.serverTimestamp():new Date();
   var patch={
     ceoSignedAt:nowSv,
-    ceoSignedBy:ceoName,
+    ceoSignedBy:approverName,
     ceoSignedByUser:who,
     signatureFlow:'awaiting_client',
     updatedAt:nowSv
@@ -2050,17 +2061,18 @@ function markCEOSigned(soId, templateKey){
   return db.collection('salesOrders').doc(soId).update(patch).then(function(){
     // mirror into local cache so the UI updates immediately
     var cached=(window._soCache||[]).find(function(s){return s.id===soId;});
-    if(cached){ cached.ceoSignedAt=new Date(); cached.ceoSignedBy=ceoName; cached.ceoSignedByUser=who; cached.signatureFlow='awaiting_client'; }
-    toast&&toast('CEO marked signed — opening client email','ok');
+    if(cached){ cached.ceoSignedAt=new Date(); cached.ceoSignedBy=approverName; cached.ceoSignedByUser=who; cached.signatureFlow='awaiting_client'; }
+    toast&&toast('Marked approved — opening client email','ok');
     if(typeof renderAll==='function')renderAll();
     // auto-open client email
     setTimeout(function(){ emailClientForSign(soId, templateKey||'standard'); }, 250);
   }).catch(function(e){
     console.error('[markCEOSigned] failed',e);
-    toast&&toast('Could not mark signed — '+(e&&e.message||e),'err');
+    toast&&toast('Could not mark approved — '+(e&&e.message||e),'err');
   });
 }
 window.markCEOSigned=markCEOSigned;
+window.markApproved=markCEOSigned; // friendly alias
 
 // Email the client a countersignature request with portal link.
 function _sendClientSignRequestEmail(so){

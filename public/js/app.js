@@ -1878,21 +1878,21 @@ if(linkedSO){
   h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.08)">';
   h+='<div style="font-size:9px;color:var(--tx3);font-weight:800;letter-spacing:1.5px;margin-bottom:6px">📨 SIGNATURE REQUESTS</div>';
 
-  // CEO row
+  // Approver row (was "CEO" — round 52 routes to randy@microflexfilm.com)
   h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:8px;align-items:center">';
   h+='<select id="'+_ceoSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_ceoTplOpts+'</select>';
-  h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" '+(_hasMaster?'':'title="Save the PDF first"')+' style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'"><span>📧</span> Send to CEO</button>';
+  h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" '+(_hasMaster?'':'title="Save the PDF first"')+' style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'"><span>📧</span> Send for Approval</button>';
   h+='</div>';
 
-  // Mark CEO Signed row
+  // Mark Approved row
   if(_ceoSigned){
     h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:8px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:6px;font-size:11px">';
-    h+='<span style="color:var(--ac);font-weight:700">✓ CEO signed</span>';
-    h+='<span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'CEO')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span>';
+    h+='<span style="color:var(--ac);font-weight:700">✓ Approved</span>';
+    h+='<span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'Approver')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span>';
     h+='</div>';
   } else {
     h+='<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:8px">';
-    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:9px 12px"><span>✍️</span> Mark CEO Signed → auto-send Client</button>';
+    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:9px 12px"><span>✍️</span> Mark Approved → auto-send Client</button>';
     h+='</div>';
   }
 
@@ -1909,7 +1909,7 @@ if(linkedSO){
     h+='</div>';
   }
 
-  h+='<div style="margin-top:8px;font-size:10px;color:var(--tx3);line-height:1.4">Pick a template, hit Send — your mail client opens with the PDF link pre-filled. <strong>Mark CEO Signed</strong> stamps the SO and auto-opens the client email.</div>';
+  h+='<div style="margin-top:8px;font-size:10px;color:var(--tx3);line-height:1.4">Pick a template, hit Send — your mail client opens with the PDF link pre-filled (approval goes to <strong>randy@microflexfilm.com</strong>). <strong>Mark Approved</strong> stamps the SO and auto-opens the client email.</div>';
   h+='</div>';
   h+='</div>';
 }

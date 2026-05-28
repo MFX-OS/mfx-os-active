@@ -13,10 +13,12 @@ a{color:var(--accent);text-decoration:none}
 /* Header */
 .hdr{width:100%;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 0}
 .hdr-inner{max-width:720px;margin:0 auto;padding:0 24px;display:flex;justify-content:space-between;align-items:center}
-.logo{font-family:Outfit,sans-serif}
-.logo b{font-size:22px;font-weight:900;color:var(--h1)}
+.logo{font-family:Outfit,sans-serif;display:flex;align-items:center;gap:12px}
+.logo-img{height:34px;width:auto;flex-shrink:0;filter:drop-shadow(0 0 10px rgba(0,229,255,.2))}
+.logo-text{display:flex;flex-direction:column;line-height:1}
+.logo b{font-size:20px;font-weight:900;color:var(--h1);letter-spacing:-.4px}
 .logo span{font-weight:200;color:#5a7888}
-.logo-line{width:50px;height:2px;background:var(--accent);border-radius:1px;margin:2px 0}
+.logo-line{width:50px;height:2px;background:var(--accent);border-radius:1px;margin:4px 0}
 .logo-sub{font-family:Outfit,sans-serif;font-size:7px;font-weight:300;color:var(--accent-dk);letter-spacing:4px;text-transform:uppercase}
 .hdr-contact{text-align:right;font-size:11px;color:var(--sub)}
 .hdr-contact b{color:var(--h1);font-weight:700}
@@ -2149,9 +2151,12 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 <div class="hdr">
 <div class="hdr-inner">
 <div class="logo">
-<b>Microflex</b> <span>Film Corporation</span>
+<img src="/logo.png" alt="Microflex Film Corporation" class="logo-img">
+<div class="logo-text">
+<div><b>Microflex</b></div>
 <div class="logo-line"></div>
 <div class="logo-sub">Film Corporation</div>
+</div>
 </div>
 <div class="hdr-contact">
 <b>Need help?</b><br>

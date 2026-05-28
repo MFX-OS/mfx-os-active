@@ -30,14 +30,31 @@
 
     /* Header */
     .header {
-      background: #0a2535;
+      background: linear-gradient(180deg, #0a1520, #060d14);
       border-bottom: 1px solid rgba(0, 229, 255, 0.12);
       padding: 1rem 2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       height: 70px;
+      position: relative;
+      overflow: hidden;
     }
+    /* Brand splash echo — subtle nod to the logo paint splash */
+    .header::after {
+      content: "";
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      top: -70px;
+      right: -70px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #1ab6dc 0%, transparent 70%);
+      opacity: 0.06;
+      filter: blur(6px);
+      pointer-events: none;
+    }
+    .header > * { position: relative; z-index: 1; }
 
     .header-left {
       display: flex;
@@ -106,7 +123,7 @@
       height: 40px;
       border-radius: 50%;
       background: #00e5ff;
-      color: #061e2a;
+      color: #060d14;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -789,7 +806,7 @@
     .btn-primary {
       padding: 0.75rem 1.5rem;
       background: #00e5ff;
-      color: #061e2a;
+      color: #060d14;
       border: none;
       border-radius: 5px;
       cursor: pointer;
@@ -1681,52 +1698,4 @@
 
       return (
         <div id="dashboard-root">
-          <Header user={user} onSignOut={handleSignOut} />
-          <KPIRow data={kpiData} loading={loading} />
-          <div className="main-content">
-            <AlertsSection alerts={alerts} loading={loading} onAction={handleAction} />
-            <StatusBoards data={kpiData || {}} loading={loading} />
-            <CommsHub loading={loading} />
-            <MasterCalendar loading={loading} />
-            <TasksSection loading={loading} onActionClick={handleQuickAction} />
-            <EmployeeStatus loading={loading} />
-            <TimeClock loading={loading} />
-            <AdminTools user={user} />
-          </div>
-          {toast && (
-            <Toast
-              message={toast}
-              onClose={() => setToast(null)}
-            />
-          )}
-        </div>
-      );
-    };
-
-    // Render App
-    ReactDOM.createRoot(document.getElementById('root')).render(
-      <CEODashboard />
-    );
-
-    // Initialize Google Sign-In
-    window.addEventListener('load', () => {
-      if (window.google) {
-        google.accounts.id.initialize({
-          client_id: '21746521413-8u7l4q5h8v3q2w1e9r7t5y3u1i9o7p5a.apps.googleusercontent.com',
-          callback: (response) => {
-            // Handle response
-          }
-        });
-
-        const buttonDiv = document.getElementById('google_signin_button');
-        if (buttonDiv) {
-          google.accounts.id.renderButton(
-            buttonDiv,
-            { theme: 'dark', size: 'large', width: '300' }
-          );
-        }
-      }
-    });
-  </script>
-</body>
-</html>
+          <Header user={user} o

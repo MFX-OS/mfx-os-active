@@ -3,11 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#060d14">
   <title>PPD · PrePress Design</title>
   <meta http-equiv="refresh" content="0; url=./index.html?module=ppd">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&display=swap" rel="stylesheet">
   <script>window.location.replace('./index.html?module=ppd');</script>
+  <style>
+    @keyframes mfx-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    body{font-family:'Outfit',Inter,Arial,sans-serif;background:#060d14;color:#e0f2fe;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;gap:18px;position:relative;overflow:hidden}
+    body::before{content:"";position:absolute;width:420px;height:420px;top:-100px;right:-100px;border-radius:50%;background:radial-gradient(circle,#1ab6dc 0%,transparent 70%);opacity:.08;filter:blur(10px);pointer-events:none}
+    .mfx-logo{height:64px;width:auto;filter:drop-shadow(0 0 18px rgba(0,229,255,.3))}
+    .mfx-wm{font-size:34px;font-weight:900;letter-spacing:-1px;color:#e0f2fe}
+    .mfx-rule{width:60px;height:2px;background:linear-gradient(90deg,transparent,#00e5ff,transparent);border-radius:1px}
+    .mfx-tag{font-size:9px;letter-spacing:5px;color:#00838f;text-transform:uppercase;font-weight:300}
+    .mfx-load{font-size:11px;letter-spacing:2px;color:#5a7888;text-transform:uppercase;margin-top:14px;animation:mfx-pulse 1.6s ease-in-out infinite}
+  </style>
 </head>
-<body style="font-family:Inter,Arial,sans-serif;background:#060d14;color:#f5ffe3;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-  Redirecting to PPD Workspace…
+<body>
+  <img src="/logo.png" alt="Microflex Film Corporation" class="mfx-logo">
+  <div class="mfx-wm">Microflex</div>
+  <div class="mfx-rule"></div>
+  <div class="mfx-tag">Film Corporation</div>
+  <div class="mfx-load">Loading PPD Workspace…</div>
 </body>
 </html>
