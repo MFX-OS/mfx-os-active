@@ -599,8 +599,49 @@ function openSOSendFlow(soId){
 }
 
 function _renderSOSendFlow(so){
-  var h='<div class="modal-title">Send Sales Order — '+esc(so.soNum)+'</div>';
+  var h='<div class="modal-title">📋 Sales Order Workspace — '+esc(so.soNum)+'</div>';
   h+='<div style="font-size:11px;color:var(--tx3);margin-bottom:14px">'+esc(so.company)+' · '+esc(so.email)+' · '+esc(so.jobDesc)+'</div>';
+
+  // ─── Drive Save Location card ──────────────────────────────────────
+  // 2026-05-27 round 46: shows where the SO PDF lives on the shared
+  // drive (master + per-client). Auto-saved by saveSOPDFToDrive when
+  // the SO is generated. Regenerate button rebuilds the PDF.
+  var _hasMaster=!!so.driveLink;
+  var _hasClient=!!so.clientFolderLink;
+  h+='<div style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(34,197,94,.02));border:1px solid '+(_hasMaster?'rgba(34,197,94,.4)':'rgba(255,255,255,.08)')+';border-radius:8px;padding:10px 12px;margin-bottom:12px">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:'+(_hasMaster?'8px':'0')+'">';
+  h+='<div style="font-size:9px;color:'+(_hasMaster?'#22c55e':'var(--tx3)')+';font-weight:800;letter-spacing:1.5px">📁 PDF ON DRIVE'+(_hasMaster?' · ✓ SAVED':' · NOT YET SAVED')+'</div>';
+  h+='<button class="btn btn-ghost btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate':'⬆ Save Now')+'</button>';
+  h+='</div>';
+  if(_hasMaster){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">';
+    h+='<a href="'+esc(so.driveLink)+'" target="_blank" style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg2);border:1px solid var(--bdr);border-radius:4px;color:var(--tx);text-decoration:none"><span>📄</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">MFX-CORE / Master Sales Orders / '+esc(so.soNum||'')+'.pdf</span></a>';
+    if(_hasClient)h+='<a href="'+esc(so.clientFolderLink)+'" target="_blank" style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg2);border:1px solid var(--bdr);border-radius:4px;color:var(--tx);text-decoration:none"><span>📁</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Clients / '+esc(so.company||'')+' / '+esc(so.quoteNum||'')+'</span></a>';
+    h+='</div>';
+  }
+  h+='</div>';
+
+  // ─── Signature Timeline strip ──────────────────────────────────────
+  // Mirrors the portal timeline (round 44/45): 3 stages with date+who.
+  (function(){
+    var _stages = [
+      {label:'REQUEST SENT', at:so.clientSignRequestSentAt||so.signatureFlowStartedAt, by:so.signatureFlowStartedBy||'Microflex'},
+      {label:'CLIENT SIGNED', at:so.clientSignedAt, by:so.clientSignature},
+      {label:'CSR CONFIRMED', at:so.csrConfirmedAt, by:so.csrConfirmedBy}
+    ];
+    h+='<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:12px">';
+    h+='<div style="font-size:9px;color:var(--ac);font-weight:800;letter-spacing:1.5px;margin-bottom:8px">SIGNATURE TIMELINE</div>';
+    h+='<div style="display:flex;gap:6px">';
+    _stages.forEach(function(s){
+      var done=!!s.at;
+      h+='<div style="flex:1;background:'+(done?'rgba(34,197,94,.06)':'var(--bg2)')+';border:1px solid '+(done?'rgba(34,197,94,.3)':'var(--bdr)')+';border-radius:5px;padding:6px 8px;text-align:center">';
+      h+='<div style="font-size:13px;color:'+(done?'#22c55e':'var(--tx3)')+';line-height:1">'+(done?'✓':'○')+'</div>';
+      h+='<div style="font-size:7px;color:'+(done?'#22c55e':'var(--tx3)')+';font-weight:800;letter-spacing:.5px;margin-top:3px">'+s.label+'</div>';
+      h+='<div style="font-size:8px;color:'+(done?'var(--tx)':'var(--tx3)')+';margin-top:2px;line-height:1.2;min-height:18px">'+(done?(s.at?fD(s.at):'')+(s.by?'<br>'+esc(s.by):''):'pending')+'</div>';
+      h+='</div>';
+    });
+    h+='</div></div>';
+  })();
 
   // Step toggle (Document → PDF → Email)
   h+='<div style="display:flex;gap:0;margin-bottom:12px;border:1px solid var(--bdr);border-radius:8px;overflow:hidden">';
@@ -651,6 +692,37 @@ function _renderSOSendFlow(so){
   h+='</div>';
 
   // Editable Subject
+  // ─── From / To dropdowns (2026-05-27 round 46) ────────────────────
+  // From defaults to flex@ (or whatever SO_FROM_MAILBOX is set to) but
+  // staff can override to quotes@/info@ or any "Send mail as" alias on
+  // their Gmail account. To defaults to the SO's stored client email
+  // and offers a few sensible swaps.
+  var _sendAs = (typeof window!=='undefined' && Array.isArray(window.MFX_SEND_AS) && window.MFX_SEND_AS.length)
+    ? window.MFX_SEND_AS
+    : ['flex@microflexfilm.com','quotes@microflexfilm.com','info@microflexfilm.com'];
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
+  // From
+  h+='<div><label style="display:block;font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:4px">FROM</label>';
+  h+='<select id="soTplFrom" style="width:100%;padding:9px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px">';
+  _sendAs.forEach(function(addr,i){
+    h+='<option value="'+esc(addr)+'"'+(i===0?' selected':'')+'>'+esc(addr)+'</option>';
+  });
+  h+='</select></div>';
+  // To
+  h+='<div><label style="display:block;font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:4px">TO</label>';
+  h+='<select id="soTplTo" style="width:100%;padding:9px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px">';
+  if(so.email)h+='<option value="'+esc(so.email)+'" selected>'+esc(so.email)+' (client)</option>';
+  if(so.contact && so.email)h+='<option value="'+esc(so.email)+'">'+esc(so.contact)+' &lt;'+esc(so.email)+'&gt;</option>';
+  h+='<option value="team@microflexfilm.com">team@microflexfilm.com (internal only)</option>';
+  h+='<option value="quotes@microflexfilm.com">quotes@microflexfilm.com</option>';
+  h+='<option value="__custom__">Custom email…</option>';
+  h+='</select>';
+  h+='<input id="soTplToCustom" type="text" placeholder="Type custom email" style="display:none;width:100%;padding:9px;margin-top:6px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px">';
+  // Wire the custom toggle inline
+  h+='<script>(function(){var s=document.getElementById(\'soTplTo\');var c=document.getElementById(\'soTplToCustom\');if(s&&c)s.addEventListener(\'change\',function(){c.style.display=this.value===\'__custom__\'?\'block\':\'none\';if(this.value===\'__custom__\')c.focus()})})()</script>';
+  h+='</div>';
+  h+='</div>';
+
   h+='<div style="margin-bottom:10px"><label style="display:block;font-size:9px;color:var(--ac);font-weight:700;letter-spacing:1.5px;margin-bottom:4px">EMAIL SUBJECT (EDITABLE)</label>';
   h+='<input id="soTplSubject" type="text" style="width:100%;padding:10px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px;font-family:inherit" oninput="_updateSOTplPreviewFromFields()"></div>';
 
@@ -892,9 +964,21 @@ function executeSendSO(soId){
   var bodyEl=document.getElementById('soTplBody');
   var editedSubjRaw=subjEl?subjEl.value:null;
   var editedBodyRaw=bodyEl?bodyEl.value:null;
+  // 2026-05-27 round 46: From/To dropdowns. Fall back to defaults if
+  // the modal isn't open or the inputs aren't present.
+  var fromEl=document.getElementById('soTplFrom');
+  var toEl=document.getElementById('soTplTo');
+  var toCustomEl=document.getElementById('soTplToCustom');
+  var fromAddr=fromEl?fromEl.value:'flex@microflexfilm.com';
+  var toAddr=so.email;
+  if(toEl){
+    if(toEl.value==='__custom__' && toCustomEl && toCustomEl.value.trim())toAddr=toCustomEl.value.trim();
+    else if(toEl.value)toAddr=toEl.value;
+  }
+  if(!toAddr)return toast('No recipient — set the "To" dropdown','err');
 
   closeModal();
-  toast('Generating PDF & sending '+tpl.label+'...','ok');
+  toast('Generating PDF & sending '+tpl.label+' to '+toAddr+'...','ok');
 
   // Generate real PDF first
   generateSOPDF(so).then(function(pdf){
@@ -909,8 +993,8 @@ function executeSendSO(soId){
       // (matches the Quote BCC fix shipped earlier). Reply-To routes
       // client replies to quotes@ instead of the staffer's personal inbox.
       var raw='Content-Type: text/html; charset=utf-8\r\n'
-        +'From: MFX OS <flex@microflexfilm.com>\r\n'
-        +'To: '+so.email+'\r\n'
+        +'From: MFX OS <'+fromAddr+'>\r\n'
+        +'To: '+toAddr+'\r\n'
         +'Bcc: team@microflexfilm.com, quotes@microflexfilm.com\r\n'
         +'Reply-To: quotes@microflexfilm.com\r\n'
         +'Subject: '+subj+'\r\n'
@@ -1944,11 +2028,17 @@ async function autoCreateSO(q){
         if(typeof renderOrdersView==='function')renderOrdersView();
       }).catch(function(e){console.warn('[autoCreateSO] PDF save deferred:',e.message)});
     }
-    // After SO generation, switch the editor to the SO tab so the staff
-    // immediately sees the SO preview. S.etab===10 is the SO tab.
+    // 2026-05-27 round 46: after SO generation, switch to SO tab AND
+    // auto-open the SO Workspace modal (preview + email template +
+    // To/From dropdowns + Drive save location + signature timeline).
+    // That gives staff one place to review and dispatch.
     if(typeof S!=='undefined' && S.editId===q.id){
       S.etab=10;
       if(typeof renderEditor==='function')renderEditor();
+      // Give the editor a tick to re-render before the modal opens on top
+      setTimeout(function(){
+        if(typeof openSOSendFlow==='function')openSOSendFlow(soId);
+      }, 300);
     }
 
     // Always notify CEO — every SO requires electronic signature now.
