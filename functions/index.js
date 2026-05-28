@@ -2106,9 +2106,35 @@ exports.saveSalesOrderPDF = onRequest(
         return placeholder.data;
       };
 
-      // 1. Save to Master Sales Orders folder (replace if exists)
-      const masterFolder = await findOrCreateFolder(drive, "Master Sales Orders", driveId);
-      const masterSearch = `name contains '${qEscape(soNum)}' and trashed=false and '${masterFolder.id}' in parents`;
+      // 1. Save to the configured Master SO folder (replace if exists).
+      // 2026-05-27 round 48: targets a specific Drive folder by ID so the
+      // staff can collaborate on signatures directly in there. The
+      // folder ID is configurable via process.env.SO_MASTER_FOLDER_ID;
+      // default is the one Randy provided. Falls back to creating
+      // "Master Sales Orders" by name if the configured folder ID
+      // doesn't resolve (e.g., ID typo, folder moved).
+      const configuredMasterFolderId = process.env.SO_MASTER_FOLDER_ID || "1orqUs1G2MjymLvP2fCkuywV4l22imo-h";
+      let masterFolderId = null;
+      try {
+        const masterMeta = await drive.files.get({
+          fileId: configuredMasterFolderId,
+          supportsAllDrives: true,
+          fields: "id,name,mimeType"
+        });
+        if (masterMeta.data && masterMeta.data.mimeType === "application/vnd.google-apps.folder") {
+          masterFolderId = masterMeta.data.id;
+        } else {
+          console.warn(`[saveSalesOrderPDF] configured master folder ${configuredMasterFolderId} is not a folder (got mimeType ${masterMeta.data && masterMeta.data.mimeType})`);
+        }
+      } catch (err) {
+        console.warn(`[saveSalesOrderPDF] configured master folder ${configuredMasterFolderId} not reachable:`, err.message);
+      }
+      if (!masterFolderId) {
+        // Fall back: create/find "Master Sales Orders" inside MFX-CORE.
+        const fallback = await findOrCreateFolder(drive, "Master Sales Orders", driveId);
+        masterFolderId = fallback.id;
+      }
+      const masterSearch = `name contains '${qEscape(soNum)}' and trashed=false and '${masterFolderId}' in parents`;
       const masterExisting = await drive.files.list({
         q: masterSearch, supportsAllDrives: true, includeItemsFromAllDrives: true,
         corpora: "allDrives", fields: "files(id,name)"
@@ -2117,9 +2143,10 @@ exports.saveSalesOrderPDF = onRequest(
         // Delete old so the new one replaces cleanly
         try { await drive.files.delete({ fileId: masterExisting.data.files[0].id, supportsAllDrives: true }); } catch (_) {}
       }
-      const masterFile = await uploadPdf(masterFolder.id);
+      const masterFile = await uploadPdf(masterFolderId);
       results.masterLink = masterFile.webViewLink || `https://drive.google.com/file/d/${masterFile.id}`;
       results.masterFileId = masterFile.id;
+      results.masterFolderId = masterFolderId;
 
       // 2. Save to Client folder — same tree as quote PDF saved by saveQuotePDF
       const clientsFolder = await findOrCreateFolder(drive, "Clients", driveId);

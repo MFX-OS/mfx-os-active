@@ -1843,11 +1843,20 @@ if(linkedSO){
   h+='</div>';
   if(_hasMaster){
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-    h+='<a href="'+esc(so.driveLink)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;text-decoration:none;color:var(--tx);font-size:11px;font-weight:600"><span style="font-size:14px">📄</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Master Sales Orders<br><span style="font-size:9px;color:var(--tx3);font-weight:500">'+esc(so.soNum||'')+'.pdf</span></span></a>';
+    h+='<a href="'+esc(so.driveLink)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;text-decoration:none;color:var(--tx);font-size:11px;font-weight:600"><span style="font-size:14px">📄</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Master SO Folder<br><span style="font-size:9px;color:var(--tx3);font-weight:500">'+esc(so.soNum||'')+'.pdf</span></span></a>';
     if(_hasClient){
       h+='<a href="'+esc(so.clientFolderLink)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;text-decoration:none;color:var(--tx);font-size:11px;font-weight:600"><span style="font-size:14px">📁</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Client Folder<br><span style="font-size:9px;color:var(--tx3);font-weight:500">Clients/'+esc(so.company||'')+'/'+esc(so.quoteNum||'')+'</span></span></a>';
     }
     h+='</div>';
+    // ─── Sign-request email buttons (round 48) ──────────────────────
+    // Opens the user's default mail client with a pre-filled compose.
+    // Human finishes the send manually — lets them attach extras,
+    // adjust recipients, enable Google Docs eSignature, etc.
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
+    h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSign(\''+so.id+'\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700"><span>📧</span> Email CEO for Sign</button>';
+    h+='<button class="btn btn-pr btn-xs" onclick="emailClientForSign(\''+so.id+'\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.4);font-weight:700"><span>📧</span> Email Client for Sign</button>';
+    h+='</div>';
+    h+='<div style="margin-top:6px;font-size:10px;color:var(--tx3);line-height:1.4">Both buttons open a pre-filled email draft with the PDF link and Google Docs sign instructions. Send to CEO first, then client.</div>';
   } else {
     h+='<div style="font-size:11px;color:var(--tx3);line-height:1.5">PDF will be auto-generated and saved here when the SO is signed. Click <strong>Save PDF Now</strong> to trigger it manually.</div>';
   }

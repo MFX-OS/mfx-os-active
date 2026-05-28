@@ -1732,6 +1732,95 @@ function startJob(soId){
 }
 window.startJob=startJob;
 
+// ─── Sign Request emails (Drive link → Google Docs sign) ──────────────
+// 2026-05-27 round 48: opens the user's default mail client with a
+// pre-filled compose for the CEO or the client. Each template includes
+// the Drive PDF link with copy explaining how to sign via Google Docs
+// (Suggesting mode or "Sign with eSignature" if available). Human
+// finishes the send manually so they can attach the doc, share with
+// edit rights, set the eSignature recipients, etc.
+function _ceoEmail(){ return (typeof window!=='undefined' && window.SO_CEO_EMAIL) || 'flex@microflexfilm.com'; }
+function _mailtoOpen(to, subject, body){
+  var url='mailto:'+encodeURIComponent(to)
+    +'?subject='+encodeURIComponent(subject)
+    +'&body='+encodeURIComponent(body);
+  // Gmail web fallback if mailto isn't intercepted by a desktop client
+  // — open in a new tab. Most users on Workspace have Gmail set as the
+  // mailto handler so this just goes there directly.
+  var w=window.open(url,'_blank');
+  if(!w)toast&&toast('Pop-up blocked — allow pop-ups and retry','err');
+}
+function emailCEOForSign(soId){
+  var so=getSO(soId);
+  if(!so)return toast&&toast('SO not found','err');
+  if(!so.driveLink)return toast&&toast('Save the PDF first — no Drive link to share','err');
+  var to=_ceoEmail();
+  var subj='SIGN REQUIRED — Sales Order '+so.soNum+' · '+so.company;
+  var body=[
+    'Hi Moises,',
+    '',
+    'Sales Order '+so.soNum+' is ready for your signature.',
+    '',
+    'Open the PDF here:',
+    so.driveLink,
+    '',
+    'How to sign:',
+    '1. Open the link above in Google Docs / Drive.',
+    '2. Use "File → Make a copy" or open as a Doc to enable signing.',
+    '3. Add your signature (either the eSignature feature, or type/insert image).',
+    '4. Save — the file lives in our shared MFX-CORE drive so the signed copy stays in place.',
+    '',
+    'Once you sign, I\'ll forward the same link to '+ (so.contact || so.company) +' for their countersignature.',
+    '',
+    'Customer: '+(so.company||'')+(so.contact?' · '+so.contact:'')+(so.email?' <'+so.email+'>':''),
+    'PO#: '+(so.poNumber||'—'),
+    'Qty: '+Number(so.selectedQty||0).toLocaleString(),
+    'Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+    '',
+    'Thanks',
+    (typeof getUserName==='function'?getUserName():'')
+  ].join('\n');
+  _mailtoOpen(to, subj, body);
+}
+window.emailCEOForSign=emailCEOForSign;
+
+function emailClientForSign(soId){
+  var so=getSO(soId);
+  if(!so)return toast&&toast('SO not found','err');
+  if(!so.driveLink)return toast&&toast('Save the PDF first — no Drive link to share','err');
+  if(!so.email)return toast&&toast('No client email on this SO — fix the quote first','err');
+  var to=so.email;
+  var subj='Sales Order '+so.soNum+' — Countersignature Needed';
+  var body=[
+    'Hi '+(so.contact||'there')+',',
+    '',
+    'Thank you for your purchase order. Your Sales Order '+so.soNum+' has been signed by Microflex and is ready for your countersignature.',
+    '',
+    'Open the document here:',
+    so.driveLink,
+    '',
+    'How to sign:',
+    '1. Click the link above to open the document in Google Docs.',
+    '2. Use the eSignature feature (or type your name into the signature line) and save.',
+    '3. That\'s it — your signed copy is captured in our shared Drive automatically.',
+    '',
+    'Order details:',
+    'SO#: '+so.soNum,
+    'PO#: '+(so.poNumber||'—'),
+    'Job: '+(so.jobDesc||'—'),
+    'Quantity: '+Number(so.selectedQty||0).toLocaleString(),
+    'Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+    'Payment Terms: '+(so.payTerms||'Net 30'),
+    '',
+    'Once you sign, we\'ll move the order into production. Questions? Reply to this email or reach quotes@microflexfilm.com.',
+    '',
+    'Thanks',
+    (typeof getUserName==='function'?getUserName():'Microflex Team')
+  ].join('\n');
+  _mailtoOpen(to, subj, body);
+}
+window.emailClientForSign=emailClientForSign;
+
 // Email the client a countersignature request with portal link.
 function _sendClientSignRequestEmail(so){
   if(typeof getGoogleToken!=='function')return Promise.reject(new Error('Gmail not available'));
@@ -2130,12 +2219,13 @@ async function autoCreateSO(q){
         if(typeof renderOrdersView==='function')renderOrdersView();
       }).catch(function(e){console.warn('[autoCreateSO] PDF save deferred:',e.message)});
     }
-    // 2026-05-27 round 47: simplified flow — just switch to SO tab so
-    // staff sees the data. No auto-modal, no auto-send. Signature
-    // collection happens externally via Google Docs against the PDF
-    // saved in Master Sales Orders. Staff clicks Start Job when ready.
+    // 2026-05-27 round 48: jump to SO Preview tab so the user sees the
+    // rendered document right away (round 47 sent them to the SO tab
+    // which has the edit form). Preview tab is etab=11. From there
+    // they can review the PDF, click Email CEO / Email Client buttons
+    // to send sign requests, then Start Job once sigs are back.
     if(typeof S!=='undefined' && S.editId===q.id){
-      S.etab=10;
+      S.etab=11;
       if(typeof renderEditor==='function')renderEditor();
     }
 
