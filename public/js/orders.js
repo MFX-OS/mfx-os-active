@@ -1750,76 +1750,258 @@ function _mailtoOpen(to, subject, body){
   var w=window.open(url,'_blank');
   if(!w)toast&&toast('Pop-up blocked — allow pop-ups and retry','err');
 }
-function emailCEOForSign(soId){
+
+// 2026-05-27 round 49: Template library for sign-request emails.
+// Each entry returns {subject, body} given the SO. The CEO/Client
+// email helpers below accept an optional templateKey arg so the SO
+// tab dropdowns can pick a tone (standard / urgent / reminder / etc.).
+var _SO_SIGN_TEMPLATES={
+  ceo:{
+    standard:{
+      label:'Standard — first send',
+      build:function(so){
+        return {
+          subject:'SIGN REQUIRED — Sales Order '+so.soNum+' · '+so.company,
+          body:[
+            'Hi Moises,',
+            '',
+            'Sales Order '+so.soNum+' is ready for your signature.',
+            '',
+            'Open the PDF here:',
+            so.driveLink,
+            '',
+            'How to sign:',
+            '1. Open the link above in Google Docs / Drive.',
+            '2. Use "File → Make a copy" or open as a Doc to enable signing.',
+            '3. Add your signature (either the eSignature feature, or type/insert image).',
+            '4. Save — the file lives in our shared MFX-CORE drive so the signed copy stays in place.',
+            '',
+            'Once you sign, I\'ll forward the same link to '+(so.contact||so.company)+' for their countersignature.',
+            '',
+            'Customer: '+(so.company||'')+(so.contact?' · '+so.contact:'')+(so.email?' <'+so.email+'>':''),
+            'PO#: '+(so.poNumber||'—'),
+            'Qty: '+Number(so.selectedQty||0).toLocaleString(),
+            'Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+            '',
+            'Thanks',
+            (typeof getUserName==='function'?getUserName():'')
+          ].join('\n')
+        };
+      }
+    },
+    urgent:{
+      label:'Urgent — needed today',
+      build:function(so){
+        return {
+          subject:'⚡ URGENT SIGN — SO '+so.soNum+' · '+so.company+' (needed today)',
+          body:[
+            'Moises — quick one:',
+            '',
+            'SO '+so.soNum+' for '+so.company+' is queued for production but stalled on your signature. The client is waiting for the countersigned copy.',
+            '',
+            'PDF (signs in Google Docs):',
+            so.driveLink,
+            '',
+            'Snapshot:',
+            '· PO#: '+(so.poNumber||'—'),
+            '· Qty: '+Number(so.selectedQty||0).toLocaleString(),
+            '· Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+            '· Customer: '+(so.company||'')+(so.contact?' · '+so.contact:''),
+            '',
+            'Soon as you sign I\'ll send to the client and trigger PPD + Logistics.',
+            '',
+            'Thanks!',
+            (typeof getUserName==='function'?getUserName():'')
+          ].join('\n')
+        };
+      }
+    },
+    reminder:{
+      label:'Reminder — follow-up',
+      build:function(so){
+        return {
+          subject:'Reminder — Sales Order '+so.soNum+' still needs your signature',
+          body:[
+            'Hi Moises,',
+            '',
+            'Just a nudge — SO '+so.soNum+' ('+so.company+') is still waiting on your signature so I can route it to the client.',
+            '',
+            'PDF:',
+            so.driveLink,
+            '',
+            'Order: '+so.soNum+' · PO# '+(so.poNumber||'—')+' · $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+            '',
+            'Let me know if anything in the doc needs to change before you sign.',
+            '',
+            'Thanks',
+            (typeof getUserName==='function'?getUserName():'')
+          ].join('\n')
+        };
+      }
+    }
+  },
+  client:{
+    standard:{
+      label:'Standard — first send',
+      build:function(so){
+        return {
+          subject:'Sales Order '+so.soNum+' — Countersignature Needed',
+          body:[
+            'Hi '+(so.contact||'there')+',',
+            '',
+            'Thank you for your purchase order. Your Sales Order '+so.soNum+' has been signed by Microflex and is ready for your countersignature.',
+            '',
+            'Open the document here:',
+            so.driveLink,
+            '',
+            'How to sign:',
+            '1. Click the link above to open the document in Google Docs.',
+            '2. Use the eSignature feature (or type your name into the signature line) and save.',
+            '3. That\'s it — your signed copy is captured in our shared Drive automatically.',
+            '',
+            'Order details:',
+            'SO#: '+so.soNum,
+            'PO#: '+(so.poNumber||'—'),
+            'Job: '+(so.jobDesc||'—'),
+            'Quantity: '+Number(so.selectedQty||0).toLocaleString(),
+            'Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+            'Payment Terms: '+(so.payTerms||'Net 30'),
+            '',
+            'Once you sign, we\'ll move the order into production. Questions? Reply to this email or reach quotes@microflexfilm.com.',
+            '',
+            'Thanks',
+            (typeof getUserName==='function'?getUserName():'Microflex Team')
+          ].join('\n')
+        };
+      }
+    },
+    reminder:{
+      label:'Reminder — gentle nudge',
+      build:function(so){
+        return {
+          subject:'Friendly reminder — SO '+so.soNum+' is ready for your signature',
+          body:[
+            'Hi '+(so.contact||'there')+',',
+            '',
+            'Following up — your Sales Order '+so.soNum+' is signed on our end and waiting for your countersignature so we can lock the production schedule.',
+            '',
+            'Signed PDF (Google Docs):',
+            so.driveLink,
+            '',
+            'Just open it, drop your signature on the line, and save — that\'s everything we need.',
+            '',
+            'Order: '+so.soNum+' · PO# '+(so.poNumber||'—')+' · Qty '+Number(so.selectedQty||0).toLocaleString()+' · $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+            '',
+            'Let me know if anything needs to change before you sign.',
+            '',
+            'Thanks',
+            (typeof getUserName==='function'?getUserName():'Microflex Team')
+          ].join('\n')
+        };
+      }
+    },
+    finalReminder:{
+      label:'Final reminder — production hold',
+      build:function(so){
+        return {
+          subject:'Final reminder — SO '+so.soNum+' signature needed to hold your slot',
+          body:[
+            'Hi '+(so.contact||'there')+',',
+            '',
+            'This is a final reminder that we still need your countersignature on Sales Order '+so.soNum+' before we can release it to production. Without it, the slot we\'re holding for you may shift.',
+            '',
+            'Signed PDF:',
+            so.driveLink,
+            '',
+            'Order: '+so.soNum+' · PO# '+(so.poNumber||'—')+' · Qty '+Number(so.selectedQty||0).toLocaleString()+' · $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
+            'Payment Terms: '+(so.payTerms||'Net 30'),
+            '',
+            'If something in the SO needs to change before you sign, just reply and we\'ll get it sorted today.',
+            '',
+            'Thanks',
+            (typeof getUserName==='function'?getUserName():'Microflex Team')
+          ].join('\n')
+        };
+      }
+    }
+  }
+};
+window._SO_SIGN_TEMPLATES=_SO_SIGN_TEMPLATES;
+
+function emailCEOForSign(soId, templateKey){
   var so=getSO(soId);
   if(!so)return toast&&toast('SO not found','err');
   if(!so.driveLink)return toast&&toast('Save the PDF first — no Drive link to share','err');
-  var to=_ceoEmail();
-  var subj='SIGN REQUIRED — Sales Order '+so.soNum+' · '+so.company;
-  var body=[
-    'Hi Moises,',
-    '',
-    'Sales Order '+so.soNum+' is ready for your signature.',
-    '',
-    'Open the PDF here:',
-    so.driveLink,
-    '',
-    'How to sign:',
-    '1. Open the link above in Google Docs / Drive.',
-    '2. Use "File → Make a copy" or open as a Doc to enable signing.',
-    '3. Add your signature (either the eSignature feature, or type/insert image).',
-    '4. Save — the file lives in our shared MFX-CORE drive so the signed copy stays in place.',
-    '',
-    'Once you sign, I\'ll forward the same link to '+ (so.contact || so.company) +' for their countersignature.',
-    '',
-    'Customer: '+(so.company||'')+(so.contact?' · '+so.contact:'')+(so.email?' <'+so.email+'>':''),
-    'PO#: '+(so.poNumber||'—'),
-    'Qty: '+Number(so.selectedQty||0).toLocaleString(),
-    'Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
-    '',
-    'Thanks',
-    (typeof getUserName==='function'?getUserName():'')
-  ].join('\n');
-  _mailtoOpen(to, subj, body);
+  var key=templateKey||'standard';
+  var tpl=(_SO_SIGN_TEMPLATES.ceo[key]||_SO_SIGN_TEMPLATES.ceo.standard);
+  var built=tpl.build(so);
+  _mailtoOpen(_ceoEmail(), built.subject, built.body);
 }
 window.emailCEOForSign=emailCEOForSign;
 
-function emailClientForSign(soId){
+function emailClientForSign(soId, templateKey){
   var so=getSO(soId);
   if(!so)return toast&&toast('SO not found','err');
   if(!so.driveLink)return toast&&toast('Save the PDF first — no Drive link to share','err');
   if(!so.email)return toast&&toast('No client email on this SO — fix the quote first','err');
-  var to=so.email;
-  var subj='Sales Order '+so.soNum+' — Countersignature Needed';
-  var body=[
-    'Hi '+(so.contact||'there')+',',
-    '',
-    'Thank you for your purchase order. Your Sales Order '+so.soNum+' has been signed by Microflex and is ready for your countersignature.',
-    '',
-    'Open the document here:',
-    so.driveLink,
-    '',
-    'How to sign:',
-    '1. Click the link above to open the document in Google Docs.',
-    '2. Use the eSignature feature (or type your name into the signature line) and save.',
-    '3. That\'s it — your signed copy is captured in our shared Drive automatically.',
-    '',
-    'Order details:',
-    'SO#: '+so.soNum,
-    'PO#: '+(so.poNumber||'—'),
-    'Job: '+(so.jobDesc||'—'),
-    'Quantity: '+Number(so.selectedQty||0).toLocaleString(),
-    'Total: $'+Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),
-    'Payment Terms: '+(so.payTerms||'Net 30'),
-    '',
-    'Once you sign, we\'ll move the order into production. Questions? Reply to this email or reach quotes@microflexfilm.com.',
-    '',
-    'Thanks',
-    (typeof getUserName==='function'?getUserName():'Microflex Team')
-  ].join('\n');
-  _mailtoOpen(to, subj, body);
+  var key=templateKey||'standard';
+  var tpl=(_SO_SIGN_TEMPLATES.client[key]||_SO_SIGN_TEMPLATES.client.standard);
+  var built=tpl.build(so);
+  _mailtoOpen(so.email, built.subject, built.body);
 }
 window.emailClientForSign=emailClientForSign;
+
+// 2026-05-27 round 49: SO-tab dropdown helpers — pull the selected
+// template key out of the <select> next to the button, then call the
+// matching email helper. Keeps the buttons one-liners in app.js.
+function emailCEOForSignFromSelect(soId, selectId){
+  var sel=document.getElementById(selectId);
+  emailCEOForSign(soId, sel?sel.value:'standard');
+}
+window.emailCEOForSignFromSelect=emailCEOForSignFromSelect;
+function emailClientForSignFromSelect(soId, selectId){
+  var sel=document.getElementById(selectId);
+  emailClientForSign(soId, sel?sel.value:'standard');
+}
+window.emailClientForSignFromSelect=emailClientForSignFromSelect;
+
+// 2026-05-27 round 49: Mark CEO Signed — stamps ceoSignedAt/ceoSignedBy
+// on the SO doc, then auto-opens the Client sign-request email so the
+// human only has to click Send. This is the "once ceo signed the
+// clients email is sent for final signature" half of the workflow.
+function markCEOSigned(soId, templateKey){
+  var so=getSO(soId);
+  if(!so)return toast&&toast('SO not found','err');
+  if(!so.driveLink){
+    if(!confirm('No Drive PDF link yet — mark CEO signed anyway?')) return;
+  }
+  if(so.ceoSignedAt){
+    if(!confirm('CEO is already marked signed at '+(new Date(so.ceoSignedAt && so.ceoSignedAt.toDate?so.ceoSignedAt.toDate():so.ceoSignedAt)).toLocaleString()+'. Re-stamp?'))return;
+  }
+  var who=(typeof getUserName==='function'&&getUserName())||'CEO';
+  var ceoName=(typeof window!=='undefined' && window.SO_CEO_NAME) || 'Moises Santillan';
+  var nowSv=(window.firebase&&firebase.firestore&&firebase.firestore.FieldValue&&firebase.firestore.FieldValue.serverTimestamp)?firebase.firestore.FieldValue.serverTimestamp():new Date();
+  var patch={
+    ceoSignedAt:nowSv,
+    ceoSignedBy:ceoName,
+    ceoSignedByUser:who,
+    signatureFlow:'awaiting_client',
+    updatedAt:nowSv
+  };
+  return db.collection('salesOrders').doc(soId).update(patch).then(function(){
+    // mirror into local cache so the UI updates immediately
+    var cached=(window._soCache||[]).find(function(s){return s.id===soId;});
+    if(cached){ cached.ceoSignedAt=new Date(); cached.ceoSignedBy=ceoName; cached.ceoSignedByUser=who; cached.signatureFlow='awaiting_client'; }
+    toast&&toast('CEO marked signed — opening client email','ok');
+    if(typeof renderAll==='function')renderAll();
+    // auto-open client email
+    setTimeout(function(){ emailClientForSign(soId, templateKey||'standard'); }, 250);
+  }).catch(function(e){
+    console.error('[markCEOSigned] failed',e);
+    toast&&toast('Could not mark signed — '+(e&&e.message||e),'err');
+  });
+}
+window.markCEOSigned=markCEOSigned;
 
 // Email the client a countersignature request with portal link.
 function _sendClientSignRequestEmail(so){
@@ -2322,9 +2504,16 @@ function generateSOPDF(so){
           var imgW=pdfW-20;
           var imgH=(canvas.height*imgW)/canvas.width;
           pdf.addImage(imgData,'JPEG',10,10,imgW,imgH);
-          var descClean=String(so.jobDesc||'').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'-').substring(0,60);
-          var coClean=String(so.company||'Co').replace(/[^a-zA-Z0-9]/g,'-');
-          var filename=(so.soNum||'SO')+'_'+coClean+(descClean?'_'+descClean:'')+'.pdf';
+          // 2026-05-27 round 49: PDF filename now follows
+          //   MFX-{soNum} - {company}.pdf
+          // (e.g., "MFX-SO2605-158 - Acme Inc.pdf"). Drive's filename
+          // search is case-insensitive and tolerates spaces, so this
+          // is human-readable in the shared folder listing. Company
+          // is allowed to keep spaces; only strip filesystem-unsafe
+          // characters (slashes, backslashes, etc.).
+          var coClean=String(so.company||'Client').replace(/[\\/:*?"<>|]/g,'').trim();
+          var soPart=String(so.soNum||'SO').trim();
+          var filename='MFX-'+soPart+(coClean?' - '+coClean:'')+'.pdf';
           var pdfBlob=pdf.output('blob');
           var pdfBase64=pdf.output('datauristring').split(',')[1];
           resolve({blob:pdfBlob,base64:pdfBase64,filename:filename});
