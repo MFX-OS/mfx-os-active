@@ -1780,57 +1780,10 @@ function buildPortalSOHTML(so,soId){
    +(_ceoSigned && _clientSigned ? '<div style="margin-top:10px;text-align:center;font-size:10px;color:#15803d;font-weight:700;letter-spacing:1px">✓ FULLY EXECUTED — both signatures on file</div>' : '')
    +'</div>';
 
-  // ─── Signing surface — inline typed-name signature (client only) ────
-  // The CEO half is already filled in above. This block handles the
-  // CLIENT'S signature collection: typed-name field + Approve checkbox +
-  // Sign button. Writes clientSignature/clientSignedAt/clientEmail/
-  // clientApproved to the SO doc. Once stamped, the Signatures block
-  // above shows both halves filled in ("Fully Executed").
-  var signed=!!so.clientSignedAt;
-  var soState=clientSOStatus(so);
-  var readyToSign=(String(so.status||'').toLowerCase()==='approved'||String(so.status||'').toLowerCase()==='sent') && !signed;
-  if(signed){
-    // No-op — the Signatures block above already shows the signed state
-    // for both parties. Nothing to render here.
-  } else if(readyToSign){
-    // Inline sign UI — typed name + approve checkbox + sign button
-    h+='<div style="padding:18px 24px;background:#fef3c7;border-top:2px solid #f59e0b;border-bottom:1px solid #fde68a">'
-     +'<div style="font-size:10px;color:#92400e;font-weight:800;letter-spacing:2px;margin-bottom:6px;text-align:center">✍ '+escPortal(soState.label)+'</div>'
-     +'<div style="font-size:13px;color:#0a2030;font-weight:600;margin-bottom:14px;text-align:center;line-height:1.4">Review the order above, then type your full name to sign.</div>'
-     +'<div style="max-width:420px;margin:0 auto">'
-     +'<label style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:rgba(255,255,255,.6);border:1px solid rgba(245,158,11,.4);border-radius:6px;cursor:pointer;margin-bottom:10px">'
-     +'<input type="checkbox" id="soApproveCheck" style="width:16px;height:16px;accent-color:#f59e0b;flex-shrink:0;margin-top:2px" onchange="document.getElementById(\'soApproveBtn\').disabled=!(this.checked && (document.getElementById(\'soSigInput\')||{}).value && document.getElementById(\'soSigInput\').value.trim().length>0)">'
-     +'<span style="font-size:11px;color:#5a4a28;line-height:1.5">I authorize Microflex Film Corporation to proceed with this order at the quantity, pricing, and specifications shown above. I confirm payment terms of <strong>'+escPortal(so.payTerms||'Net 30')+'</strong> and acknowledge the standard terms below.</span>'
-     +'</label>'
-     +'<div style="background:#fff;border:1.5px solid #f59e0b;border-radius:6px;padding:10px 14px;margin-bottom:12px">'
-     +'<div style="font-size:9px;color:#92400e;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Type Your Full Name to Sign</div>'
-     +'<input id="soSigInput" type="text" placeholder="e.g. Jane Smith" style="width:100%;background:transparent;border:none;border-bottom:2px solid #fde68a;padding:8px 0 4px;font-size:20px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:#0a2030;outline:none" oninput="document.getElementById(\'soApproveBtn\').disabled=!((document.getElementById(\'soApproveCheck\')||{}).checked && this.value && this.value.trim().length>0)">'
-     +'<div style="font-size:9px;color:#92400e;margin-top:6px">Signed on '+escPortal(new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}))+(CLIENT_EMAIL?' · '+escPortal(CLIENT_EMAIL):'')+'</div>'
-     +'</div>'
-     +'<button id="soApproveBtn" disabled onclick="submitSOApproval(\''+escPortal(soId)+'\')" style="width:100%;padding:14px;background:#f59e0b;color:#fff;font-size:14px;font-weight:800;font-family:Outfit,sans-serif;border:none;border-radius:6px;cursor:pointer;letter-spacing:.5px;opacity:.5;transition:opacity .15s">Sign Sales Order</button>'
-     +(so.signingDocLink?'<div style="text-align:center;margin-top:10px"><a href="'+escPortal(so.signingDocLink)+'" target="_blank" rel="noopener" style="font-size:10px;color:#92400e;text-decoration:underline">Prefer to review the full Google Doc first? Open in Drive</a></div>':'')
-     +'</div>'
-     +'</div>';
-    // Enable the sign button when both conditions are met (the inline oninput handles this).
-    // Also patch the button enable logic to look at the checked state immediately.
-    setTimeout(function(){
-      var btn=document.getElementById('soApproveBtn');
-      var chk=document.getElementById('soApproveCheck');
-      var sig=document.getElementById('soSigInput');
-      if(btn && chk && sig){
-        var refresh=function(){btn.disabled=!(chk.checked && sig.value && sig.value.trim().length>0); btn.style.opacity=btn.disabled?'.5':'1'};
-        chk.addEventListener('change',refresh);
-        sig.addEventListener('input',refresh);
-        refresh();
-      }
-    },50);
-  } else {
-    // Pre-approval state — surface the current lifecycle status, no action available yet
-    h+='<div style="padding:18px 24px;background:#f5f7f9;border-top:2px solid '+soState.color+';border-bottom:1px solid #e8ecf0;text-align:center">'
-     +'<div style="font-size:10px;color:'+soState.color+';font-weight:800;letter-spacing:2px;margin-bottom:6px">⏳ '+escPortal(soState.label)+'</div>'
-     +'<div style="font-size:12px;color:#4a5a68;line-height:1.5;max-width:480px;margin:0 auto">Your sales order is being prepared by the Microflex team. You\'ll be able to sign it here once it\'s ready for your approval. We\'ll email you when it\'s your turn.</div>'
-     +'</div>';
-  }
+  // 2026-05-27 round 47: inline portal sign form removed. Signatures
+  // are collected externally — Microflex shares the PDF via Google
+  // Docs and the client signs there. Portal now just shows the SO
+  // for reference + Download PDF.
 
   // PDF download — primary path uses the Drive link (server-set by
   // saveSalesOrderPDF when staff sends the SO). Fallback path prints this

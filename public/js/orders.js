@@ -1643,6 +1643,66 @@ function confirmSOAsCSR(soId){
 }
 window.confirmSOAsCSR=confirmSOAsCSR;
 
+// ─── 🚀 Start Job — simplified production handoff ─────────────────────
+// 2026-05-27 round 47: replaces the round 21 multi-step signature
+// chain. Signature collection now happens externally (CEO + client
+// sign the PDF via Google Docs against the file in Master Sales
+// Orders folder). When the human is ready, they press Start Job —
+// that stamps jobStartedAt and fires the production-records trigger
+// which creates Job Passport + Job Ticket and notifies PPD + Logistics.
+// Production is scheduled when both teams confirm (2 green lights).
+function startJob(soId){
+  if(!soId||typeof fbDb==='undefined')return toast&&toast('Cannot start job — DB unavailable','err');
+  var so=getSO(soId);
+  if(!so)return toast&&toast('Sales order not found','err');
+  if(so.jobStartedAt)return toast&&toast('Job already started by '+(so.jobStartedBy||'someone')+' on '+(typeof fD==='function'?fD(so.jobStartedAt):so.jobStartedAt),'info');
+  if(!so.driveLink){
+    if(!confirm('⚠ No PDF saved yet for this SO. Start the job anyway?\n\nRecommended: save the PDF first so PPD + Logistics have something to reference.'))return;
+  }
+  if(!confirm('🚀 Start Job '+so.soNum+'?\n\nThis will:\n• Create the Job Passport + Job Ticket\n• Notify Pre-Press + Logistics teams\n• Move the SO into production-scheduling state\n\nMake sure both signatures (CEO + Client) on the Google Doc are complete before starting.\n\nProceed?')){
+    return;
+  }
+  var now=new Date().toISOString();
+  var by=typeof getUserName==='function'?getUserName():'Staff';
+  var upd={
+    jobStartedAt:now,
+    jobStartedBy:by,
+    signatureFlow:'in_production',
+    status:'completed',
+    // Mirror to csrConfirmedAt so legacy code paths that watched that
+    // field still fire (and the production-records trigger sees it).
+    csrConfirmedAt:now,
+    csrConfirmedBy:by,
+    updatedAt:now,
+    updatedBy:by
+  };
+  var notes=Array.isArray(so.notes)?so.notes.slice():[];
+  notes.push({text:'🚀 '+by+' started the job. Job Passport + Job Ticket creating, PPD + Logistics notified. Awaiting both teams\' confirmation to schedule production.',by:by,at:now});
+  upd.notes=notes;
+  Object.assign(so,upd);
+  if(window.setSaveState)window.setSaveState('saving');
+  fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
+    toast&&toast('🚀 Job started for '+so.soNum+' — Passport + Ticket creating, PPD/Logistics notified','ok');
+    if(typeof fbDb!=='undefined'){
+      fbDb.collection('activity').add({
+        type:'so.job_started',
+        soId:so.id,soNum:so.soNum,company:so.company,
+        startedBy:by,
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    }
+    if(typeof renderEditor==='function')renderEditor();
+    if(typeof renderOrdersView==='function')renderOrdersView();
+    if(typeof renderWorkflow==='function')renderWorkflow();
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    toast&&toast('Start Job failed: '+e.message,'err');
+    console.error('[startJob]',e);
+  });
+}
+window.startJob=startJob;
+
 // Email the client a countersignature request with portal link.
 function _sendClientSignRequestEmail(so){
   if(typeof getGoogleToken!=='function')return Promise.reject(new Error('Gmail not available'));
@@ -2028,17 +2088,13 @@ async function autoCreateSO(q){
         if(typeof renderOrdersView==='function')renderOrdersView();
       }).catch(function(e){console.warn('[autoCreateSO] PDF save deferred:',e.message)});
     }
-    // 2026-05-27 round 46: after SO generation, switch to SO tab AND
-    // auto-open the SO Workspace modal (preview + email template +
-    // To/From dropdowns + Drive save location + signature timeline).
-    // That gives staff one place to review and dispatch.
+    // 2026-05-27 round 47: simplified flow — just switch to SO tab so
+    // staff sees the data. No auto-modal, no auto-send. Signature
+    // collection happens externally via Google Docs against the PDF
+    // saved in Master Sales Orders. Staff clicks Start Job when ready.
     if(typeof S!=='undefined' && S.editId===q.id){
       S.etab=10;
       if(typeof renderEditor==='function')renderEditor();
-      // Give the editor a tick to re-render before the modal opens on top
-      setTimeout(function(){
-        if(typeof openSOSendFlow==='function')openSOSendFlow(soId);
-      }, 300);
     }
 
     // Always notify CEO — every SO requires electronic signature now.

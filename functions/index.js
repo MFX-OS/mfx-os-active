@@ -3722,13 +3722,14 @@ exports.autoCreateProductionRecordsOnSign = onDocumentWritten(
     const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
     if (!after) return;
 
-    // 2026-05-27 round 43: gate moved from clientSignedAt → csrConfirmedAt.
-    // The multi-step signature flow now requires a CSR to explicitly
-    // confirm the SO before passport+ticket are generated and PPD +
-    // Logistics are notified. Trigger fires on the transition from
-    // un-confirmed → confirmed.
-    if (!after.csrConfirmedAt) return;
-    if (before && before.csrConfirmedAt) return;
+    // 2026-05-27 round 47: gate is now jobStartedAt (human clicks Start
+    // Job in the SO tab once signatures are collected externally via
+    // Google Docs). Trigger fires on the transition from not-started
+    // → started. csrConfirmedAt is mirrored from jobStartedAt by the
+    // client-side startJob() helper so legacy queries on csrConfirmed*
+    // still resolve the same way.
+    if (!after.jobStartedAt) return;
+    if (before && before.jobStartedAt) return;
     // Already has production records
     if (after.passportId || after.jobTicketId) return;
 

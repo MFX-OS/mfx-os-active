@@ -1299,32 +1299,11 @@ $('v-editor').innerHTML=`${(function(){
   // when staff re-clicks Send for Signatures (handled inside that fn).
   return '';
 })()}${(function(){
-  // ─── CSR Confirmation Banner (signatureFlow='awaiting_csr') ─────────
-  // Client has signed; CSR needs to confirm before passport+ticket are
-  // generated and PPD/Logistics are notified.
-  var qq3=getQ(S.editId);
-  if(!qq3)return'';
-  var soForCSR = (typeof getSalesOrders==='function')
-    ? getSalesOrders().find(function(s){return s.quoteId===qq3.id||s.quoteNum===qq3.quoteNum})
-    : null;
-  if(!soForCSR)return'';
-  if(soForCSR.signatureFlow!=='awaiting_csr')return'';
-  if(soForCSR.csrConfirmedAt)return'';
-  var x='<div style="background:linear-gradient(135deg,rgba(34,197,94,.10),rgba(34,197,94,.03));border:1.5px solid rgba(34,197,94,.5);border-radius:10px;padding:14px 18px;margin:8px 12px 12px">';
-  x+='<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">';
-  x+='<div style="flex:1;min-width:240px">';
-  x+='<div style="font-size:10px;color:#22c55e;font-weight:800;letter-spacing:2px;margin-bottom:6px">✓ FULLY SIGNED · CSR CONFIRMATION NEEDED</div>';
-  x+='<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc(soForCSR.soNum||'—')+' — both signatures on file</div>';
-  x+='<div style="font-size:11px;color:var(--tx2);line-height:1.6">';
-  x+='CEO: <strong>'+esc(soForCSR.ceoSignedBy||'—')+'</strong>'+(soForCSR.ceoSignedAt?' ('+esc(fD(soForCSR.ceoSignedAt))+')':'')+' · ';
-  x+='Client: <strong>'+esc(soForCSR.clientSignature||'—')+'</strong>'+(soForCSR.clientSignedAt?' ('+esc(fD(soForCSR.clientSignedAt))+')':'');
-  x+='</div>';
-  x+='<div style="font-size:10px;color:var(--tx3);margin-top:6px">Confirm to generate Job Passport + Job Ticket and notify Pre-Press + Logistics that this order is moving into production.</div>';
-  x+='</div>';
-  x+='<button onclick="confirmSOAsCSR(\''+esc(soForCSR.id)+'\')" style="padding:11px 22px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap">✓ Confirm & Hand Off to Production</button>';
-  x+='</div>';
-  x+='</div>';
-  return x;
+  // CSR Confirmation Banner removed 2026-05-27 (round 47). Replaced
+  // by the Start Job button on the SO tab. Signature collection
+  // happens externally via Google Docs; human clicks Start Job when
+  // ready.
+  return '';
 })()}<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO','SO Preview','Passport','Timeline','Workflow'].map(function(t,i){return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
 <style>#statusBar{max-width:250px}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
 
@@ -1860,16 +1839,7 @@ if(linkedSO){
   h+='<div style="background:linear-gradient(135deg,rgba(34,197,94,.06),rgba(34,197,94,.02));border:1px solid '+(_hasMaster?'rgba(34,197,94,.4)':'rgba(255,255,255,.08)')+';border-radius:10px;padding:12px 14px;margin-bottom:10px">';
   h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
   h+='<div style="font-size:10px;color:'+(_hasMaster?'#22c55e':'var(--tx3)')+';font-weight:800;letter-spacing:1.5px">📁 SALES ORDER PDF ON DRIVE'+(_hasMaster?' · ✓ SAVED':' · PENDING')+'</div>';
-  h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
-  // Signature workflow trigger — only show when PDF is ready and chain hasn't started
-  if(_hasMaster && (!so.signatureFlow || so.signatureFlow==='ready_to_send' || so.signatureFlow==='pending')){
-    h+='<button class="btn btn-pr btn-xs" onclick="sendSOForSignatures(\''+so.id+'\')" style="white-space:nowrap;background:#00e5ff;color:#000;font-weight:800">📨 Send for Signatures</button>';
-  } else if(so.signatureFlow && so.signatureFlow!=='ready_to_send'){
-    var _flowLabel={'awaiting_ceo':'⏳ Awaiting Client Sign (legacy)','awaiting_client':'⏳ Awaiting Client Sign','awaiting_csr':'⏳ Awaiting CSR Confirm','in_production':'🏭 In Production'}[so.signatureFlow]||so.signatureFlow;
-    h+='<span style="padding:5px 10px;background:rgba(0,229,255,.1);color:var(--ac);font-size:10px;font-weight:700;border-radius:4px;white-space:nowrap">'+_flowLabel+'</span>';
-  }
   h+='<button class="btn btn-ghost btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate':'⬆ Save PDF Now')+'</button>';
-  h+='</div>';
   h+='</div>';
   if(_hasMaster){
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
@@ -1882,6 +1852,71 @@ if(linkedSO){
     h+='<div style="font-size:11px;color:var(--tx3);line-height:1.5">PDF will be auto-generated and saved here when the SO is signed. Click <strong>Save PDF Now</strong> to trigger it manually.</div>';
   }
   h+='</div>';
+}
+
+// ═══ START JOB CARD ═══════════════════════════════════════════════
+// 2026-05-27 round 47: replaces the round 21 signature chain with a
+// single manual action. Signatures are collected externally via
+// Google Docs on the PDF saved in Master Sales Orders. When ready,
+// human clicks Start Job — that creates Passport+Ticket and notifies
+// PPD + Logistics. Production is scheduled when both teams confirm
+// (2 green lights shown below).
+if(linkedSO){
+  var _jobStarted=!!so.jobStartedAt;
+  var _ppdReady=!!(so.ppdReadyAt||so.ppdConfirmedAt);
+  var _logiReady=!!(so.logisticsReadyAt||so.logisticsConfirmedAt);
+  var _prodScheduled=!!so.productionScheduledAt;
+  if(!_jobStarted){
+    // Pre-Start: Big call-to-action card
+    h+='<div style="background:linear-gradient(135deg,rgba(0,229,255,.10),rgba(0,229,255,.02));border:1.5px solid rgba(0,229,255,.5);border-radius:10px;padding:14px 18px;margin-bottom:12px">';
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">';
+    h+='<div style="flex:1;min-width:240px">';
+    h+='<div style="font-size:10px;color:var(--ac);font-weight:800;letter-spacing:2px;margin-bottom:6px">🚀 READY TO START JOB</div>';
+    h+='<div style="font-size:12px;color:var(--tx);line-height:1.5">Download the PDF above, get CEO + Client signatures via Google Docs, then click <strong>Start Job</strong> to send the work to PPD &amp; Logistics.</div>';
+    h+='</div>';
+    h+='<button onclick="startJob(\''+so.id+'\')" '+(_hasMaster?'':'title="Save the PDF first" disabled')+' style="padding:12px 28px;background:#00e5ff;color:#000;border:none;border-radius:8px;font-size:14px;font-weight:900;letter-spacing:.5px;cursor:'+(_hasMaster?'pointer':'not-allowed')+';white-space:nowrap;opacity:'+(_hasMaster?'1':'.5')+'">🚀 START JOB</button>';
+    h+='</div>';
+    h+='</div>';
+  } else {
+    // Post-Start: 2 green lights status
+    var _bothReady=_ppdReady && _logiReady;
+    h+='<div style="background:linear-gradient(135deg,'+(_prodScheduled||_bothReady?'rgba(34,197,94,.10),rgba(34,197,94,.03)':'rgba(245,158,11,.10),rgba(245,158,11,.03)')+');border:1.5px solid '+(_prodScheduled||_bothReady?'rgba(34,197,94,.5)':'rgba(245,158,11,.5)')+';border-radius:10px;padding:14px 18px;margin-bottom:12px">';
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px">';
+    h+='<div>';
+    h+='<div style="font-size:10px;color:'+(_prodScheduled||_bothReady?'#22c55e':'#f59e0b')+';font-weight:800;letter-spacing:2px;margin-bottom:4px">'+(_prodScheduled?'🏭 PRODUCTION SCHEDULED':_bothReady?'✓ BOTH TEAMS READY — SCHEDULING':'⏳ JOB IN PROGRESS · AWAITING TEAMS')+'</div>';
+    h+='<div style="font-size:11px;color:var(--tx2)">Started by <strong>'+esc(so.jobStartedBy||'—')+'</strong>'+(so.jobStartedAt?' on '+fD(so.jobStartedAt):'')+'</div>';
+    h+='</div>';
+    if(so.passportNum||so.jobTicketNum){
+      h+='<div style="font-size:10px;color:var(--tx3);text-align:right">';
+      if(so.passportNum)h+='Passport <strong style="color:var(--ac)">'+esc(so.passportNum)+'</strong><br>';
+      if(so.jobTicketNum)h+='Job Ticket <strong style="color:var(--ac)">'+esc(so.jobTicketNum)+'</strong>';
+      h+='</div>';
+    }
+    h+='</div>';
+    // 2 green lights grid
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    [
+      {label:'PRE-PRESS', ready:_ppdReady, at:so.ppdReadyAt||so.ppdConfirmedAt, icon:'🎨'},
+      {label:'LOGISTICS', ready:_logiReady, at:so.logisticsReadyAt||so.logisticsConfirmedAt, icon:'📦'}
+    ].forEach(function(t){
+      h+='<div style="background:var(--bg2);border:1px solid '+(t.ready?'rgba(34,197,94,.4)':'var(--bdr)')+';border-left:4px solid '+(t.ready?'#22c55e':'#f59e0b')+';border-radius:6px;padding:10px 12px;display:flex;align-items:center;gap:10px">';
+      h+='<div style="font-size:20px">'+t.icon+'</div>';
+      h+='<div style="flex:1">';
+      h+='<div style="font-size:9px;color:'+(t.ready?'#22c55e':'#f59e0b')+';font-weight:800;letter-spacing:1.5px">'+t.label+' '+(t.ready?'· ✓ READY':'· WAITING')+'</div>';
+      h+='<div style="font-size:10px;color:var(--tx3);margin-top:2px">'+(t.ready?(t.at?'Confirmed '+fD(t.at):'Confirmed'):'Notified — waiting for confirmation')+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:16px;color:'+(t.ready?'#22c55e':'#f59e0b')+'">'+(t.ready?'🟢':'⚪')+'</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+    if(_prodScheduled){
+      h+='<div style="margin-top:10px;padding:8px 12px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:11px;color:#22c55e;line-height:1.5;text-align:center">';
+      h+='🏭 <strong>Production scheduled '+(so.productionScheduledAt?fD(so.productionScheduledAt):'')+'</strong>';
+      if(so.productionScheduledBy)h+=' by '+esc(so.productionScheduledBy);
+      h+='</div>';
+    }
+    h+='</div>';
+  }
 }
 
 // ═══ INLINE SO PREVIEWS — Document HTML, Actual PDF, or Edit Form ═══
