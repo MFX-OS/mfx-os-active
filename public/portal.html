@@ -1712,33 +1712,38 @@ function buildPortalSOHTML(so,soId){
   // Customer half stays "Awaiting" until they sign via the form below. This
   // gives both sides a "complete signed copy" view once both halves are
   // filled, on portal AND in the staff editor (same render function).
-  var _ceoSigned = !!so.ceoSignedAt;
-  var _ceoName = so.ceoSignedBy || 'Moises Santillan';
-  var _ceoSig = so.ceoSignature || _ceoName;
+  // 2026-05-27 round 45: CEO sign removed. The Microflex side of the
+  // signature block now shows the company stamp + CSR confirmation
+  // (when present) instead of a CEO name. Keeps the legacy ceoSigned*
+  // fields visible for any SO that was already signed under the old
+  // round-21 flow so historical SOs still render correctly.
+  var _hasCSR = !!so.csrConfirmedAt;
+  var _hasLegacyCEO = !!so.ceoSignedAt;
+  var _mfxSigned = _hasCSR || _hasLegacyCEO;
+  var _mfxName = _hasCSR ? (so.csrConfirmedBy || 'Microflex CSR') : (so.ceoSignedBy || 'Microflex Film Corporation');
+  var _mfxSig = _hasCSR ? (so.csrConfirmedBy || 'Microflex CSR') : (so.ceoSignature || so.ceoSignedBy || 'Microflex Film Corporation');
+  var _mfxLabel = _hasCSR ? 'Microflex / CSR Approved' : (_hasLegacyCEO ? 'Microflex / CEO (legacy)' : 'Microflex Film Corporation');
+  var _mfxDate = so.csrConfirmedAt || so.ceoSignedAt || so.signatureFlowStartedAt;
   var _clientSigned = !!so.clientSignedAt;
-  // 2026-05-27 round 44: 5-stage signature timeline at top of the
-  // Signatures block. Each stage shows date+who when complete, gray
-  // pending state otherwise. Mirrors the multi-step approval chain:
-  // CEO requested → CEO signed → Client requested → Client signed → CSR confirmed.
+  // 2026-05-27 round 45: 3-stage signature timeline. CEO step dropped.
+  // Flow is: staff sends request → client signs → CSR confirms.
   var _tl = [
-    {label:'CEO REQUESTED', at:so.ceoSignRequestSentAt, by:so.signatureFlowStartedBy||'Staff'},
-    {label:'CEO SIGNED', at:so.ceoSignedAt, by:so.ceoSignedBy},
-    {label:'CLIENT REQUESTED', at:so.clientSignRequestSentAt, by:'Microflex'},
+    {label:'REQUEST SENT', at:so.clientSignRequestSentAt||so.signatureFlowStartedAt, by:so.signatureFlowStartedBy||'Microflex'},
     {label:'CLIENT SIGNED', at:so.clientSignedAt, by:so.clientSignature},
     {label:'CSR CONFIRMED', at:so.csrConfirmedAt, by:so.csrConfirmedBy}
   ];
   h+='<div style="padding:14px 24px 6px;background:#fafbfc;border-top:1px solid #e8ecf0;border-bottom:1px solid #f0f3f6">';
   h+='<div style="font-size:9px;color:#0a2e3e;font-weight:800;letter-spacing:2.5px;margin-bottom:8px;text-align:center">SIGNATURE TIMELINE</div>';
   h+='<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:separate"><tr>';
-  _tl.forEach(function(stage, i){
+  _tl.forEach(function(stage){
     var done = !!stage.at;
     var fg = done ? '#16a34a' : '#94a3b0';
     var bg = done ? '#f0fdf4' : '#fafbfc';
-    h+='<td style="vertical-align:top;text-align:center;width:20%;padding:0 3px">'
-     + '<div style="background:'+bg+';border:1px solid '+(done?'rgba(22,163,74,.3)':'#e8ecf0')+';border-radius:6px;padding:8px 6px">'
-     +   '<div style="font-size:14px;color:'+fg+';line-height:1">'+(done?'✓':'○')+'</div>'
-     +   '<div style="font-size:7px;color:'+fg+';font-weight:800;letter-spacing:.5px;margin-top:4px;line-height:1.2">'+escPortal(stage.label)+'</div>'
-     +   '<div style="font-size:8px;color:'+(done?'#0a2030':'#cbd5e1')+';margin-top:3px;line-height:1.2;min-height:18px">'
+    h+='<td style="vertical-align:top;text-align:center;width:33%;padding:0 4px">'
+     + '<div style="background:'+bg+';border:1px solid '+(done?'rgba(22,163,74,.3)':'#e8ecf0')+';border-radius:6px;padding:10px 8px">'
+     +   '<div style="font-size:16px;color:'+fg+';line-height:1">'+(done?'✓':'○')+'</div>'
+     +   '<div style="font-size:8px;color:'+fg+';font-weight:800;letter-spacing:1px;margin-top:5px;line-height:1.2">'+escPortal(stage.label)+'</div>'
+     +   '<div style="font-size:9px;color:'+(done?'#0a2030':'#cbd5e1')+';margin-top:3px;line-height:1.3;min-height:20px">'
      +     (done ? escPortal(_fD(stage.at)) + (stage.by ? '<br>'+escPortal(stage.by) : '') : 'pending')
      +   '</div>'
      + '</div>'
@@ -1748,15 +1753,16 @@ function buildPortalSOHTML(so,soId){
   h+='<div style="padding:18px 24px;background:#fafbfc;border-bottom:1px solid #e8ecf0">'
    +'<div style="font-size:9px;color:#0a2e3e;font-weight:800;letter-spacing:2.5px;margin-bottom:12px;text-align:center">SIGNATURES</div>'
    +'<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:separate"><tr>'
-     // CEO half
+     // Microflex half — stays present as the company-side stamp. Filled
+     // when CSR confirms (or for legacy round-21 SOs, when CEO signed).
      +'<td style="vertical-align:top;width:50%;padding:0 6px 0 0">'
-       +'<div style="background:#fff;border:1.5px solid '+(_ceoSigned?'#16a34a':'#dce2e8')+';border-radius:8px;padding:12px 14px;min-height:110px">'
-         +'<div style="font-size:8px;color:'+(_ceoSigned?'#15803d':'#94a3b0')+';font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Microflex / CEO'+(_ceoSigned?' · ✓ SIGNED':'')+'</div>'
-         +(_ceoSigned
-           ? '<div style="font-size:22px;font-family:Outfit,sans-serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:6px;line-height:1.2">'+escPortal(_ceoSig)+'</div>'
-             +'<div style="font-size:11px;color:#0a2030;font-weight:600">'+escPortal(_ceoName)+'</div>'
-             +'<div style="font-size:9px;color:#15803d">Approved on '+escPortal(_fD(so.ceoSignedAt))+'</div>'
-           : '<div style="font-size:11px;color:#94a3b0;font-style:italic;padding:18px 0;text-align:center">Awaiting CEO sign-off</div>')
+       +'<div style="background:#fff;border:1.5px solid '+(_mfxSigned?'#16a34a':'#dce2e8')+';border-radius:8px;padding:12px 14px;min-height:110px">'
+         +'<div style="font-size:8px;color:'+(_mfxSigned?'#15803d':'#94a3b0')+';font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">'+escPortal(_mfxLabel)+(_mfxSigned?' · ✓ SIGNED':'')+'</div>'
+         +(_mfxSigned
+           ? '<div style="font-size:22px;font-family:Outfit,sans-serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:6px;line-height:1.2">'+escPortal(_mfxSig)+'</div>'
+             +'<div style="font-size:11px;color:#0a2030;font-weight:600">'+escPortal(_mfxName)+'</div>'
+             +'<div style="font-size:9px;color:#15803d">Confirmed on '+escPortal(_fD(_mfxDate))+'</div>'
+           : '<div style="font-size:11px;color:#94a3b0;font-style:italic;padding:18px 0;text-align:center">Pending CSR confirmation</div>')
        +'</div>'
      +'</td>'
      // Client half

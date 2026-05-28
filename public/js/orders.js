@@ -1321,34 +1321,34 @@ function confirmIncomingPO(quoteId){
 // ceoSignedAt/By/Signature, flips status to 'approved' + autoApproved=true,
 // then fires the existing 'so.auto_approved' event so the auto-send
 // (client-side or server-side) does the actual send.
-// ─── Send SO for Signatures (staff → CEO → Client → CSR chain) ────
-// 2026-05-27: staff clicks "Send for Signatures" on the SO tab or
-// Workflow tab. This is the entry point to the multi-step signature
-// workflow:
-//   1. Email goes to CEO (Moises) with a link to sign in the staff app
-//   2. signatureFlow → 'awaiting_ceo', ceoSignRequestSentAt stamped
-//   3. CEO opens editor → cyan banner → types name + Sign
-//   4. signSOAsCEO fires the client request email + sets
-//      signatureFlow='awaiting_client'
-//   5. Client signs on portal → signatureFlow='awaiting_csr'
-//   6. CSR opens editor → green banner → "Confirm & Hand Off"
-//   7. signatureFlow='in_production' → trigger creates passport+ticket
-//      and notifies PPD + Logistics teams
+// ─── Send SO for Signatures (staff → Client → CSR chain) ──────────
+// 2026-05-27 (rev): simplified chain. CEO sign step removed at the
+// user's request — staff "Send for Signatures" goes directly to the
+// client. After client signs, CSR confirms hand-off to Production.
+//   1. Email goes to client with portal link + PDF link
+//   2. signatureFlow → 'awaiting_client', clientSignRequestSentAt stamped
+//   3. Client signs in portal → signatureFlow='awaiting_csr'
+//   4. CSR opens editor → green banner → "Confirm & Hand Off"
+//   5. signatureFlow='in_production' → passport+ticket created,
+//      PPD + Logistics notified
 function sendSOForSignatures(soId){
   if(!soId||typeof fbDb==='undefined')return toast&&toast('Cannot send — DB unavailable','err');
   var so=getSO(soId);
   if(!so)return toast&&toast('Sales order not found','err');
-  if(so.signatureFlow==='awaiting_ceo' || so.signatureFlow==='awaiting_client' || so.signatureFlow==='awaiting_csr' || so.signatureFlow==='in_production'){
-    return toast&&toast('Signature flow already started — currently '+so.signatureFlow,'info');
+  if(so.signatureFlow==='awaiting_client' || so.signatureFlow==='awaiting_csr' || so.signatureFlow==='in_production'){
+    return toast&&toast('Already sent — currently '+so.signatureFlow,'info');
   }
-  // Sanity check — we need at minimum a client email and Drive PDF link
+  // Legacy: SO was started on the old CEO chain (round 21) and is sitting
+  // in awaiting_ceo. Advance it straight to awaiting_client so the new
+  // simplified flow takes over.
+  if(so.signatureFlow==='awaiting_ceo'){
+    if(!confirm('This SO was started under the old CEO-signature flow. Skip the CEO step and send directly to the client?'))return;
+  }
   if(!so.email)return toast&&toast('SO has no client email — fix the quote first','err');
   if(!so.driveLink){
-    // Try to save the PDF now if it isn't already saved
     if(typeof saveSOPDFToDrive==='function'){
       toast&&toast('Generating PDF first…','ok');
       return saveSOPDFToDrive(so).then(function(){
-        // Recurse once PDF exists
         var fresh=getSO(soId);
         if(fresh)sendSOForSignatures(soId);
       }).catch(function(e){
@@ -1358,40 +1358,33 @@ function sendSOForSignatures(soId){
       return toast&&toast('Cannot send — no PDF yet. Click "Save PDF Now" first.','err');
     }
   }
-  if(!confirm('Send '+so.soNum+' for signatures?\n\n1. Email goes to CEO (Moises Santillan) to sign first.\n2. After CEO signs, client gets a countersignature request.\n3. After client signs, CSR confirms hand-off to Production.\n\nProceed?')){
+  if(!confirm('Send '+so.soNum+' to '+(so.email||'client')+' for signature?\n\n• They receive an email with the PDF + portal link.\n• Once signed, CSR confirms and the order moves into production.\n\nProceed?')){
     return;
   }
   var now=new Date().toISOString();
   var by=typeof getUserName==='function'?getUserName():'Staff';
-  var ceoEmail=(typeof window!=='undefined' && window.SO_CEO_EMAIL) || 'flex@microflexfilm.com';
   var upd={
-    signatureFlow:'awaiting_ceo',
+    signatureFlow:'awaiting_client',
     signatureFlowStartedAt:now,
     signatureFlowStartedBy:by,
-    ceoSignRequestSentAt:now,
-    ceoSignRequestSentTo:ceoEmail,
-    ceoSignNeeded:true,
+    clientSignRequestSentAt:now,
     updatedAt:now,
     updatedBy:by
   };
   var notes=Array.isArray(so.notes)?so.notes.slice():[];
-  notes.push({text:'📨 Signature request sent — chain: CEO → Client → CSR. Awaiting CEO ('+ceoEmail+').',by:by,at:now});
+  notes.push({text:'📨 Signature request sent to client ('+(so.email||'?')+'). Awaiting countersignature.',by:by,at:now});
   upd.notes=notes;
   Object.assign(so,upd);
   if(window.setSaveState)window.setSaveState('saving');
   fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
     if(window.setSaveState)window.setSaveState('saved');
-    toast&&toast('Sent — CEO ('+ceoEmail+') will get the sign request shortly','ok');
-    // TODO server-side: hook into autoSendSOOnApproval or a new trigger
-    // to actually send the CEO email via flex@. For now, the staff app
-    // tries a client-side Gmail send below if the user has OAuth.
-    _sendCEOSignRequestEmail(so).catch(function(e){console.warn('[CEO email] '+e.message)});
-    // Activity log
+    toast&&toast('Sent — client ('+so.email+') will get the email shortly','ok');
+    _sendClientSignRequestEmail(so).catch(function(e){console.warn('[client email] '+e.message)});
     if(typeof fbDb!=='undefined'){
       fbDb.collection('activity').add({
         type:'so.signatureFlow.started',
         soId:so.id,soNum:so.soNum,company:so.company,
-        ceoEmail:ceoEmail,
+        clientEmail:so.email,
         startedBy:by,
         timestamp:firebase.firestore.FieldValue.serverTimestamp()
       }).catch(function(){});

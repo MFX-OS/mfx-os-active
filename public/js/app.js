@@ -1286,49 +1286,11 @@ $('v-editor').innerHTML=`${(function(){
   b+='</div>';
   return b;
 })()}${(function(){
-  // ─── CEO Sign Banner (signatureFlow='awaiting_ceo') ─────────────────
-  // 2026-05-27 (round 42): appears after staff clicks "Send for
-  // Signatures" — the SO is now waiting for the CEO to electronically
-  // sign. CEO opens this editor, reviews the PDF (Drive link above),
-  // types name, checks "I approve", clicks Sign & Send. That fires the
-  // client countersignature request automatically.
-  var qq2=getQ(S.editId);
-  if(!qq2)return'';
-  var soForQuote = (typeof getSalesOrders==='function')
-    ? getSalesOrders().find(function(s){return s.quoteId===qq2.id||s.quoteNum===qq2.quoteNum})
-    : null;
-  if(!soForQuote)return'';
-  if(soForQuote.signatureFlow!=='awaiting_ceo')return'';
-  if(soForQuote.ceoSignedAt)return'';
-  var c='<div style="background:linear-gradient(135deg,rgba(0,229,255,.10),rgba(0,229,255,.03));border:1.5px solid rgba(0,229,255,.5);border-radius:10px;padding:14px 18px;margin:8px 12px 12px">';
-  c+='<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">';
-  c+='<div style="flex:1;min-width:240px">';
-  c+='<div style="font-size:10px;color:var(--ac);font-weight:800;letter-spacing:2px;margin-bottom:6px">✍ SALES ORDER · AWAITING CEO SIGNATURE</div>';
-  c+='<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc(soForQuote.soNum||'—')+' for '+esc(soForQuote.company||'Client')+'</div>';
-  c+='<div style="font-size:11px;color:var(--tx2);line-height:1.6">';
-  if(soForQuote.total)c+='Total <strong style="color:var(--ac)">$'+Number(soForQuote.total).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong> · ';
-  c+='PO# <strong>'+esc(soForQuote.poNumber||'—')+'</strong>';
-  if(soForQuote.ceoSignRequestSentAt)c+=' · Request sent '+esc(fD(soForQuote.ceoSignRequestSentAt));
-  c+='</div>';
-  c+='<div style="font-size:10px;color:var(--tx3);margin-top:6px">Review the PDF in the SO tab, type your name below, click Sign. Your signature triggers the client countersignature request automatically.</div>';
-  c+='</div>';
-  c+=(soForQuote.driveLink?'<a href="'+esc(soForQuote.driveLink)+'" target="_blank" style="padding:7px 14px;background:transparent;color:var(--ac);border:1px solid rgba(0,229,255,.5);border-radius:6px;font-size:10px;font-weight:600;text-decoration:none;white-space:nowrap;height:32px;display:inline-flex;align-items:center;align-self:flex-start">📄 Review PDF</a>':'');
-  c+='</div>';
-  c+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px dashed rgba(0,229,255,.25)">';
-  c+='<label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);cursor:pointer;white-space:nowrap"><input type="checkbox" id="ceoSignAuth" style="accent-color:var(--ac)"> I approve as CEO</label>';
-  c+='<input id="ceoSignName" type="text" placeholder="Type your full name (e.g. Moises Santillan)" style="flex:1;min-width:180px;background:var(--inp);border:none;border-bottom:2px solid var(--ac3);padding:8px 0 4px;font-size:16px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:var(--tx);outline:none">';
-  c+='<button id="ceoSignBtn" disabled onclick="signSOAsCEO(\''+esc(soForQuote.id)+'\',document.getElementById(\'ceoSignName\').value)" style="padding:10px 22px;background:var(--ac);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap;opacity:.5;transition:opacity .15s">✍ Sign & Send to Client</button>';
-  c+='</div>';
-  c+='</div>';
-  setTimeout(function(){
-    var b=document.getElementById('ceoSignBtn'), s=document.getElementById('ceoSignName'), a=document.getElementById('ceoSignAuth');
-    if(!b||!s||!a)return;
-    var refresh=function(){b.disabled=!(s.value.trim()&&a.checked);b.style.opacity=b.disabled?'.5':'1'};
-    s.addEventListener('input',refresh);
-    a.addEventListener('change',refresh);
-    refresh();
-  },20);
-  return c;
+  // CEO sign banner removed 2026-05-27 (round 45). Workflow is now
+  // staff → client → CSR; no CEO sign step. Any in-flight SO stuck in
+  // signatureFlow='awaiting_ceo' will get advanced to awaiting_client
+  // when staff re-clicks Send for Signatures (handled inside that fn).
+  return '';
 })()}${(function(){
   // ─── CSR Confirmation Banner (signatureFlow='awaiting_csr') ─────────
   // Client has signed; CSR needs to confirm before passport+ticket are
@@ -1896,7 +1858,7 @@ if(linkedSO){
   if(_hasMaster && (!so.signatureFlow || so.signatureFlow==='ready_to_send' || so.signatureFlow==='pending')){
     h+='<button class="btn btn-pr btn-xs" onclick="sendSOForSignatures(\''+so.id+'\')" style="white-space:nowrap;background:#00e5ff;color:#000;font-weight:800">📨 Send for Signatures</button>';
   } else if(so.signatureFlow && so.signatureFlow!=='ready_to_send'){
-    var _flowLabel={'awaiting_ceo':'⏳ Awaiting CEO Sign','awaiting_client':'⏳ Awaiting Client Sign','awaiting_csr':'⏳ Awaiting CSR Confirm','in_production':'🏭 In Production'}[so.signatureFlow]||so.signatureFlow;
+    var _flowLabel={'awaiting_ceo':'⏳ Awaiting Client Sign (legacy)','awaiting_client':'⏳ Awaiting Client Sign','awaiting_csr':'⏳ Awaiting CSR Confirm','in_production':'🏭 In Production'}[so.signatureFlow]||so.signatureFlow;
     h+='<span style="padding:5px 10px;background:rgba(0,229,255,.1);color:var(--ac);font-size:10px;font-weight:700;border-radius:4px;white-space:nowrap">'+_flowLabel+'</span>';
   }
   h+='<button class="btn btn-ghost btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate':'⬆ Save PDF Now')+'</button>';
