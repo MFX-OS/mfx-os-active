@@ -7,14 +7,14 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  --bg0:#04060a;--bg1:#080c12;--bg2:#0d1420;--bg3:#111a2a;--bg4:#162030;
+  --bg0:#060d14;--bg1:#0a1520;--bg2:#0f1d2b;--bg3:#142636;--bg4:#1e3a4f;
   --red:#ff3b4e;--red2:rgba(255,59,78,0.15);--red3:rgba(255,59,78,0.08);
   --amber:#ffaa2c;--amber2:rgba(255,170,44,0.15);
   --green:#00e87a;--green2:rgba(0,232,122,0.12);
-  --cyan:#00d4f5;--cyan2:rgba(0,212,245,0.1);
+  --cyan:#00d4f5;--cyan2:rgba(0,229,255,0.1);
   --violet:#a17bff;
   --text0:#eaf2ff;--text1:#7090b8;--text2:#384e6a;
-  --border:rgba(0,212,245,0.1);--border2:rgba(0,212,245,0.2);
+  --border:rgba(0,229,255,0.1);--border2:rgba(0,229,255,0.2);
   --mono:'JetBrains Mono',monospace;--display:'Syne',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -27,7 +27,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 
 /* ── BOOT / TITLE ── */
 #s-boot{align-items:center;justify-content:center;background:var(--bg0);position:relative;overflow:hidden}
-.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(0,212,245,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,245,0.04) 1px,transparent 1px);background-size:40px 40px;mask-image:radial-gradient(ellipse 80% 70% at 50% 50%,black,transparent)}
+.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.04) 1px,transparent 1px);background-size:40px 40px;mask-image:radial-gradient(ellipse 80% 70% at 50% 50%,black,transparent)}
 .boot-inner{position:relative;text-align:center;max-width:700px;padding:40px 20px}
 .boot-badge{display:inline-flex;align-items:center;gap:8px;background:var(--red2);border:1px solid rgba(255,59,78,0.4);padding:6px 18px;border-radius:20px;font-size:11px;color:var(--red);letter-spacing:0.14em;margin-bottom:24px;animation:pulse-red 2s ease infinite}
 @keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(255,59,78,0.3)}50%{box-shadow:0 0 0 8px rgba(255,59,78,0)}}
@@ -85,7 +85,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 .mission-body{font-size:12px;color:var(--text1);line-height:1.7}
 .mission-body b{color:var(--text0)}
 .lot-card{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:12px}
-.lot-field{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(0,212,245,0.05)}
+.lot-field{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(0,229,255,0.05)}
 .lot-field:last-child{border-bottom:none}
 .lot-key{color:var(--text2)}
 .lot-val{color:var(--text0);font-weight:500}
@@ -113,7 +113,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 .phase-sqf{display:inline-flex;margin-top:6px;background:rgba(161,123,255,0.12);border:1px solid rgba(161,123,255,0.2);color:var(--violet);padding:2px 10px;border-radius:10px;font-size:10px;letter-spacing:0.08em}
 
 /* INSTRUCTIONS BOX */
-.instruct{background:rgba(0,212,245,0.05);border-left:3px solid var(--cyan);border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:18px;font-size:12px;color:var(--text1);line-height:1.8}
+.instruct{background:rgba(0,229,255,0.05);border-left:3px solid var(--cyan);border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:18px;font-size:12px;color:var(--text1);line-height:1.8}
 .instruct b{color:var(--cyan)}
 .instruct .cmd{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text0);display:inline-block;margin:1px 0}
 
@@ -147,7 +147,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 /* LOT TRACE TABLE */
 .trace-tbl{width:100%;border-collapse:collapse;font-size:12px}
 .trace-tbl th{font-size:10px;color:var(--text2);letter-spacing:0.1em;text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);background:var(--bg2)}
-.trace-tbl td{padding:8px 10px;border-bottom:1px solid rgba(0,212,245,0.05);color:var(--text0)}
+.trace-tbl td{padding:8px 10px;border-bottom:1px solid rgba(0,229,255,0.05);color:var(--text0)}
 .trace-tbl tr:hover td{background:var(--bg2)}
 .hl-red{background:rgba(255,59,78,0.12)!important}
 .hl-amber{background:rgba(255,170,44,0.08)!important}
@@ -169,7 +169,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 .btn-green{background:var(--green2);color:var(--green);border-color:rgba(0,232,122,0.3)}
 .btn-green:hover{background:rgba(0,232,122,0.2)}
 .btn-amber{background:var(--amber2);color:var(--amber);border-color:rgba(255,170,44,0.3)}
-.btn-cyan{background:var(--cyan2);color:var(--cyan);border-color:rgba(0,212,245,0.3)}
+.btn-cyan{background:var(--cyan2);color:var(--cyan);border-color:rgba(0,229,255,0.3)}
 .btn:disabled{opacity:0.35;cursor:not-allowed}
 
 /* BADGE */
@@ -200,7 +200,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 .d-metric{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
 .d-val{font-family:var(--display);font-size:24px;font-weight:700;margin-bottom:4px}
 .d-label{font-size:10px;color:var(--text2);letter-spacing:0.08em}
-.finding-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,212,245,0.05);font-size:12px}
+.finding-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,229,255,0.05);font-size:12px}
 .finding-row:last-child{border-bottom:none}
 .finding-icon{font-size:16px;flex-shrink:0}
 
@@ -217,7 +217,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 </head>
 <body>
 <!-- UX-15 fix (2026-05-24): back-to-app banner so users aren't stranded -->
-<a href="https://os.microflexfilm.com/" id="mfx-back-to-os" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(0,212,245,.95);color:#000;padding:6px 14px;font-family:-apple-system,Inter,sans-serif;font-size:12px;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:8px;box-shadow:0 1px 8px rgba(0,0,0,.25)">
+<a href="https://os.microflexfilm.com/" id="mfx-back-to-os" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(0,229,255,.95);color:#000;padding:6px 14px;font-family:-apple-system,Inter,sans-serif;font-size:12px;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:8px;box-shadow:0 1px 8px rgba(0,0,0,.25)">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
   <span>Return to MFX OS</span>
 </a>
@@ -225,11 +225,13 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--mono);overflow-x
 
 
 <!-- BACK NAV -->
-<div style="position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--bg1);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px">
-  <a href="/" style="color:var(--cyan);text-decoration:none;font-family:var(--mono);font-size:11px;font-weight:500;display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border2);border-radius:4px;transition:all .2s" onmouseover="this.style.background='rgba(0,212,245,0.08)'" onmouseout="this.style.background='transparent'">← MFX OS</a>
-  <span style="color:var(--text2);font-family:var(--mono);font-size:10px;letter-spacing:0.1em">MOCK RECALL · SQF 2.6</span>
+<div style="position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(180deg,#0a1520,#060d14);border-bottom:1px solid var(--border);padding:0 16px;height:44px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 20px rgba(0,0,0,.35)">
+  <a href="/" style="color:var(--cyan);text-decoration:none;font-family:var(--mono);font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border2);border-radius:5px;transition:all .2s" onmouseover="this.style.background='rgba(0,229,255,0.08)'" onmouseout="this.style.background='transparent'">← MFX OS</a>
+  <img src="/logo.png" alt="Microflex Film Corporation" style="height:24px;width:auto;filter:drop-shadow(0 0 8px rgba(0,229,255,.2))">
+  <span style="font-family:'Outfit',sans-serif;font-size:14px;font-weight:800;color:#e0f2fe;letter-spacing:-.3px">Microflex</span>
+  <span style="color:var(--text2);font-family:var(--mono);font-size:10px;letter-spacing:0.18em;margin-left:auto;text-transform:uppercase">MOCK RECALL · SQF 2.6</span>
 </div>
-<div style="height:40px"></div>
+<div style="height:44px"></div>
 
 <!-- PROGRESS BAR -->
 <div class="redline" id="redline" style="transform:scaleX(0)"></div>
@@ -1422,7 +1424,7 @@ function endGame(){
     {clause:'2.6.10',text:'CAPA created to prevent recurrence',done:true},
   ];
   document.getElementById('debrief-sqf').innerHTML=sqfItems.map(i=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(0,212,245,0.05);font-size:12px">
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(0,229,255,0.05);font-size:12px">
       <span style="font-family:var(--mono);font-size:10px;color:var(--text2);width:48px;flex-shrink:0">${i.clause}</span>
       <span style="flex:1;color:var(--text1)">${i.text}</span>
       <span class="badge ${i.done?'b-green':'b-red'}">${i.done?'MET':'GAP'}</span>

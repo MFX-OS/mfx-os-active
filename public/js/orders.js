@@ -328,7 +328,66 @@ function renderSOCard(so){
     h+='<button class="btn btn-ghost btn-xs" onclick="openSODetail(\''+so.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> View</button>';
     if(so.driveLink)h+='<a href="'+so.driveLink+'" target="_blank" class="btn btn-ghost btn-xs" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg> Drive</a>';
   }
-  h+='</div></div>';
+  h+='</div>';
+
+  // ═══ 2026-05-27 round 51: Inline Drive PDF + Signature Requests ═══
+  // Same UX as the quote editor SO tab, surfaced on every pipeline row
+  // so staff can send sign-requests and mark CEO signed without opening
+  // the editor.
+  var _hasMaster=!!so.driveLink;
+  var _ceoSigned=!!so.ceoSignedAt;
+  var _clientSigned=!!so.clientSignedAt;
+  var _ceoTplOpts=Object.keys((window._SO_SIGN_TEMPLATES&&window._SO_SIGN_TEMPLATES.ceo)||{standard:1}).map(function(k){
+    var t=window._SO_SIGN_TEMPLATES.ceo[k];
+    return '<option value="'+esc(k)+'">'+esc(t.label||k)+'</option>';
+  }).join('');
+  var _cliTplOpts=Object.keys((window._SO_SIGN_TEMPLATES&&window._SO_SIGN_TEMPLATES.client)||{standard:1}).map(function(k){
+    var t=window._SO_SIGN_TEMPLATES.client[k];
+    return '<option value="'+esc(k)+'">'+esc(t.label||k)+'</option>';
+  }).join('');
+  var _ceoSelId='pipeCeoTpl_'+so.id;
+  var _cliSelId='pipeCliTpl_'+so.id;
+
+  h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.08)">';
+  // Drive row
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">';
+  h+='<div style="font-size:9px;color:'+(_hasMaster?'#22c55e':'#f59e0b')+';font-weight:800;letter-spacing:1.5px;flex:1;min-width:140px">📁 PDF ON DRIVE'+(_hasMaster?' · ✓ SAVED':' · NOT SAVED'); h+='</div>';
+  if(_hasMaster){
+    h+='<a href="'+esc(so.driveLink)+'" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:5px;text-decoration:none;color:var(--tx);font-size:10px;font-weight:600"><span>📄</span><span>MFX-'+esc(so.soNum||'')+(so.company?' - '+esc(so.company):'')+'.pdf</span></a>';
+    h+='<button class="btn btn-ghost btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">↻</button>';
+  } else {
+    h+='<button class="btn btn-pr btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">⬆ Save PDF Now</button>';
+  }
+  h+='</div>';
+
+  // Signature requests
+  h+='<div style="font-size:9px;color:var(--tx3);font-weight:800;letter-spacing:1.5px;margin-bottom:6px">📨 SIGNATURE REQUESTS</div>';
+
+  // CEO row
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px;align-items:center">';
+  h+='<select id="'+_ceoSelId+'" class="input" style="padding:6px 8px;font-size:10px;background:var(--bg);color:var(--tx);border:1px solid var(--bdr);border-radius:5px">'+_ceoTplOpts+'</select>';
+  h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" '+(_hasMaster?'':'title="Save the PDF first"')+' style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'">📧 CEO</button>';
+  h+='</div>';
+
+  // Mark CEO Signed
+  if(_ceoSigned){
+    h+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;margin-bottom:6px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:5px;font-size:10px"><span style="color:var(--ac);font-weight:700">✓ CEO signed</span><span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'CEO')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span></div>';
+  } else {
+    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="width:100%;display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:7px 10px;margin-bottom:6px"><span>✍️</span> Mark CEO Signed → auto-send Client</button>';
+  }
+
+  // Client row
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">';
+  h+='<select id="'+_cliSelId+'" class="input" style="padding:6px 8px;font-size:10px;background:var(--bg);color:var(--tx);border:1px solid var(--bdr);border-radius:5px">'+_cliTplOpts+'</select>';
+  h+='<button class="btn btn-pr btn-xs" onclick="emailClientForSignFromSelect(\''+so.id+'\',\''+_cliSelId+'\')" '+(_hasMaster?(_ceoSigned?'':' title="CEO should sign first"'):' title="Save the PDF first"')+' style="display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.4);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'">📧 Client</button>';
+  h+='</div>';
+
+  if(_clientSigned){
+    h+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;margin-top:6px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.4);border-radius:5px;font-size:10px"><span style="color:#22c55e;font-weight:700">✓ Client signed</span><span style="color:var(--tx2)">'+(so.clientSignedAt?fD(so.clientSignedAt):'')+'</span></div>';
+  }
+  h+='</div>';
+
+  h+='</div>';
   return h;
 }
 

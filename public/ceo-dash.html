@@ -15,7 +15,7 @@
 
     body {
       font-family: 'Outfit', sans-serif;
-      background: #061e2a;
+      background: #060d14; /* MFX canonical brand black */
       color: #f5f2ed;
       overflow: hidden;
       height: 100vh;
@@ -45,23 +45,48 @@
       gap: 2rem;
     }
 
+    /* MFX canonical logo + wordmark — matches /logo.png brand */
     .logo {
-      width: 50px;
-      height: 50px;
-      background: #00e5ff;
-      border-radius: 5px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      color: #061e2a;
-      font-size: 24px;
+      gap: 12px;
+      text-decoration: none;
+    }
+    .logo img {
+      height: 32px;
+      width: auto;
+      filter: drop-shadow(0 0 10px rgba(0,229,255,.18));
+    }
+    .logo-wm {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+    .logo-wm .wm-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 17px;
+      font-weight: 900;
+      color: #e0f2fe;
+      letter-spacing: -.4px;
+    }
+    .logo-wm .wm-tag {
+      font-family: 'Outfit', sans-serif;
+      font-size: 7px;
+      font-weight: 300;
+      color: #00838f;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      margin-top: 3px;
     }
 
     .header-title {
-      font-size: 18px;
+      font-size: 13px;
       font-weight: 600;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
+      color: #8aa8b8;
+      text-transform: uppercase;
+      padding-left: 16px;
+      border-left: 1px solid rgba(0,229,255,.18);
     }
 
     .header-right {
@@ -111,7 +136,7 @@
       display: flex;
       gap: 1rem;
       padding: 1rem 2rem;
-      background: #061e2a;
+      background: #060d14;
       overflow-x: auto;
       border-bottom: 1px solid rgba(0, 229, 255, 0.12);
       min-height: 100px;
@@ -1425,8 +1450,14 @@
       return (
         <div className="header">
           <div className="header-left">
-            <div className="logo">MX</div>
-            <div className="header-title">CEO DAILY DASH</div>
+            <a href="/" className="logo" title="Return to MFX OS">
+              <img src="/logo.png" alt="Microflex Film Corporation" />
+              <span className="logo-wm">
+                <span className="wm-name">Microflex</span>
+                <span className="wm-tag">Film Corporation</span>
+              </span>
+            </a>
+            <div className="header-title">CEO Daily Dash</div>
           </div>
           <div className="header-right">
             <div className="datetime">{formatTime(currentTime)}</div>

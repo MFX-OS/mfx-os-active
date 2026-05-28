@@ -1612,3 +1612,90 @@ body.ppd-mode .btn-pr{background:linear-gradient(135deg,#d7ff2f,#8abf16);box-sha
      more thumb-friendly width */
   .etabs .etab,.tab{padding:10px 14px;font-size:12px}
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   MFX CANONICAL BRAND SYSTEM — match the Microflex logo across every page
+   Reference: /logo.png (full wordmark + splash) and /icon-512.png (MFX mark)
+   ──────────────────────────────────────────────────────────────────────
+   Use these classes on every page header so the brand stays consistent:
+     .mfx-topbar       → the dark bar across the top of internal pages
+     .mfx-topbar-logo  → the small splash mark (uses /logo.png)
+     .mfx-wordmark     → the typographic "Microflex" + cyan rule + tagline
+     .mfx-wordmark.sm  → compact variant for top-bars
+     .mfx-splash-bg    → low-opacity paint-splash flourish for hero areas
+   ════════════════════════════════════════════════════════════════════ */
+:root{
+  --mfx-black:#060d14;        /* canonical brand black (matches logo bg) */
+  --mfx-ink:#0a1520;          /* surface tone */
+  --mfx-white:#e0f2fe;        /* canonical headline color */
+  --mfx-cyan:#00e5ff;         /* canonical UI cyan (digital/screen) */
+  --mfx-splash:#1ab6dc;       /* canonical splash cyan (matches print logo) */
+  --mfx-cyan-dim:#00838f;     /* secondary cyan (tagline) */
+  --mfx-font-display:'Outfit','Inter',system-ui,sans-serif;
+  --mfx-font-body:'Inter','SF Pro',system-ui,sans-serif;
+}
+
+/* Canonical top bar — slim, dark, brand-black */
+.mfx-topbar{
+  position:fixed;top:0;left:0;right:0;height:44px;z-index:9999;
+  background:linear-gradient(180deg,#0a1520,var(--mfx-black));
+  border-bottom:1px solid rgba(0,229,255,.12);
+  display:flex;align-items:center;gap:12px;padding:0 14px;
+  font-family:var(--mfx-font-body);
+  box-shadow:0 1px 0 rgba(0,229,255,.06),0 8px 20px rgba(0,0,0,.35)
+}
+.mfx-topbar a.mfx-back{
+  color:var(--mfx-cyan);text-decoration:none;font-size:11px;font-weight:600;
+  letter-spacing:.5px;display:inline-flex;align-items:center;gap:6px;
+  padding:4px 10px;border:1px solid rgba(0,229,255,.22);border-radius:5px;
+  transition:background .15s,border-color .15s
+}
+.mfx-topbar a.mfx-back:hover{background:rgba(0,229,255,.08);border-color:rgba(0,229,255,.45)}
+.mfx-topbar .mfx-crumb{
+  color:#5a7888;font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:600
+}
+
+/* Logo mark — uses the real /logo.png so every page shows the splash */
+.mfx-topbar-logo{
+  height:24px;width:auto;display:block;flex-shrink:0;
+  filter:drop-shadow(0 0 8px rgba(0,229,255,.18))
+}
+
+/* Canonical typographic wordmark (matches login screen treatment) */
+.mfx-wordmark{
+  display:inline-flex;flex-direction:column;align-items:flex-start;
+  font-family:var(--mfx-font-display);line-height:1
+}
+.mfx-wordmark .mfx-w-name{
+  font-size:clamp(36px,6vw,56px);font-weight:900;color:var(--mfx-white);
+  letter-spacing:-1.2px;line-height:1
+}
+.mfx-wordmark .mfx-w-rule{
+  width:54px;height:2px;margin:8px 0;border-radius:1px;
+  background:linear-gradient(90deg,transparent,var(--mfx-cyan),var(--mfx-cyan),transparent)
+}
+.mfx-wordmark .mfx-w-tag{
+  font-size:10px;font-weight:300;color:var(--mfx-cyan-dim);
+  letter-spacing:6px;text-transform:uppercase
+}
+/* Compact variant used inside top bars */
+.mfx-wordmark.sm{flex-direction:row;align-items:baseline;gap:8px}
+.mfx-wordmark.sm .mfx-w-name{font-size:15px;font-weight:800;letter-spacing:-.4px}
+.mfx-wordmark.sm .mfx-w-rule{display:none}
+.mfx-wordmark.sm .mfx-w-tag{font-size:8px;letter-spacing:2.5px;color:#5a7888}
+
+/* Paint-splash flourish — a CSS-only echo of the logo splash for hero areas */
+.mfx-splash-bg{position:absolute;pointer-events:none;opacity:.08;mix-blend-mode:screen}
+.mfx-splash-bg::before,.mfx-splash-bg::after{
+  content:"";position:absolute;border-radius:50%;
+  background:radial-gradient(circle,var(--mfx-splash) 0%,transparent 70%)
+}
+.mfx-splash-bg::before{width:340px;height:340px;top:-80px;right:-80px;filter:blur(8px)}
+.mfx-splash-bg::after{
+  width:120px;height:120px;top:40px;right:120px;
+  background:radial-gradient(circle,var(--mfx-splash) 0%,transparent 60%);
+  filter:blur(4px);opacity:.7
+}
+
+/* Body-level offset so pages with the topbar push content down by 44px */
+body.mfx-has-topbar{padding-top:44px}
