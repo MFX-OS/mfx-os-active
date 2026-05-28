@@ -1836,10 +1836,15 @@ h+='</div>';
 if(linkedSO){
   var _hasMaster=!!so.driveLink;
   var _hasClient=!!so.clientFolderLink;
+  // 2026-05-27 round 50: Drive-PDF card always renders the signature
+  // panel below — even before the PDF has been saved to Drive — so
+  // staff can see the workflow and the dropdowns from the moment an
+  // SO exists. Send buttons remain disabled until _hasMaster (no PDF
+  // = nothing to send a link to), but Mark CEO Signed always works.
   h+='<div style="background:linear-gradient(135deg,rgba(34,197,94,.06),rgba(34,197,94,.02));border:1px solid '+(_hasMaster?'rgba(34,197,94,.4)':'rgba(255,255,255,.08)')+';border-radius:10px;padding:12px 14px;margin-bottom:10px">';
   h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
-  h+='<div style="font-size:10px;color:'+(_hasMaster?'#22c55e':'var(--tx3)')+';font-weight:800;letter-spacing:1.5px">📁 SALES ORDER PDF ON DRIVE'+(_hasMaster?' · ✓ SAVED':' · PENDING')+'</div>';
-  h+='<button class="btn btn-ghost btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate':'⬆ Save PDF Now')+'</button>';
+  h+='<div style="font-size:10px;color:'+(_hasMaster?'#22c55e':'#f59e0b')+';font-weight:800;letter-spacing:1.5px">📁 SALES ORDER PDF ON DRIVE'+(_hasMaster?' · ✓ SAVED':' · NOT SAVED YET')+'</div>';
+  h+='<button class="btn '+(_hasMaster?'btn-ghost':'btn-pr')+' btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate':'⬆ Save PDF Now')+'</button>';
   h+='</div>';
   if(_hasMaster){
     h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
@@ -1848,64 +1853,64 @@ if(linkedSO){
       h+='<a href="'+esc(so.clientFolderLink)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;text-decoration:none;color:var(--tx);font-size:11px;font-weight:600"><span style="font-size:14px">📁</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Client Folder<br><span style="font-size:9px;color:var(--tx3);font-weight:500">Clients/'+esc(so.company||'')+'/'+esc(so.quoteNum||'')+'</span></span></a>';
     }
     h+='</div>';
-    // ─── Sign-request email templates (round 49) ────────────────────
-    // Two dropdowns (CEO + Client) let staff pick a tone for the
-    // pre-filled compose. Send opens the mail client; the human still
-    // hits Send in their mail app. Between the two rows: a "Mark CEO
-    // Signed" button — that stamps ceoSignedAt + auto-opens the client
-    // email so the chain finishes itself.
-    var _ceoSigned=!!so.ceoSignedAt;
-    var _clientSigned=!!so.clientSignedAt;
-    var _ceoTplOpts=Object.keys((window._SO_SIGN_TEMPLATES&&window._SO_SIGN_TEMPLATES.ceo)||{standard:1}).map(function(k){
-      var t=window._SO_SIGN_TEMPLATES.ceo[k];
-      return '<option value="'+esc(k)+'">'+esc(t.label||k)+'</option>';
-    }).join('');
-    var _cliTplOpts=Object.keys((window._SO_SIGN_TEMPLATES&&window._SO_SIGN_TEMPLATES.client)||{standard:1}).map(function(k){
-      var t=window._SO_SIGN_TEMPLATES.client[k];
-      return '<option value="'+esc(k)+'">'+esc(t.label||k)+'</option>';
-    }).join('');
-    var _ceoSelId='soCeoTpl_'+so.id;
-    var _cliSelId='soCliTpl_'+so.id;
+  } else {
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(245,158,11,.06);border:1px dashed rgba(245,158,11,.4);border-radius:6px;font-size:11px;color:var(--tx2);line-height:1.4"><span style="font-size:18px">📄</span><span style="flex:1">Filename will be <strong style="color:var(--tx)">MFX-'+esc(so.soNum||'')+(so.company?' - '+esc(so.company):'')+'.pdf</strong> — click <strong>Save PDF Now</strong> above to generate it and unlock the email send buttons.</span></div>';
+  }
 
-    h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.08)">';
-    h+='<div style="font-size:9px;color:var(--tx3);font-weight:800;letter-spacing:1.5px;margin-bottom:6px">📨 SIGNATURE REQUESTS</div>';
+  // ─── Sign-request email templates (round 49/50) ─────────────────
+  // Always visible when SO exists. Send buttons need a Drive link to
+  // include in the email body; if missing, they prompt to save first.
+  // Mark CEO Signed stamps the SO + auto-opens the client email so
+  // the chain finishes itself.
+  var _ceoSigned=!!so.ceoSignedAt;
+  var _clientSigned=!!so.clientSignedAt;
+  var _ceoTplOpts=Object.keys((window._SO_SIGN_TEMPLATES&&window._SO_SIGN_TEMPLATES.ceo)||{standard:1}).map(function(k){
+    var t=window._SO_SIGN_TEMPLATES.ceo[k];
+    return '<option value="'+esc(k)+'">'+esc(t.label||k)+'</option>';
+  }).join('');
+  var _cliTplOpts=Object.keys((window._SO_SIGN_TEMPLATES&&window._SO_SIGN_TEMPLATES.client)||{standard:1}).map(function(k){
+    var t=window._SO_SIGN_TEMPLATES.client[k];
+    return '<option value="'+esc(k)+'">'+esc(t.label||k)+'</option>';
+  }).join('');
+  var _ceoSelId='soCeoTpl_'+so.id;
+  var _cliSelId='soCliTpl_'+so.id;
 
-    // CEO row
-    h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:8px;align-items:center">';
-    h+='<select id="'+_ceoSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_ceoTplOpts+'</select>';
-    h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap"><span>📧</span> Send to CEO</button>';
-    h+='</div>';
+  h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.08)">';
+  h+='<div style="font-size:9px;color:var(--tx3);font-weight:800;letter-spacing:1.5px;margin-bottom:6px">📨 SIGNATURE REQUESTS</div>';
 
-    // Mark CEO Signed row
-    if(_ceoSigned){
-      h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:8px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:6px;font-size:11px">';
-      h+='<span style="color:var(--ac);font-weight:700">✓ CEO signed</span>';
-      h+='<span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'CEO')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span>';
-      h+='</div>';
-    } else {
-      h+='<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:8px">';
-      h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:9px 12px"><span>✍️</span> Mark CEO Signed → auto-send Client</button>';
-      h+='</div>';
-    }
+  // CEO row
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:8px;align-items:center">';
+  h+='<select id="'+_ceoSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_ceoTplOpts+'</select>';
+  h+='<button class="btn btn-pr btn-xs" onclick="emailCEOForSignFromSelect(\''+so.id+'\',\''+_ceoSelId+'\')" '+(_hasMaster?'':'title="Save the PDF first"')+' style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(0,229,255,.12);color:var(--ac);border:1px solid var(--ac3);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'"><span>📧</span> Send to CEO</button>';
+  h+='</div>';
 
-    // Client row
-    h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">';
-    h+='<select id="'+_cliSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_cliTplOpts+'</select>';
-    h+='<button class="btn btn-pr btn-xs" onclick="emailClientForSignFromSelect(\''+so.id+'\',\''+_cliSelId+'\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.4);font-weight:700;white-space:nowrap"'+(_ceoSigned?'':' title="CEO should sign first"')+'><span>📧</span> Send to Client</button>';
-    h+='</div>';
-
-    if(_clientSigned){
-      h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-top:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.4);border-radius:6px;font-size:11px">';
-      h+='<span style="color:#22c55e;font-weight:700">✓ Client signed</span>';
-      h+='<span style="color:var(--tx2)">'+(so.clientSignedAt?fD(so.clientSignedAt):'')+'</span>';
-      h+='</div>';
-    }
-
-    h+='<div style="margin-top:8px;font-size:10px;color:var(--tx3);line-height:1.4">Pick a template, hit Send — your mail client opens with the PDF link pre-filled. <strong>Mark CEO Signed</strong> stamps the SO and auto-opens the client email.</div>';
+  // Mark CEO Signed row
+  if(_ceoSigned){
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:8px;background:rgba(0,229,255,.06);border:1px solid var(--ac3);border-radius:6px;font-size:11px">';
+    h+='<span style="color:var(--ac);font-weight:700">✓ CEO signed</span>';
+    h+='<span style="color:var(--tx2)">by '+esc(so.ceoSignedBy||'CEO')+(so.ceoSignedAt?' · '+fD(so.ceoSignedAt):'')+'</span>';
     h+='</div>';
   } else {
-    h+='<div style="font-size:11px;color:var(--tx3);line-height:1.5">PDF will be auto-generated and saved here when the SO is signed. Click <strong>Save PDF Now</strong> to trigger it manually.</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:8px">';
+    h+='<button class="btn btn-pr btn-xs" onclick="markCEOSigned(\''+so.id+'\', document.getElementById(\''+_cliSelId+'\')?document.getElementById(\''+_cliSelId+'\').value:\'standard\')" style="display:flex;align-items:center;gap:6px;justify-content:center;background:linear-gradient(135deg,rgba(0,229,255,.18),rgba(0,229,255,.08));color:var(--ac);border:1px solid var(--ac);font-weight:800;padding:9px 12px"><span>✍️</span> Mark CEO Signed → auto-send Client</button>';
+    h+='</div>';
   }
+
+  // Client row
+  h+='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center">';
+  h+='<select id="'+_cliSelId+'" class="input" style="padding:7px 8px;font-size:11px;background:var(--bg2);color:var(--tx);border:1px solid var(--bdr);border-radius:6px">'+_cliTplOpts+'</select>';
+  h+='<button class="btn btn-pr btn-xs" onclick="emailClientForSignFromSelect(\''+so.id+'\',\''+_cliSelId+'\')" '+(_hasMaster?(_ceoSigned?'':' title="CEO should sign first"'):' title="Save the PDF first"')+' style="display:flex;align-items:center;gap:6px;justify-content:center;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.4);font-weight:700;white-space:nowrap;opacity:'+(_hasMaster?'1':'.55')+'"><span>📧</span> Send to Client</button>';
+  h+='</div>';
+
+  if(_clientSigned){
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-top:8px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.4);border-radius:6px;font-size:11px">';
+    h+='<span style="color:#22c55e;font-weight:700">✓ Client signed</span>';
+    h+='<span style="color:var(--tx2)">'+(so.clientSignedAt?fD(so.clientSignedAt):'')+'</span>';
+    h+='</div>';
+  }
+
+  h+='<div style="margin-top:8px;font-size:10px;color:var(--tx3);line-height:1.4">Pick a template, hit Send — your mail client opens with the PDF link pre-filled. <strong>Mark CEO Signed</strong> stamps the SO and auto-opens the client email.</div>';
+  h+='</div>';
   h+='</div>';
 }
 
@@ -2543,19 +2548,49 @@ function saveArtNotes(qid){var el=$('artNotesInput');if(!el)return;var all=DB.qu
 function saveSkuPPField(qid,skuIdx,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};var sk='sku'+skuIdx;if(!q.prePress[sk])q.prePress[sk]={};q.prePress[sk][key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid)}
 function toggleSkuPPCheck(qid,skuIdx,key,val){var all=DB.quotes();var q=all.find(function(x){return x.id===qid});if(!q)return;if(!q.prePress)q.prePress={};var sk='sku'+skuIdx;if(!q.prePress[sk])q.prePress[sk]={};if(!q.prePress[sk].checklist)q.prePress[sk].checklist={};q.prePress[sk].checklist[key]=val;q.updatedAt=new Date().toISOString();DB.saveQ(all,qid);if(typeof renderEditor==='function')setTimeout(renderEditor,50)}
 function saveSOField(soId,key,val){
-  if(!soId||typeof fbDb==='undefined')return;
+  if(!soId||typeof fbDb==='undefined'){
+    console.warn('[saveSOField] no soId or no fbDb',{soId:soId,key:key});
+    return;
+  }
   // Update in-memory cache first so the UI doesn't bounce
   var sos=typeof getSalesOrders==='function'?getSalesOrders():[];
   var so=sos.find(function(x){return x.id===soId});
   if(so){so[key]=val}
   // Save-state indicator (matches quote editor pattern)
   if(window.setSaveState)window.setSaveState('saving');
+  console.log('[saveSOField]',{soId:soId,key:key,val:val});
   var upd={};upd[key]=val;upd.updatedAt=new Date().toISOString();
   upd.updatedBy=typeof getUserName==='function'?getUserName():'';
+  // 2026-05-27 round 50: lowercase emails on save so case-insensitive
+  // portal queries keep matching.
+  if(key==='email' && typeof val==='string') upd[key]=val.trim().toLowerCase();
   fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
     if(window.setSaveState)window.setSaveState('saved');
+    // 2026-05-27 round 50: visible confirmation. Save indicator alone
+    // is too subtle — user kept asking "is this saving?"
+    if(typeof toast==='function') toast('Saved · '+key,'ok');
+    // 2026-05-27 round 50: mirror identity fields back to the linked
+    // quote so the SO + quote stay in sync (otherwise next edit of
+    // the quote could clobber the SO with the old client info).
+    if(so && so.quoteId && (key==='company'||key==='contact'||key==='email'||key==='phone'||key==='shipTo'||key==='billToAddress'||key==='industry')){
+      try{
+        var qPatch={};
+        if(key==='company')qPatch['fields.custCo']=val;
+        else if(key==='contact')qPatch['fields.custAttn']=val;
+        else if(key==='email'){qPatch['fields.custEmail']=val; qPatch['poClientEmail']=String(val||'').trim().toLowerCase();}
+        else if(key==='phone')qPatch['fields.custPhone']=val;
+        else if(key==='shipTo')qPatch['fields.shipTo']=val;
+        else if(key==='billToAddress')qPatch['fields.billTo']=val;
+        else if(key==='industry')qPatch['fields.industry']=val;
+        qPatch.updatedAt=new Date().toISOString();
+        fbDb.collection('quotes').doc(so.quoteId).update(qPatch).catch(function(qe){
+          console.warn('[saveSOField] quote mirror failed (non-fatal)',qe);
+        });
+      }catch(_qe){}
+    }
   }).catch(function(e){
     if(window.setSaveState)window.setSaveState('error');
+    console.error('[saveSOField] failed',e);
     toast('Save failed: '+e.message,'err');
   });
 }
