@@ -1371,15 +1371,27 @@ function initAutoSOCreation(){
 // with poConfirmedBy + poConfirmedAt, persists, then emits the event
 // that triggers SO creation. Idempotent — re-confirming does nothing.
 function confirmIncomingPO(quoteId){
+  console.log('[confirmIncomingPO] called with quoteId =', quoteId);
   if(!quoteId){toast&&toast('Quote not specified','err');return}
-  if(typeof DB==='undefined'||!DB.quotes){toast&&toast('Database unavailable','err');return}
+  if(typeof DB==='undefined'||!DB.quotes){
+    console.error('[confirmIncomingPO] DB.quotes unavailable');
+    toast&&toast('Database unavailable','err');return
+  }
   var all=DB.quotes();
   var q=all.find(function(x){return x.id===quoteId});
-  if(!q){toast&&toast('Quote not found','err');return}
+  if(!q){
+    console.error('[confirmIncomingPO] quote not found in DB.quotes() for id', quoteId, '— available quotes:', all.length);
+    toast&&toast('Quote not found','err');return
+  }
+  console.log('[confirmIncomingPO] resolved quote', q.quoteNum, 'status=', q.status, 'poNumber=', q.poNumber, 'poConfirmedBy=', q.poConfirmedBy);
   if(!q.poNumber){toast&&toast('No PO submitted yet on this quote','err');return}
   // If an SO already exists, bail — the gate's done its job.
-  var existingSO=(typeof _soCache!=='undefined') && _soCache.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
-  if(existingSO){toast&&toast('Sales Order '+existingSO.soNum+' already exists for this quote','info');return}
+  var existingSO=_soCache.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
+  if(existingSO){
+    console.log('[confirmIncomingPO] SO already exists for this quote:', existingSO.soNum);
+    toast&&toast('Sales Order '+existingSO.soNum+' already exists for this quote','info');
+    return;
+  }
   // 2026-05-27 round 46: idempotent. If poConfirmedBy was set but no SO
   // got created (autoCreateSO threw, browser closed mid-flow, etc.),
   // re-clicking just re-triggers SO generation without re-stamping.
@@ -1391,16 +1403,33 @@ function confirmIncomingPO(quoteId){
     q.activityLog.push({action:'po_confirmed', by:q.poConfirmedBy, at:q.poConfirmedAt, detail:'PO# '+q.poNumber+' confirmed — generating sales order'});
     DB.saveQ(all, q.id);
     toast&&toast('PO confirmed — generating sales order…','ok');
+    console.log('[confirmIncomingPO] stamped poConfirmedBy=', q.poConfirmedBy);
   } else {
     toast&&toast('PO already confirmed — retrying SO generation…','ok');
+    console.log('[confirmIncomingPO] poConfirmedBy already set, retrying SO generation');
   }
-  // Trigger SO generation. MFX.emit fires the listener registered by
-  // initAutoSOCreation, which calls autoCreateSO. Direct fallback only
-  // when MFX is unavailable (would otherwise double-create the SO).
-  if(typeof MFX!=='undefined'&&typeof MFX.emit==='function'){
-    MFX.emit('quote.po_confirmed',{quote:q});
-  } else if(typeof autoCreateSO==='function'){
-    autoCreateSO(q);
+  // 2026-05-27 round 48: call autoCreateSO directly instead of going
+  // through MFX.emit. The event-listener indirection (registered by
+  // initAutoSOCreation on a 1500ms setTimeout) can race with this
+  // button-click handler — if the listener hasn't registered yet, the
+  // emit goes nowhere and nothing happens. Direct call is reliable.
+  // autoCreateSO has its own idempotency check via _soCache lookup.
+  if(typeof autoCreateSO==='function'){
+    console.log('[confirmIncomingPO] calling autoCreateSO directly');
+    try {
+      var result = autoCreateSO(q);
+      // autoCreateSO is async — log when it resolves/rejects
+      if(result && typeof result.then === 'function'){
+        result.then(function(){console.log('[confirmIncomingPO] autoCreateSO resolved')})
+              .catch(function(e){console.error('[confirmIncomingPO] autoCreateSO rejected:', e); toast&&toast('SO generation failed: '+(e.message||e),'err')});
+      }
+    } catch(e){
+      console.error('[confirmIncomingPO] autoCreateSO threw:', e);
+      toast&&toast('SO generation threw: '+(e.message||e),'err');
+    }
+  } else {
+    console.error('[confirmIncomingPO] autoCreateSO is not a function!');
+    toast&&toast('autoCreateSO unavailable — orders module not loaded','err');
   }
   // Re-render editor so the banner disappears
   if(typeof renderEditor==='function')renderEditor();
@@ -1920,8 +1949,21 @@ function _runClientAutoSend(so){
 }
 
 async function autoCreateSO(q){
+  console.log('[autoCreateSO] start for quote', q && q.quoteNum, 'id=', q && q.id);
   var f=q.fields||{};
-  if(!f.custCo||!f.custCo.trim())return;
+  if(!f.custCo||!f.custCo.trim()){
+    console.warn('[autoCreateSO] aborting — no custCo on quote');
+    toast&&toast('Quote has no company name — fix the quote\'s Info tab first','err');
+    return;
+  }
+  // 2026-05-27 round 48: defensive idempotency. If the in-memory cache
+  // already has an SO for this quote, don't create a duplicate.
+  var _existing=_soCache.find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
+  if(_existing){
+    console.log('[autoCreateSO] skip — SO already exists:', _existing.soNum);
+    toast&&toast('SO '+_existing.soNum+' already exists for '+q.quoteNum,'info');
+    return;
+  }
   var selIdx=q.poQtyIndex||0;
   var skuCount=q.poSkuCount||1;
   // q.qtys is a plain array of quantity numbers; pricing lives in q.pricedQtys
