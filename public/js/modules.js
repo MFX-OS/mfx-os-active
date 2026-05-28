@@ -662,7 +662,24 @@ var steps=[
   {label:'Client Portal',done:!!q.poSignature||q.status==='won',det:q.poSignature?'Signed by '+q.poSignature+' · '+fD(q.poSignedAt):'Waiting for client',link:'portal'},
   {label:'PO Received',done:!!q.poNumber,det:q.poNumber?'PO# '+q.poNumber:'—',link:'po'},
   {label:'Art Files Received',done:q.artFiles&&q.artFiles.length>0,det:q.artFiles&&q.artFiles.length?q.artFiles.length+' file(s)':'—',link:'art'},
-  {label:'Sales Order',done:typeof getSalesOrders==='function'&&getSalesOrders().some(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum}),det:(function(){var _so=typeof getSalesOrders==='function'&&getSalesOrders().find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});return _so?_so.soNum+' ('+_so.status+')':'Created from approved PO'})(),link:'so',soId:(function(){var _so2=typeof getSalesOrders==='function'&&getSalesOrders().find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});return _so2?_so2.id:null})()},
+  {label:'Sales Order',
+    done:typeof getSalesOrders==='function'&&getSalesOrders().some(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum}),
+    det:(function(){
+      var _so=typeof getSalesOrders==='function'&&getSalesOrders().find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});
+      if(!_so)return 'Created from approved PO';
+      var line=_so.soNum+' ('+_so.status+')';
+      // Drive PDF link surfaces here so staff can jump straight from the
+      // workflow checklist to the master SO PDF in MFX-CORE.
+      if(_so.driveLink){
+        line+=' · <a href="'+_so.driveLink+'" target="_blank" style="color:var(--ac);text-decoration:none;font-weight:700">📄 Open PDF ↗</a>';
+      } else if(_so.status==='approved'||_so.ceoSignedAt){
+        line+=' · <span style="color:#f59e0b;font-style:italic">PDF saving…</span>';
+      }
+      return line;
+    })(),
+    link:'so',
+    soId:(function(){var _so2=typeof getSalesOrders==='function'&&getSalesOrders().find(function(s){return s.quoteId===q.id||s.quoteNum===q.quoteNum});return _so2?_so2.id:null})()
+  },
   {label:'Job Passport',done:typeof getPassports==='function'&&getPassports().some(function(p){return p.quoteId===q.id||p.quoteNum===q.quoteNum}),det:'Created from approved SO'},
   {label:'Job Tickets',done:typeof getJobTickets==='function'&&getJobTickets().some(function(t2){return t2.quoteNum===q.quoteNum}),det:'Generated from confirmed blueprints'}
 ];
@@ -683,7 +700,15 @@ steps.forEach(function(step){
     if(step.link==='po')h+='<a href="#" onclick="scrollToFiles(\'po\');return false" style="font-size:9px;color:var(--ac);text-decoration:none;padding:3px 8px;border:1px solid var(--ac);border-radius:4px;white-space:nowrap">View ↗</a>';
     if(step.link==='art')h+='<a href="#" onclick="scrollToFiles(\'art\');return false" style="font-size:9px;color:var(--ac);text-decoration:none;padding:3px 8px;border:1px solid var(--ac);border-radius:4px;white-space:nowrap">View ↗</a>';
     if(step.link==='so'){
-      if(step.soId){h+='<a href="#" onclick="if(typeof openSODetail===\'function\')openSODetail(\''+step.soId+'\');return false" style="font-size:9px;color:var(--ac);text-decoration:none;padding:3px 8px;border:1px solid var(--ac);border-radius:4px;white-space:nowrap">View SO ↗</a>';}
+      if(step.soId){
+        // Resolve the SO to figure out which CTA to surface
+        var _wfSO=typeof getSalesOrders==='function'&&getSalesOrders().find(function(s){return s.id===step.soId});
+        var _wfFlow=_wfSO?_wfSO.signatureFlow:'';
+        if(_wfSO && _wfSO.driveLink && (!_wfFlow || _wfFlow==='ready_to_send' || _wfFlow==='pending')){
+          h+='<a href="#" onclick="if(typeof sendSOForSignatures===\'function\')sendSOForSignatures(\''+step.soId+'\');return false" style="font-size:9px;color:#000;background:#00e5ff;text-decoration:none;padding:4px 9px;border-radius:4px;white-space:nowrap;font-weight:800">📨 Send for Signatures</a>';
+        }
+        h+='<a href="#" onclick="if(typeof openSODetail===\'function\')openSODetail(\''+step.soId+'\');return false" style="font-size:9px;color:var(--ac);text-decoration:none;padding:3px 8px;border:1px solid var(--ac);border-radius:4px;white-space:nowrap">View SO ↗</a>';
+      }
       else if(q.poNumber){h+='<a href="#" onclick="if(typeof createSOFromPO===\'function\')createSOFromPO(\''+q.id+'\');return false" style="font-size:9px;color:#22c55e;text-decoration:none;padding:3px 8px;border:1px solid #22c55e;border-radius:4px;white-space:nowrap;font-weight:700">+ Generate SO</a>';}
     }
   }

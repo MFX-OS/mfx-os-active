@@ -3550,6 +3550,24 @@ exports.autoSendSOOnApproval = onDocumentWritten(
     if (!after.ceoSignedAt) return;
     if (after.sentAt) return;
     if (after.serverAutoSendAt) return; // already attempted; success/fail already recorded
+
+    // 2026-05-27: 8-second head-start for the client-side send modal.
+    // executeSendSO in the staff app generates the SO PDF and attaches it
+    // to the Gmail send. The server-side path can't do that (PDF gen needs
+    // browser libs). When a staff member is online, the client modal
+    // claims sentAt within ~3-5 seconds; by waiting here, the server only
+    // takes over when nobody's available — giving the client email a real
+    // PDF attachment whenever possible. The send-once invariant is still
+    // enforced by the serverAutoSendAt transaction below.
+    await new Promise(r => setTimeout(r, 8000));
+    // Re-fetch — if client-side already sent, the new sentAt will exit us
+    const recheckSnap = await event.data.after.ref.get();
+    const recheck = recheckSnap.data() || {};
+    if (recheck.sentAt) {
+      console.log(`[autoSendSO] ${after.soNum}: client-side send completed during head-start, server bowing out`);
+      return;
+    }
+    if (recheck.serverAutoSendAt) return;
     const recipient = String(after.email || "").trim();
     if (!recipient) {
       console.warn(`[autoSendSO] ${after.soNum || event.params.soId}: missing email, skipping`);
@@ -3680,6 +3698,239 @@ exports.autoSendSOOnApproval = onDocumentWritten(
     await ref.update(update);
     await logServerEvent("so.auto_sent", { soId, soNum: so.soNum, to: recipient, success: !!msgId, msgId });
     console.log(`[autoSendSO] ${so.soNum}: ${msgId ? "sent to " + recipient + " (msg " + msgId + ")" : "FAILED"}`);
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// CLIENT SIGN → AUTO CREATE JOB PASSPORT + JOB TICKET (2026-05-27)
+// ═══════════════════════════════════════════════════════════════════
+// When the customer countersigns an SO on the portal (clientSignedAt
+// gets stamped), we move the order into production by creating:
+//   1. A Job Passport doc (master record for traceability)
+//   2. A Job Ticket doc (work-in-progress record for the floor)
+// Both get their numbers via issueSequence, stamped back on the SO so
+// the staff editor + portal status pills can show "IN PRODUCTION."
+//
+// Idempotency:
+//   - Skip if so.passportId is already set
+//   - Skip if before.clientSignedAt was already set (no state transition)
+//   - Tx-claim of passportId stops two trigger invocations from racing
+exports.autoCreateProductionRecordsOnSign = onDocumentWritten(
+  { document: "salesOrders/{soId}", region: "us-central1", memory: "256MiB", timeoutSeconds: 60 },
+  async (event) => {
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    if (!after) return;
+
+    // 2026-05-27 round 43: gate moved from clientSignedAt → csrConfirmedAt.
+    // The multi-step signature flow now requires a CSR to explicitly
+    // confirm the SO before passport+ticket are generated and PPD +
+    // Logistics are notified. Trigger fires on the transition from
+    // un-confirmed → confirmed.
+    if (!after.csrConfirmedAt) return;
+    if (before && before.csrConfirmedAt) return;
+    // Already has production records
+    if (after.passportId || after.jobTicketId) return;
+
+    const soId = event.params.soId;
+    const ref = db.collection("salesOrders").doc(soId);
+
+    // ─── Claim slot (so two trigger invocations can't both fire) ────────
+    let claimed = false;
+    try {
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        const d = fresh.data() || {};
+        if (d.passportId || d.jobTicketId) return;
+        if (d.productionRecordsCreatingAt) return;
+        tx.update(ref, { productionRecordsCreatingAt: nowIso() });
+        claimed = true;
+      });
+    } catch (err) {
+      console.error(`[postSignProd] ${after.soNum}: claim failed:`, err.message);
+      return;
+    }
+    if (!claimed) return;
+
+    const snap = await ref.get();
+    const so = Object.assign({ id: soId }, snap.data());
+    const company = so.company || "Unknown";
+    const skuName = so.skuName || so.jobDesc || (so.soNum || "Job");
+
+    try {
+      // ─── 1. Job Passport ──────────────────────────────────────────────
+      const jpSeq = await issueSequence("jobPassport", "JP");
+      const passport = {
+        jpNum: jpSeq.formatted,
+        soId: so.id,
+        soNum: so.soNum || "",
+        quoteId: so.quoteId || "",
+        quoteNum: so.quoteNum || "",
+        company: so.company || "",
+        contact: so.contact || "",
+        email: so.email || "",
+        jobDesc: so.jobDesc || "",
+        specs: {
+          sizeA: so.sizeA || "",
+          sizeB: so.sizeB || "",
+          shapeType: so.shapeType || "",
+          colors: so.colors || "",
+          jobType: so.jobType || "",
+          faceStock: so.faceStock || "",
+          lamination: so.lamination || "",
+          adhesive: so.adhesive || "",
+          coating: so.coating || ""
+        },
+        qty: so.selectedQty || 0,
+        total: so.total || 0,
+        ppu: so.ppu || 0,
+        poNumber: so.poNumber || "",
+        ceoSignedBy: so.ceoSignedBy || "",
+        ceoSignedAt: so.ceoSignedAt || "",
+        clientSignature: so.clientSignature || "",
+        clientSignedAt: so.clientSignedAt || "",
+        artworkApproved: !!so.artworkApproved,
+        artworkApprovedAt: so.artworkApprovedAt || "",
+        status: "active",
+        createdAt: nowIso(),
+        createdBy: "System (Auto, post client sign)",
+        updatedAt: nowIso()
+      };
+      const jpRef = await db.collection("jobPassports").add(passport);
+
+      // ─── 2. Job Ticket ────────────────────────────────────────────────
+      // Schema mirrors the staff-side ppd.js createPrePressJobTicket call
+      const jtSeq = await issueSequence("jobTicket", "JT");
+      const ticket = {
+        jtNum: jtSeq.formatted,
+        soId: so.id,
+        soNum: so.soNum || "",
+        quoteId: so.quoteId || "",
+        quoteNum: so.quoteNum || "",
+        passportId: jpRef.id,
+        passportNum: jpSeq.formatted,
+        company: company,
+        skuName: skuName,
+        status: so.artworkApproved ? "production" : "prepress",
+        prePressStatus: so.artworkApproved ? "complete" : "pending",
+        ppd: {
+          stage: so.artworkApproved ? "production" : "proofing",
+          assignedTo: "",
+          dueDate: so.estimatedShipDate || "",
+          sourceType: "salesOrder",
+          sourceSalesOrderId: so.id,
+          proofStatus: so.artworkApproved ? "Approved" : "Not Started",
+          blocked: false,
+          driveFolderUrl: "",
+          driveFolderId: "",
+          checklist: { files: false, art: !!so.artworkApproved, proof: !!so.artworkApproved, release: false },
+          notes: `Auto-created from SO ${so.soNum} after client sign (${so.clientSignature || ""}).`
+        },
+        createdAt: nowIso(),
+        createdBy: "System (Auto, post client sign)",
+        updatedAt: nowIso(),
+        log: [{
+          action: `Auto-created from SO ${so.soNum} on client sign`,
+          by: "System",
+          at: nowIso()
+        }]
+      };
+      const jtRef = await db.collection("jobTickets").add(ticket);
+
+      // ─── 3. Stamp links back on the SO + status bump ─────────────────
+      const notes = Array.isArray(so.notes) ? so.notes.slice() : [];
+      notes.push({
+        text: `🏭 Client countersigned · auto-created Job Passport ${jpSeq.formatted} + Job Ticket ${jtSeq.formatted} · order moved into production`,
+        by: "System (Auto)",
+        at: nowIso()
+      });
+      await ref.update({
+        passportId: jpRef.id,
+        passportNum: jpSeq.formatted,
+        jobTicketId: jtRef.id,
+        jobTicketNum: jtSeq.formatted,
+        inProduction: true,
+        productionStartedAt: nowIso(),
+        productionRecordsCreatedAt: nowIso(),
+        productionRecordsCreatingAt: null,
+        status: "completed", // SO lifecycle: countersigned + handed off to floor
+        notes: notes,
+        updatedAt: nowIso()
+      });
+
+      // Activity log + server event for audit trail
+      await db.collection("activity").add({
+        type: "production.records_auto_created",
+        soId: so.id,
+        soNum: so.soNum || "",
+        passportId: jpRef.id,
+        jpNum: jpSeq.formatted,
+        jobTicketId: jtRef.id,
+        jtNum: jtSeq.formatted,
+        company: company,
+        clientSignature: so.clientSignature || "",
+        timestamp: FieldValue.serverTimestamp(),
+        source: "autoCreateProductionRecordsOnSign",
+        user: "System (Auto)"
+      });
+      await logServerEvent("production.auto_created", { soId, soNum: so.soNum, jpNum: jpSeq.formatted, jtNum: jtSeq.formatted });
+
+      // ─── 4. Notify PPD (Pre-Press) + Logistics teams ─────────────────
+      // 2026-05-27 round 43: write notification entries that the staff
+      // app surfaces in each department's dashboard. The schema matches
+      // the existing /notifications collection (read by notifications.js).
+      const notifyAt = nowIso();
+      const notifyDeps = [
+        {
+          dept: "prepress",
+          icon: "🎨",
+          title: `New Pre-Press Job · ${jtSeq.formatted}`,
+          body: `${company} · ${so.jobDesc || "—"} · ${so.selectedQty || 0} units · PO# ${so.poNumber || "—"} — artwork ${so.artworkApproved ? "already approved" : "needed before production"}.`
+        },
+        {
+          dept: "logistics",
+          icon: "📦",
+          title: `New Order Inbound · ${so.soNum}`,
+          body: `${company} · ${so.selectedQty || 0} units · Ship to ${so.shipTo || so.cityState || "—"} · Plan staging when prepress completes.`
+        }
+      ];
+      const notifyBatch = db.batch();
+      notifyDeps.forEach(n => {
+        const nRef = db.collection("notifications").doc();
+        notifyBatch.set(nRef, {
+          type: "alert",
+          dept: n.dept,
+          icon: n.icon,
+          title: n.title,
+          body: n.body,
+          sourceView: "ppd",
+          sourceId: jtRef.id,
+          soId: so.id,
+          soNum: so.soNum || "",
+          jobTicketId: jtRef.id,
+          jtNum: jtSeq.formatted,
+          passportId: jpRef.id,
+          jpNum: jpSeq.formatted,
+          priority: "high",
+          read: false,
+          createdAt: notifyAt,
+          timestamp: FieldValue.serverTimestamp()
+        });
+      });
+      try { await notifyBatch.commit(); } catch (e) { console.warn("[postSignProd] notify batch:", e.message); }
+
+      // Stamp the notification timestamps on the SO doc
+      await ref.update({
+        ppdNotifiedAt: notifyAt,
+        logisticsNotifiedAt: notifyAt,
+        updatedAt: notifyAt
+      });
+      console.log(`[postSignProd] ${so.soNum}: created Passport ${jpSeq.formatted} + Ticket ${jtSeq.formatted} · notified PPD + Logistics`);
+    } catch (err) {
+      console.error(`[postSignProd] ${after.soNum}: failed:`, err.message);
+      // Clear the claim so a future write can retry
+      try { await ref.update({ productionRecordsCreatingAt: null }); } catch (_) {}
+    }
   }
 );
 

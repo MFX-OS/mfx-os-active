@@ -1286,48 +1286,77 @@ $('v-editor').innerHTML=`${(function(){
   b+='</div>';
   return b;
 })()}${(function(){
-  // ─── Backup CEO sign banner — only when validation failed at SO gen ───
-  // 2026-05-27 (rev): SOs are normally auto-signed by Moises Santillan at
-  // generation time. This banner only appears for SOs where validation
-  // FAILED (ceoSignNeeded=true && !ceoSignedAt) — i.e., the customer email
-  // was missing, total was zero, etc. The staffer fixes the underlying
-  // quote data, then clicks Sign here to manually trigger the send.
+  // ─── CEO Sign Banner (signatureFlow='awaiting_ceo') ─────────────────
+  // 2026-05-27 (round 42): appears after staff clicks "Send for
+  // Signatures" — the SO is now waiting for the CEO to electronically
+  // sign. CEO opens this editor, reviews the PDF (Drive link above),
+  // types name, checks "I approve", clicks Sign & Send. That fires the
+  // client countersignature request automatically.
   var qq2=getQ(S.editId);
   if(!qq2)return'';
   var soForQuote = (typeof getSalesOrders==='function')
     ? getSalesOrders().find(function(s){return s.quoteId===qq2.id||s.quoteNum===qq2.quoteNum})
     : null;
   if(!soForQuote)return'';
-  if(!soForQuote.ceoSignNeeded || soForQuote.ceoSignedAt)return'';
-  var missing = soForQuote.autoApprovalChecks
-    ? Object.keys(soForQuote.autoApprovalChecks).filter(function(k){return !soForQuote.autoApprovalChecks[k]})
-    : [];
-  var c='<div style="background:linear-gradient(135deg,rgba(239,68,68,.10),rgba(239,68,68,.03));border:1.5px solid rgba(239,68,68,.5);border-radius:10px;padding:14px 18px;margin:8px 12px 12px">';
+  if(soForQuote.signatureFlow!=='awaiting_ceo')return'';
+  if(soForQuote.ceoSignedAt)return'';
+  var c='<div style="background:linear-gradient(135deg,rgba(0,229,255,.10),rgba(0,229,255,.03));border:1.5px solid rgba(0,229,255,.5);border-radius:10px;padding:14px 18px;margin:8px 12px 12px">';
   c+='<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">';
   c+='<div style="flex:1;min-width:240px">';
-  c+='<div style="font-size:10px;color:#ef4444;font-weight:800;letter-spacing:2px;margin-bottom:6px">⚠ AUTO-SIGN BLOCKED — FIX & SIGN MANUALLY</div>';
+  c+='<div style="font-size:10px;color:var(--ac);font-weight:800;letter-spacing:2px;margin-bottom:6px">✍ SALES ORDER · AWAITING CEO SIGNATURE</div>';
   c+='<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc(soForQuote.soNum||'—')+' for '+esc(soForQuote.company||'Client')+'</div>';
-  c+='<div style="font-size:11px;color:var(--tx2);line-height:1.6">Auto-sign blocked because: <strong style="color:#ef4444">'+esc(missing.join(', ')||'unknown')+'</strong>. Fix in the quote, then click Sign as CEO.</div>';
+  c+='<div style="font-size:11px;color:var(--tx2);line-height:1.6">';
+  if(soForQuote.total)c+='Total <strong style="color:var(--ac)">$'+Number(soForQuote.total).toLocaleString(undefined,{minimumFractionDigits:2})+'</strong> · ';
+  c+='PO# <strong>'+esc(soForQuote.poNumber||'—')+'</strong>';
+  if(soForQuote.ceoSignRequestSentAt)c+=' · Request sent '+esc(fD(soForQuote.ceoSignRequestSentAt));
   c+='</div>';
-  c+='<button onclick="switchET(10)" style="padding:7px 14px;background:transparent;color:#ef4444;border:1px solid rgba(239,68,68,.5);border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;height:32px;align-self:flex-start">Open SO Tab →</button>';
+  c+='<div style="font-size:10px;color:var(--tx3);margin-top:6px">Review the PDF in the SO tab, type your name below, click Sign. Your signature triggers the client countersignature request automatically.</div>';
   c+='</div>';
-  c+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px dashed rgba(239,68,68,.25)">';
-  c+='<label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);cursor:pointer;white-space:nowrap"><input type="checkbox" id="ceoSignAuth" style="accent-color:#ef4444" onchange="(function(){var b=document.getElementById(\'ceoSignBtn\');var s=document.getElementById(\'ceoSignName\');if(b&&s)b.disabled=!(s.value.trim()&&document.getElementById(\'ceoSignAuth\').checked)})()"> I approve as CEO</label>';
-  c+='<input id="ceoSignName" type="text" placeholder="Type CEO name (Moises Santillan)" style="flex:1;min-width:180px;background:var(--inp);border:none;border-bottom:2px solid #ef4444;padding:8px 0 4px;font-size:16px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:var(--tx);outline:none">';
-  c+='<button id="ceoSignBtn" disabled onclick="signSOAsCEO(\''+esc(soForQuote.id)+'\',document.getElementById(\'ceoSignName\').value)" style="padding:10px 22px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap;opacity:.5;transition:opacity .15s">✍ Sign & Send</button>';
+  c+=(soForQuote.driveLink?'<a href="'+esc(soForQuote.driveLink)+'" target="_blank" style="padding:7px 14px;background:transparent;color:var(--ac);border:1px solid rgba(0,229,255,.5);border-radius:6px;font-size:10px;font-weight:600;text-decoration:none;white-space:nowrap;height:32px;display:inline-flex;align-items:center;align-self:flex-start">📄 Review PDF</a>':'');
+  c+='</div>';
+  c+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px dashed rgba(0,229,255,.25)">';
+  c+='<label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--tx2);cursor:pointer;white-space:nowrap"><input type="checkbox" id="ceoSignAuth" style="accent-color:var(--ac)"> I approve as CEO</label>';
+  c+='<input id="ceoSignName" type="text" placeholder="Type your full name (e.g. Moises Santillan)" style="flex:1;min-width:180px;background:var(--inp);border:none;border-bottom:2px solid var(--ac3);padding:8px 0 4px;font-size:16px;font-family:Outfit,sans-serif;font-style:italic;font-weight:600;color:var(--tx);outline:none">';
+  c+='<button id="ceoSignBtn" disabled onclick="signSOAsCEO(\''+esc(soForQuote.id)+'\',document.getElementById(\'ceoSignName\').value)" style="padding:10px 22px;background:var(--ac);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap;opacity:.5;transition:opacity .15s">✍ Sign & Send to Client</button>';
   c+='</div>';
   c+='</div>';
   setTimeout(function(){
     var b=document.getElementById('ceoSignBtn'), s=document.getElementById('ceoSignName'), a=document.getElementById('ceoSignAuth');
-    if(b)b.style.opacity=b.disabled?'.5':'1';
-    if(b&&s&&a){
-      var refresh=function(){b.disabled=!(s.value.trim()&&a.checked);b.style.opacity=b.disabled?'.5':'1'};
-      s.addEventListener('input',refresh);
-      a.addEventListener('change',refresh);
-    }
+    if(!b||!s||!a)return;
+    var refresh=function(){b.disabled=!(s.value.trim()&&a.checked);b.style.opacity=b.disabled?'.5':'1'};
+    s.addEventListener('input',refresh);
+    a.addEventListener('change',refresh);
+    refresh();
   },20);
   return c;
-})()}<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO',null,'Passport','Timeline','Workflow'].map(function(t,i){if(t==null)return'';/* 2026-05-27: SO Preview tab hidden — SO preview lives inside the SO tab now */ return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
+})()}${(function(){
+  // ─── CSR Confirmation Banner (signatureFlow='awaiting_csr') ─────────
+  // Client has signed; CSR needs to confirm before passport+ticket are
+  // generated and PPD/Logistics are notified.
+  var qq3=getQ(S.editId);
+  if(!qq3)return'';
+  var soForCSR = (typeof getSalesOrders==='function')
+    ? getSalesOrders().find(function(s){return s.quoteId===qq3.id||s.quoteNum===qq3.quoteNum})
+    : null;
+  if(!soForCSR)return'';
+  if(soForCSR.signatureFlow!=='awaiting_csr')return'';
+  if(soForCSR.csrConfirmedAt)return'';
+  var x='<div style="background:linear-gradient(135deg,rgba(34,197,94,.10),rgba(34,197,94,.03));border:1.5px solid rgba(34,197,94,.5);border-radius:10px;padding:14px 18px;margin:8px 12px 12px">';
+  x+='<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px">';
+  x+='<div style="flex:1;min-width:240px">';
+  x+='<div style="font-size:10px;color:#22c55e;font-weight:800;letter-spacing:2px;margin-bottom:6px">✓ FULLY SIGNED · CSR CONFIRMATION NEEDED</div>';
+  x+='<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px">'+esc(soForCSR.soNum||'—')+' — both signatures on file</div>';
+  x+='<div style="font-size:11px;color:var(--tx2);line-height:1.6">';
+  x+='CEO: <strong>'+esc(soForCSR.ceoSignedBy||'—')+'</strong>'+(soForCSR.ceoSignedAt?' ('+esc(fD(soForCSR.ceoSignedAt))+')':'')+' · ';
+  x+='Client: <strong>'+esc(soForCSR.clientSignature||'—')+'</strong>'+(soForCSR.clientSignedAt?' ('+esc(fD(soForCSR.clientSignedAt))+')':'');
+  x+='</div>';
+  x+='<div style="font-size:10px;color:var(--tx3);margin-top:6px">Confirm to generate Job Passport + Job Ticket and notify Pre-Press + Logistics that this order is moving into production.</div>';
+  x+='</div>';
+  x+='<button onclick="confirmSOAsCSR(\''+esc(soForCSR.id)+'\')" style="padding:11px 22px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap">✓ Confirm & Hand Off to Production</button>';
+  x+='</div>';
+  x+='</div>';
+  return x;
+})()}<div class="etabs">${(function(){var qq=getQ(S.editId);var sendLabel='Send';if(qq){if(qq.status==='draft')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Submit';else if(qq.status==='approval')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';else if(qq.status==='rejected')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected';else if(qq.status==='ready'||qq.status==='sent')sendLabel='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Comms';}return['Info','Specs','Materials','Pricing','Matrix','Preview',sendLabel,'Portal','PO','Art','SO','SO Preview','Passport','Timeline','Workflow'].map(function(t,i){return'<div class="etab '+(i===S.etab?'active':'')+'" onclick="switchET('+i+')">'+t+'</div>'}).join('')})()}<div style="margin-left:auto;padding:0 6px;display:flex;align-items:center;gap:6px;overflow:hidden" id="statusBar">${(function(){var qq=getQ(S.editId);if(!qq)return'';var sc={'draft':'var(--tx3)','approval':'#c4b5fd','ready':'var(--ac)','sent':'var(--ac)','won':'var(--gn)','lost':'var(--rd)','rejected':'var(--rd)','archived':'var(--tx3)'}[qq.status]||'var(--tx3)';var ns='—';if(qq.status==='draft')ns='Submit for approval';else if(qq.status==='approval')ns='Awaiting CEO';else if(qq.status==='ready')ns='Send to client';else if(qq.status==='sent')ns=qq.poNumber?'Create SO':'Awaiting client';else if(qq.status==='won')ns='Create Sales Order';var la=qq.updatedAt?fD(qq.updatedAt):'—';return'<div style="display:flex;align-items:center;gap:4px;min-width:0"><div style="width:8px;height:8px;border-radius:50%;background:'+sc+';flex-shrink:0;animation:pulse 2s ease infinite"></div><div style="font-size:8px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:'+sc+';font-weight:700">'+qq.status.toUpperCase()+'</span> · Next: '+ns+'</div></div>'})()}</div></div>
 <style>#statusBar{max-width:250px}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
 
 <div class="epane ${S.etab===13?'active':''}" id="ep-timeline">
@@ -1843,13 +1872,49 @@ if(linkedSO){
   h+='<button class="btn btn-pr btn-sm" onclick="if(typeof downloadSOPDF===\'function\')downloadSOPDF(\''+so.id+'\');else toast(\'SO module not loaded\',\'err\')" title="Download SO PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download PDF</button>';
   h+='<button class="btn btn-ghost btn-sm" onclick="if(typeof soPrintPreview===\'function\')soPrintPreview(\''+so.id+'\');else toast(\'SO module not loaded\',\'err\')">🖨 Print</button>';
   h+='<button class="btn btn-ghost btn-sm" onclick="if(typeof openSODetail===\'function\')openSODetail(\''+so.id+'\')">View Modal</button>';
-  if(so.driveLink)h+='<a href="'+so.driveLink+'" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">☁ Drive</a>';
 }else if(qq.poNumber){
   h+='<button class="btn btn-pr btn-sm" onclick="if(typeof createSOFromPO===\'function\')createSOFromPO(\''+qq.id+'\');else toast(\'Module not loaded\',\'err\')" style="flex:1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Generate Sales Order</button>';
 }else{
   h+='<div style="font-size:10px;color:var(--tx3);padding:4px 0">PO required before generating SO</div>';
 }
 h+='</div>';
+
+// ═══ SALES ORDER PDF ON DRIVE ═══
+// 2026-05-27: prominent card showing where the SO PDF lives on the
+// shared drive. masterLink → MFX-CORE/Master Sales Orders/<SO#>.pdf,
+// clientFolderLink → MFX-CORE/Clients/<Co>/<QuoteNum>/. driveLink gets
+// populated automatically by saveSOPDFToDrive() on auto-sign (round
+// 39); the regenerate button below lets staff re-save the PDF manually.
+if(linkedSO){
+  var _hasMaster=!!so.driveLink;
+  var _hasClient=!!so.clientFolderLink;
+  h+='<div style="background:linear-gradient(135deg,rgba(34,197,94,.06),rgba(34,197,94,.02));border:1px solid '+(_hasMaster?'rgba(34,197,94,.4)':'rgba(255,255,255,.08)')+';border-radius:10px;padding:12px 14px;margin-bottom:10px">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
+  h+='<div style="font-size:10px;color:'+(_hasMaster?'#22c55e':'var(--tx3)')+';font-weight:800;letter-spacing:1.5px">📁 SALES ORDER PDF ON DRIVE'+(_hasMaster?' · ✓ SAVED':' · PENDING')+'</div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  // Signature workflow trigger — only show when PDF is ready and chain hasn't started
+  if(_hasMaster && (!so.signatureFlow || so.signatureFlow==='ready_to_send' || so.signatureFlow==='pending')){
+    h+='<button class="btn btn-pr btn-xs" onclick="sendSOForSignatures(\''+so.id+'\')" style="white-space:nowrap;background:#00e5ff;color:#000;font-weight:800">📨 Send for Signatures</button>';
+  } else if(so.signatureFlow && so.signatureFlow!=='ready_to_send'){
+    var _flowLabel={'awaiting_ceo':'⏳ Awaiting CEO Sign','awaiting_client':'⏳ Awaiting Client Sign','awaiting_csr':'⏳ Awaiting CSR Confirm','in_production':'🏭 In Production'}[so.signatureFlow]||so.signatureFlow;
+    h+='<span style="padding:5px 10px;background:rgba(0,229,255,.1);color:var(--ac);font-size:10px;font-weight:700;border-radius:4px;white-space:nowrap">'+_flowLabel+'</span>';
+  }
+  h+='<button class="btn btn-ghost btn-xs" onclick="regenerateSOPDF(\''+so.id+'\')" style="white-space:nowrap">'+(_hasMaster?'↻ Regenerate':'⬆ Save PDF Now')+'</button>';
+  h+='</div>';
+  h+='</div>';
+  if(_hasMaster){
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    h+='<a href="'+esc(so.driveLink)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;text-decoration:none;color:var(--tx);font-size:11px;font-weight:600"><span style="font-size:14px">📄</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Master Sales Orders<br><span style="font-size:9px;color:var(--tx3);font-weight:500">'+esc(so.soNum||'')+'.pdf</span></span></a>';
+    if(_hasClient){
+      h+='<a href="'+esc(so.clientFolderLink)+'" target="_blank" style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;text-decoration:none;color:var(--tx);font-size:11px;font-weight:600"><span style="font-size:14px">📁</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">Client Folder<br><span style="font-size:9px;color:var(--tx3);font-weight:500">Clients/'+esc(so.company||'')+'/'+esc(so.quoteNum||'')+'</span></span></a>';
+    }
+    h+='</div>';
+  } else {
+    h+='<div style="font-size:11px;color:var(--tx3);line-height:1.5">PDF will be auto-generated and saved here when the SO is signed. Click <strong>Save PDF Now</strong> to trigger it manually.</div>';
+  }
+  h+='</div>';
+}
+
 // ═══ INLINE SO PREVIEWS — Document HTML, Actual PDF, or Edit Form ═══
 if(linkedSO&&typeof window.buildSOPrintHTML==='function'){
   var _soTab=window._soTab||'preview';
@@ -2270,7 +2335,7 @@ return h})()}
 buildMS('ed-fs',f.faceStock);buildMS('ed-lam',f.lamination);buildDieSelect(f);buildVarnishSelect(f.coating);edMat('faceStock');edMat('lamination');renderMatDetail('coating');edRQ();renderTermsEditor();edCalcAll();renderInternalNotes();renderActivityLog();if(S.etab===6)setTimeout(renderSendPane,100);if(S.etab===7)setTimeout(function(){initPortalMsgListener(getQ(S.editId))},200);if(S.etab===11)setTimeout(function(){if(typeof initSOShipPane==='function')initSOShipPane()},100);if(S.etab===13){setTimeout(renderWorkflow,100);setTimeout(renderConnections,150)}if(S.etab===14){setTimeout(renderWorkflow,100)}
 if(f.custCo){var _mc=DB.customers().find(function(x){return x.company&&x.company.toLowerCase()===f.custCo.toLowerCase()});if(_mc)setTimeout(function(){renderClientMiniDash(_mc)},200)}
 // Inject Next/Prev navigation buttons into each pane
-var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Portal','PO','Art','SO',null,'Passport','Timeline','Workflow'];
+var _tabNames=['Info','Specs','Materials','Pricing','Matrix','Preview','Send','Portal','PO','Art','SO','SO Preview','Passport','Timeline','Workflow'];
 var _paneIds=['ep-info','ep-specs','ep-mats','ep-pricing','ep-matrix','ep-preview','ep-send','ep-portal','ep-po','ep-art','ep-so','ep-so-send','ep-passport','ep-timeline','ep-workflow'];
 _paneIds.forEach(function(pid,i){var pane=$(pid);if(!pane)return;var nav=document.createElement('div');nav.style.cssText='display:flex;gap:8px;margin-top:16px;padding:12px 0;border-top:1px solid var(--bdr)';if(i>0){var prev=document.createElement('button');prev.className='btn btn-ghost btn-sm';prev.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px';prev.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> '+_tabNames[i-1];prev.onclick=function(){switchET(i-1)};nav.appendChild(prev)}if(i<_paneIds.length-1){var next=document.createElement('button');next.className='btn btn-pr btn-sm';next.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;gap:6px;margin-left:auto';next.innerHTML=_tabNames[i+1]+' <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';next.onclick=function(){switchET(i+1)};nav.appendChild(next)}pane.appendChild(nav)})}
 

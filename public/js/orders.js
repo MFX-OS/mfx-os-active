@@ -1321,6 +1321,131 @@ function confirmIncomingPO(quoteId){
 // ceoSignedAt/By/Signature, flips status to 'approved' + autoApproved=true,
 // then fires the existing 'so.auto_approved' event so the auto-send
 // (client-side or server-side) does the actual send.
+// ─── Send SO for Signatures (staff → CEO → Client → CSR chain) ────
+// 2026-05-27: staff clicks "Send for Signatures" on the SO tab or
+// Workflow tab. This is the entry point to the multi-step signature
+// workflow:
+//   1. Email goes to CEO (Moises) with a link to sign in the staff app
+//   2. signatureFlow → 'awaiting_ceo', ceoSignRequestSentAt stamped
+//   3. CEO opens editor → cyan banner → types name + Sign
+//   4. signSOAsCEO fires the client request email + sets
+//      signatureFlow='awaiting_client'
+//   5. Client signs on portal → signatureFlow='awaiting_csr'
+//   6. CSR opens editor → green banner → "Confirm & Hand Off"
+//   7. signatureFlow='in_production' → trigger creates passport+ticket
+//      and notifies PPD + Logistics teams
+function sendSOForSignatures(soId){
+  if(!soId||typeof fbDb==='undefined')return toast&&toast('Cannot send — DB unavailable','err');
+  var so=getSO(soId);
+  if(!so)return toast&&toast('Sales order not found','err');
+  if(so.signatureFlow==='awaiting_ceo' || so.signatureFlow==='awaiting_client' || so.signatureFlow==='awaiting_csr' || so.signatureFlow==='in_production'){
+    return toast&&toast('Signature flow already started — currently '+so.signatureFlow,'info');
+  }
+  // Sanity check — we need at minimum a client email and Drive PDF link
+  if(!so.email)return toast&&toast('SO has no client email — fix the quote first','err');
+  if(!so.driveLink){
+    // Try to save the PDF now if it isn't already saved
+    if(typeof saveSOPDFToDrive==='function'){
+      toast&&toast('Generating PDF first…','ok');
+      return saveSOPDFToDrive(so).then(function(){
+        // Recurse once PDF exists
+        var fresh=getSO(soId);
+        if(fresh)sendSOForSignatures(soId);
+      }).catch(function(e){
+        toast&&toast('Cannot send — PDF save failed: '+e.message,'err');
+      });
+    } else {
+      return toast&&toast('Cannot send — no PDF yet. Click "Save PDF Now" first.','err');
+    }
+  }
+  if(!confirm('Send '+so.soNum+' for signatures?\n\n1. Email goes to CEO (Moises Santillan) to sign first.\n2. After CEO signs, client gets a countersignature request.\n3. After client signs, CSR confirms hand-off to Production.\n\nProceed?')){
+    return;
+  }
+  var now=new Date().toISOString();
+  var by=typeof getUserName==='function'?getUserName():'Staff';
+  var ceoEmail=(typeof window!=='undefined' && window.SO_CEO_EMAIL) || 'flex@microflexfilm.com';
+  var upd={
+    signatureFlow:'awaiting_ceo',
+    signatureFlowStartedAt:now,
+    signatureFlowStartedBy:by,
+    ceoSignRequestSentAt:now,
+    ceoSignRequestSentTo:ceoEmail,
+    ceoSignNeeded:true,
+    updatedAt:now,
+    updatedBy:by
+  };
+  var notes=Array.isArray(so.notes)?so.notes.slice():[];
+  notes.push({text:'📨 Signature request sent — chain: CEO → Client → CSR. Awaiting CEO ('+ceoEmail+').',by:by,at:now});
+  upd.notes=notes;
+  Object.assign(so,upd);
+  if(window.setSaveState)window.setSaveState('saving');
+  fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
+    toast&&toast('Sent — CEO ('+ceoEmail+') will get the sign request shortly','ok');
+    // TODO server-side: hook into autoSendSOOnApproval or a new trigger
+    // to actually send the CEO email via flex@. For now, the staff app
+    // tries a client-side Gmail send below if the user has OAuth.
+    _sendCEOSignRequestEmail(so).catch(function(e){console.warn('[CEO email] '+e.message)});
+    // Activity log
+    if(typeof fbDb!=='undefined'){
+      fbDb.collection('activity').add({
+        type:'so.signatureFlow.started',
+        soId:so.id,soNum:so.soNum,company:so.company,
+        ceoEmail:ceoEmail,
+        startedBy:by,
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    }
+    if(typeof renderEditor==='function')renderEditor();
+    if(typeof renderOrdersView==='function')renderOrdersView();
+    if(typeof renderWorkflow==='function')renderWorkflow();
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    toast&&toast('Send failed: '+e.message,'err');
+    console.error('[sendSOForSignatures]',e);
+  });
+}
+window.sendSOForSignatures=sendSOForSignatures;
+
+// Best-effort client-side Gmail send of the CEO sign request. Falls
+// back silently if the user doesn't have Gmail OAuth (e.g., they're
+// not logged in as a Workspace staff user). Server-side flex@ sender
+// can be added later via a new Cloud Function trigger.
+function _sendCEOSignRequestEmail(so){
+  if(typeof getGoogleToken!=='function')return Promise.reject(new Error('Gmail not available'));
+  return getGoogleToken().then(function(token){
+    if(!token)throw new Error('No Gmail token');
+    var editorUrl='https://os.microflexfilm.com/?editQuote='+encodeURIComponent(so.quoteId||'');
+    var ceoEmail=so.ceoSignRequestSentTo||'flex@microflexfilm.com';
+    var subj='Sign Required: Sales Order '+so.soNum+' — '+so.company;
+    var body=[
+      '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0a1a28;color:#e0f2fe;padding:0">',
+        '<div style="padding:20px 24px;background:#060d14;border-bottom:1px solid #1a2d40">',
+          '<div style="font-size:22px;font-weight:900">Microflex</div>',
+          '<div style="font-size:10px;color:#00e5ff;letter-spacing:2px;margin-top:4px">CEO SIGNATURE REQUIRED</div>',
+        '</div>',
+        '<div style="padding:24px;line-height:1.6">',
+          '<p style="font-size:14px;color:#e0f2fe">A new Sales Order is ready for your electronic signature.</p>',
+          '<table style="width:100%;border-collapse:collapse;margin:18px 0;font-size:13px">',
+            '<tr><td style="padding:8px 0;color:#64748b;width:130px">Sales Order</td><td style="color:#e0f2fe;font-weight:700">',so.soNum,'</td></tr>',
+            '<tr><td style="padding:8px 0;color:#64748b">Customer</td><td style="color:#e0f2fe">',so.company||'',' · PO# ',(so.poNumber||'—'),'</td></tr>',
+            '<tr><td style="padding:8px 0;color:#64748b">Total</td><td style="color:#00e5ff;font-weight:700">$',Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),'</td></tr>',
+          '</table>',
+          '<p><a href="',so.driveLink||'#','" target="_blank" style="display:inline-block;padding:10px 22px;background:#0a2e3e;color:#00e5ff;font-weight:700;border-radius:5px;text-decoration:none;font-size:12px;margin-right:8px">📄 Review PDF</a>',
+          '<a href="',editorUrl,'" target="_blank" style="display:inline-block;padding:10px 22px;background:#00e5ff;color:#060d14;font-weight:800;border-radius:5px;text-decoration:none;font-size:12px">✍ Open & Sign</a></p>',
+          '<p style="font-size:11px;color:#64748b;margin-top:18px">After you sign, the customer will automatically receive the SO with a countersignature request. Once they sign, CSR can confirm hand-off to Production.</p>',
+        '</div>',
+      '</div>'
+    ].join('');
+    var raw='Content-Type:text/html;charset=utf-8\r\nFrom:MFX OS <flex@microflexfilm.com>\r\nTo:'+ceoEmail+'\r\nSubject:'+subj+'\r\nMIME-Version:1.0\r\n\r\n'+body;
+    var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({raw:encoded})}).then(function(r){return r.json()}).then(function(d){
+      if(d.id){toast&&toast('CEO sign request emailed ✓','ok');return d}
+      throw new Error((d.error&&d.error.message)||'Gmail send failed');
+    });
+  });
+}
+
 function signSOAsCEO(soId, typedName){
   if(!soId||typeof fbDb==='undefined')return toast&&toast('Cannot sign — DB unavailable','err');
   var name=String(typedName||'').trim();
@@ -1339,35 +1464,40 @@ function signSOAsCEO(soId, typedName){
     ceoSignedBy:by,
     ceoSignature:name,
     ceoSignNeeded:false,
+    // Status moves: pending → approved on CEO sign. autoApproved stays
+    // false here — we use signatureFlow for routing, not autoApproved.
     status:'approved',
-    autoApproved:true,
     approvedAt:now,
     approvedBy:by,
+    // Advance the multi-step signature chain to the client half.
+    signatureFlow:'awaiting_client',
+    clientSignRequestSentAt:now,
     updatedAt:now,
     updatedBy:by
   };
-  // Append note for audit trail
   var notes=Array.isArray(so.notes)?so.notes.slice():[];
-  notes.push({
-    text:'✍ CEO electronic signature applied by '+by+' (signed as: "'+name+'"). Auto-send to customer triggered.',
-    by:by,
-    at:now
-  });
+  notes.push({text:'✍ CEO ('+by+') signed as "'+name+'" — sending countersignature request to client ('+(so.email||'?')+').',by:by,at:now});
   upd.notes=notes;
-  // Mutate in-memory cache so the UI reflects the new state immediately
   Object.assign(so, upd);
   if(window.setSaveState)window.setSaveState('saving');
   fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
     if(window.setSaveState)window.setSaveState('saved');
-    toast&&toast('SO '+so.soNum+' signed — dispatching to customer…','ok');
-    // Fire the existing auto-send pipeline. The server-side Firestore
-    // trigger ALSO sees the autoApproved flip and will send via the
-    // delegated Gmail service account if no staff is online.
-    if(typeof MFX!=='undefined'&&typeof MFX.emit==='function'){
-      MFX.emit('so.auto_approved',{so:so,quote:null});
+    toast&&toast('SO '+so.soNum+' signed by CEO — sending to client for countersignature','ok');
+    // Send the client a countersignature request email (best-effort,
+    // client-side Gmail). Server-side autoSendSOOnApproval still fires
+    // as backup when DwD is configured.
+    _sendClientSignRequestEmail(so).catch(function(e){console.warn('[client email] '+e.message)});
+    if(typeof fbDb!=='undefined'){
+      fbDb.collection('activity').add({
+        type:'so.ceo_signed',
+        soId:so.id,soNum:so.soNum,company:so.company,
+        signedBy:by,signature:name,
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
     }
     if(typeof renderEditor==='function')renderEditor();
     if(typeof renderOrdersView==='function')renderOrdersView();
+    if(typeof renderWorkflow==='function')renderWorkflow();
   }).catch(function(e){
     if(window.setSaveState)window.setSaveState('error');
     toast&&toast('Sign failed: '+e.message,'err');
@@ -1375,6 +1505,108 @@ function signSOAsCEO(soId, typedName){
   });
 }
 window.signSOAsCEO=signSOAsCEO;
+
+// ─── CSR Confirmation — client has signed, hand off to production ───
+// 2026-05-27: final step of the signature chain. After CSR confirms,
+// the autoCreateProductionRecordsOnSign Firestore trigger sees both
+// csrConfirmedAt set and creates the Job Passport + Job Ticket. PPD +
+// Logistics notifications also fire from the trigger.
+function confirmSOAsCSR(soId){
+  if(!soId||typeof fbDb==='undefined')return toast&&toast('Cannot confirm — DB unavailable','err');
+  var so=getSO(soId);
+  if(!so)return toast&&toast('Sales order not found','err');
+  if(so.csrConfirmedAt)return toast&&toast('Already confirmed by '+(so.csrConfirmedBy||'CSR'),'info');
+  if(!so.clientSignedAt)return toast&&toast('Client hasn\'t signed yet — cannot confirm','err');
+  if(!confirm('Confirm '+so.soNum+' and hand off to Production?\n\nThis will:\n• Generate the Job Passport + Job Ticket\n• Notify Pre-Press + Logistics teams\n• Lock the SO into production status')){
+    return;
+  }
+  var now=new Date().toISOString();
+  var by=typeof getUserName==='function'?getUserName():'CSR';
+  var upd={
+    csrConfirmedAt:now,
+    csrConfirmedBy:by,
+    signatureFlow:'in_production',
+    status:'completed',
+    updatedAt:now,
+    updatedBy:by
+  };
+  var notes=Array.isArray(so.notes)?so.notes.slice():[];
+  notes.push({text:'✓ CSR ('+by+') confirmed all signatures complete. Handing off to Production — Job Passport + Ticket auto-creating, PPD + Logistics notified.',by:by,at:now});
+  upd.notes=notes;
+  Object.assign(so,upd);
+  if(window.setSaveState)window.setSaveState('saving');
+  fbDb.collection('salesOrders').doc(soId).update(upd).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
+    toast&&toast('SO '+so.soNum+' confirmed — Production records being generated','ok');
+    if(typeof fbDb!=='undefined'){
+      fbDb.collection('activity').add({
+        type:'so.csr_confirmed',
+        soId:so.id,soNum:so.soNum,company:so.company,
+        confirmedBy:by,
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(function(){});
+    }
+    if(typeof renderEditor==='function')renderEditor();
+    if(typeof renderOrdersView==='function')renderOrdersView();
+    if(typeof renderWorkflow==='function')renderWorkflow();
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    toast&&toast('Confirm failed: '+e.message,'err');
+    console.error('[confirmSOAsCSR]',e);
+  });
+}
+window.confirmSOAsCSR=confirmSOAsCSR;
+
+// Email the client a countersignature request with portal link.
+function _sendClientSignRequestEmail(so){
+  if(typeof getGoogleToken!=='function')return Promise.reject(new Error('Gmail not available'));
+  return getGoogleToken().then(function(token){
+    if(!token)throw new Error('No Gmail token');
+    var portalUrl='https://os.microflexfilm.com/portal?id='+encodeURIComponent(so.quoteId||'')+'&q='+encodeURIComponent(so.quoteNum||'');
+    var subj='Countersignature Required: Sales Order '+so.soNum+' — '+so.company;
+    var body=[
+      '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;color:#0a2030">',
+        '<div style="padding:18px 24px;background:#0a1929;color:#fff">',
+          '<div style="font-size:22px;font-weight:900">Microflex</div>',
+          '<div style="font-size:10px;color:#00e5ff;letter-spacing:2px;margin-top:4px">SALES ORDER · YOUR SIGNATURE NEEDED</div>',
+        '</div>',
+        '<div style="padding:24px;line-height:1.6;font-size:13px">',
+          '<p>Hello ',(so.contact||'there'),',</p>',
+          '<p>Your Sales Order <strong>',so.soNum,'</strong> has been signed by Microflex and is now ready for your countersignature.</p>',
+          '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:14px 0">',
+            '<tr><td style="padding:6px 0;color:#64748b;width:130px">Order</td><td><strong>',so.soNum,'</strong> · PO# ',(so.poNumber||'—'),'</td></tr>',
+            '<tr><td style="padding:6px 0;color:#64748b">Job</td><td>',(so.jobDesc||'—'),'</td></tr>',
+            '<tr><td style="padding:6px 0;color:#64748b">Quantity</td><td>',Number(so.selectedQty||0).toLocaleString(),'</td></tr>',
+            '<tr><td style="padding:6px 0;color:#64748b">Total</td><td style="font-weight:700">$',Number(so.total||0).toLocaleString(undefined,{minimumFractionDigits:2}),'</td></tr>',
+          '</table>',
+          '<p style="text-align:center;margin:20px 0">',
+            '<a href="',portalUrl,'" style="display:inline-block;padding:12px 30px;background:#00b4d8;color:#fff;font-weight:700;border-radius:5px;text-decoration:none">Review & Sign in Portal</a>',
+          '</p>',
+          (so.driveLink?'<p style="text-align:center;margin:10px 0"><a href="'+so.driveLink+'" style="color:#00b4d8;font-size:11px">📄 Download Sales Order PDF</a></p>':''),
+          '<p style="color:#64748b;font-size:11px;margin-top:20px">Once you sign, our CSR team will confirm and move your order into production. Questions? Reply to this email or contact <a href="mailto:quotes@microflexfilm.com">quotes@microflexfilm.com</a>.</p>',
+        '</div>',
+      '</div>'
+    ].join('');
+    var raw='Content-Type:text/html;charset=utf-8\r\nFrom:MFX OS <flex@microflexfilm.com>\r\nTo:'+so.email+'\r\nBcc:team@microflexfilm.com,quotes@microflexfilm.com\r\nReply-To:quotes@microflexfilm.com\r\nSubject:'+subj+'\r\nMIME-Version:1.0\r\n\r\n'+body;
+    var encoded=btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({raw:encoded})}).then(function(r){return r.json()}).then(function(d){
+      if(d.id){
+        toast&&toast('Client countersignature request sent ✓','ok');
+        // Stamp sentAt + sentTo on the SO so the server-side trigger
+        // sees it as already dispatched and doesn't double-send.
+        if(typeof fbDb!=='undefined'){
+          fbDb.collection('salesOrders').doc(so.id).update({
+            sentAt:new Date().toISOString(),
+            sentTo:so.email,
+            updatedAt:new Date().toISOString()
+          }).catch(function(){});
+        }
+        return d;
+      }
+      throw new Error((d.error&&d.error.message)||'Gmail send failed');
+    });
+  });
+}
 
 // ─── Auto-send when an SO passes validation + auto-approval ──────────
 // 2026-05-27: SOs that pass autoCreateSO's validation gate emit
@@ -1386,11 +1618,94 @@ window.signSOAsCEO=signSOAsCEO;
 // is stale, the modal sits open ready for a one-click manual confirm.
 // (Full hands-free send when nobody is signed in would need a Cloud
 // Function trigger — left as a follow-up.)
+// ─── Save SO PDF to Drive (Master Sales Orders + client folder) ───────
+// 2026-05-27: previously only fired when staff manually clicked Send in
+// the modal. Now also fires automatically right after autoCreateSO
+// auto-signs the SO as Moises — so so.driveLink is populated within
+// seconds of generation, even if no one ever opens the send modal.
+// Server endpoint /api/saveSalesOrderPDF stores in MFX-CORE/Master Sales
+// Orders/<SO#>.pdf and a copy in MFX-CORE/Clients/<Co>/<Quote#>/. Returns
+// masterLink + clientFolderLink which we stamp on the SO doc.
+function saveSOPDFToDrive(so){
+  if(!so||!so.id||!so.soNum)return Promise.reject(new Error('SO id/soNum required'));
+  if(typeof generateSOPDF!=='function')return Promise.reject(new Error('generateSOPDF not loaded'));
+  return hydrateSOFromQuote(so).then(function(){
+    return generateSOPDF(so);
+  }).then(function(pdf){
+    return new Promise(function(resolve,reject){
+      var reader=new FileReader();
+      reader.onerror=function(){reject(new Error('PDF blob read failed'))};
+      reader.onloadend=function(){
+        var b64=(reader.result||'').toString().split(',')[1]||'';
+        var payload={soId:so.id,soNum:so.soNum,quoteNum:so.quoteNum,company:so.company,filename:pdf.filename,pdfBase64:b64};
+        var doPost=(typeof MFX_API!=='undefined'&&MFX_API.postJSON)
+          ? MFX_API.postJSON('/api/saveSalesOrderPDF',payload)
+          : fetch('/api/saveSalesOrderPDF',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json()});
+        doPost.then(function(resp){
+          if(resp && resp.success){
+            // Update local cache so the editor's SO tab shows the link immediately
+            var cached=_soCache.find(function(x){return x.id===so.id});
+            if(cached){
+              cached.driveLink=resp.masterLink||cached.driveLink;
+              cached.clientFolderLink=resp.clientLink||cached.clientFolderLink;
+            }
+            console.log('[saveSOPDFToDrive] '+so.soNum+' saved · master='+(resp.masterLink||'-')+' client='+(resp.clientLink||'-'));
+            resolve(resp);
+          } else {
+            reject(new Error((resp&&resp.error)||'saveSalesOrderPDF returned no link'));
+          }
+        }).catch(reject);
+      };
+      reader.readAsDataURL(pdf.blob);
+    });
+  });
+}
+window.saveSOPDFToDrive=saveSOPDFToDrive;
+
+// Convenience wrapper used by the SO tab regenerate button. Resolves
+// the SO from cache by id, then runs save + toasts + re-renders the
+// editor so the freshly-stamped driveLink shows immediately.
+function regenerateSOPDF(soId){
+  var so=getSO(soId);
+  if(!so){toast&&toast('SO not found','err');return}
+  toast&&toast('Generating PDF & saving to Master Sales Orders…','ok');
+  saveSOPDFToDrive(so).then(function(){
+    toast&&toast('PDF saved to Master Sales Orders ✓','ok');
+    if(typeof renderEditor==='function')renderEditor();
+    if(typeof renderOrdersView==='function')renderOrdersView();
+    if(typeof renderWorkflow==='function')renderWorkflow();
+  }).catch(function(e){
+    console.error('[regenerateSOPDF]',e);
+    toast&&toast('PDF save failed: '+(e.message||e),'err');
+  });
+}
+window.regenerateSOPDF=regenerateSOPDF;
+
 function initSOAutoSendListener(){
   if(typeof MFX==='undefined'||typeof MFX.on!=='function')return;
   MFX.on('so.auto_approved',function(d){
     if(!d||!d.so)return;
     var so=d.so;
+
+    // 2026-05-27: kick off PDF generation + Drive save IMMEDIATELY on
+    // auto-sign, regardless of whether the staff modal is going to open.
+    // This makes so.driveLink available within ~5-10 seconds of SO
+    // generation. The Gmail send (separate flow below) will pick up the
+    // same so once driveLink is set, so the email has a real PDF ref.
+    try{
+      saveSOPDFToDrive(so).then(function(){
+        toast&&toast('SO '+so.soNum+' PDF saved to Master Sales Orders ✓','ok');
+        // Re-render any open editor / orders view so the new driveLink shows
+        if(typeof renderEditor==='function' && typeof S!=='undefined' && S.editId===so.quoteId)renderEditor();
+        if(typeof renderOrdersView==='function')renderOrdersView();
+        if(typeof renderWorkflow==='function')renderWorkflow();
+      }).catch(function(e){
+        console.warn('[saveSOPDFToDrive auto] '+so.soNum+' failed:',e.message);
+        toast&&toast('PDF save failed for '+so.soNum+' — '+e.message,'err');
+      });
+    }catch(e){
+      console.warn('[saveSOPDFToDrive auto] threw:',e.message);
+    }
     // 2026-05-27: server-side autoSendSOOnApproval trigger now races with
     // this client-side path. Whichever stamps sentAt first wins; the other
     // should bow out. We give the server a small head-start window since
@@ -1485,15 +1800,14 @@ async function autoCreateSO(q){
   var soNum;
   try{soNum=await genSONUM()}catch(e){soNum=genSONUMLocal()}
 
-  // ─── Validation + auto-sign as CEO ─────────────────────────────────
-  // 2026-05-27 (rev): SOs that pass validation are auto-signed by the
-  // designated CEO (Moises Santillan, configurable via SO_CEO_NAME) at
-  // generation time. No manual click required. This is the workflow:
-  //   PO confirm → SO auto-created → auto-signed as CEO → auto-sent
-  //   to client → client countersigns in portal.
-  // If validation fails, ceoSignedAt stays null and the SO sits in
-  // 'pending' for a human to complete the missing fields and trigger
-  // sign manually (signSOAsCEO() still works as a backup).
+  // ─── Validation + multi-step signature flow ─────────────────────────
+  // 2026-05-27 (round 40 rev): NO auto-sign anymore. SO is created in
+  // 'pending' status with signatureFlow='ready_to_send'. Staff explicitly
+  // clicks "Send for Signatures" to start the chain:
+  //   ready_to_send → awaiting_ceo → awaiting_client → awaiting_csr
+  //   → in_production (passport + ticket created, PPD/Logistics notified)
+  // Validation result is still recorded so a "fields missing" banner can
+  // surface if anything's incomplete; doesn't block creation.
   var _custEmail=String(f.custEmail||q.poClientEmail||'').trim().toLowerCase();
   var _emailValid=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_custEmail);
   var _validation={
@@ -1504,8 +1818,6 @@ async function autoCreateSO(q){
     hasShipTo: !!(q.poShipTo || f.cityState)
   };
   var _validationPassed = Object.keys(_validation).every(function(k){return _validation[k]});
-  var _ceoName = (typeof window!=='undefined' && window.SO_CEO_NAME) || 'Moises Santillan';
-  var _signedAt = _validationPassed ? new Date().toISOString() : null;
 
   var so={
     id:soId,
@@ -1513,18 +1825,36 @@ async function autoCreateSO(q){
     quoteId:q.id,
     quoteNum:q.quoteNum,
     quoteRev:q.rev,
-    // Validated → auto-signed + auto-approved (status='approved',
-    // autoApproved=true). Server-side trigger sees both ceoSignedAt +
-    // autoApproved and fires the customer email via flex@ delegation.
-    // Validation failed → status='pending', ceoSignNeeded=true so the
-    // signSOAsCEO() backup flow can resolve it once fields are filled in.
-    status: _validationPassed ? 'approved' : 'pending',
-    autoApproved: _validationPassed,
-    autoApprovalChecks:_validation,
-    ceoSignNeeded: !_validationPassed,
-    ceoSignedAt: _signedAt,
-    ceoSignedBy: _validationPassed ? _ceoName : null,
-    ceoSignature: _validationPassed ? _ceoName : null,
+    // All SOs start 'pending'. Status only moves to 'approved' after CEO
+    // electronically signs, then 'sent' once client signature request
+    // mails, then 'completed' once CSR confirms hand-off.
+    status: 'pending',
+    autoApproved: false,
+    autoApprovalChecks: _validation,
+    signatureFlow: _validationPassed ? 'ready_to_send' : 'pending',
+    signatureFlowStartedAt: null,
+    signatureFlowStartedBy: null,
+    // CEO half — set by signSOAsCEO() once staff sends the request and
+    // CEO opens the editor + clicks the cyan signing banner.
+    ceoSignRequestSentAt: null,
+    ceoSignRequestSentTo: null,
+    ceoSignNeeded: false,
+    ceoSignedAt: null,
+    ceoSignedBy: null,
+    ceoSignature: null,
+    // Client half — clientSignRequestSentAt stamped when CEO sign
+    // triggers the auto-email; clientSignedAt by the portal sign form.
+    clientSignRequestSentAt: null,
+    clientSignedAt: null,
+    clientSignature: null,
+    clientApproved: false,
+    // CSR confirmation — blocks production handoff (passport + ticket
+    // creation) until a CSR explicitly confirms the SO is good to go.
+    csrConfirmedAt: null,
+    csrConfirmedBy: null,
+    // Production notifications — stamped by the post-CSR trigger.
+    ppdNotifiedAt: null,
+    logisticsNotifiedAt: null,
 
     company:f.custCo||'',
     contact:f.custAttn||'',
@@ -1576,15 +1906,15 @@ async function autoCreateSO(q){
     createdBy:'System (Auto)',
     updatedAt:new Date().toISOString(),
     updatedBy:'System (Auto)',
-    approvedBy: _validationPassed ? _ceoName : null,
-    approvedAt: _signedAt,
+    approvedBy: null,
+    approvedAt: null,
     sentAt:null,
     sentTo:null,
     driveLink:null,
     notes:[{
       text: _validationPassed
-        ? '📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+') · ✍ Auto-signed as CEO by '+_ceoName+' · sending to customer for countersignature.'
-        : '📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+'). Auto-sign blocked — fix missing fields first: '+Object.keys(_validation).filter(function(k){return !_validation[k]}).join(', '),
+        ? '📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+'). Ready for signatures — staff click "Send for Signatures" to dispatch to CEO.'
+        : '📋 Auto-created from '+q.quoteNum+' (Won with PO# '+q.poNumber+'). Cannot start signature flow — fix missing fields first: '+Object.keys(_validation).filter(function(k){return !_validation[k]}).join(', '),
       by:'System',
       at:new Date().toISOString()
     }]
@@ -1592,20 +1922,25 @@ async function autoCreateSO(q){
 
   saveSO(so).then(function(){
     if(_validationPassed){
-      toast('SO '+soNum+' signed by '+_ceoName+' — dispatching to customer','ok');
+      toast('SO '+soNum+' generated — click "Send for Signatures" to start the approval chain','ok');
     } else {
       var missing=Object.keys(_validation).filter(function(k){return !_validation[k]});
-      toast('SO '+soNum+' created — fix missing fields, then CEO can sign ('+missing.join(', ')+')','err');
+      toast('SO '+soNum+' created — fix '+missing.join(', ')+' before sending for signatures','err');
     }
-    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.auto_created',soNum+' auto-created from '+q.quoteNum+(_validationPassed?' · auto-signed by '+_ceoName:' · pending fixes'));
-    if(typeof MFX!=='undefined'&&MFX.track)MFX.track('so.auto_created',{soId:soId,soNum:soNum,quoteNum:q.quoteNum,company:f.custCo,autoSigned:_validationPassed});
+    if(typeof DB!=='undefined'&&DB.logActivity)DB.logActivity('so.created',soNum+' created from '+q.quoteNum+(_validationPassed?' — ready for signatures':' — fields incomplete'));
+    if(typeof MFX!=='undefined'&&MFX.track)MFX.track('so.created',{soId:soId,soNum:soNum,quoteNum:q.quoteNum,company:f.custCo,readyToSend:_validationPassed});
     if(typeof MFX!=='undefined'&&MFX.emit){
-      if(_validationPassed){
-        // Fires the existing auto-send pipeline (client modal + server trigger).
-        MFX.emit('so.auto_approved',{so:so,quote:q});
-      } else {
-        MFX.emit('so.awaiting_ceo_signature',{so:so,quote:q});
-      }
+      MFX.emit('so.created',{so:so,quote:q,readyToSend:_validationPassed});
+    }
+    // Auto-save the SO PDF to Master Sales Orders so staff sees the
+    // Drive link the moment the SO appears (round 20 wiring). The
+    // signature flow then layers on top — staff clicks "Send for
+    // Signatures" once they've reviewed the PDF.
+    if(typeof saveSOPDFToDrive==='function'){
+      saveSOPDFToDrive(so).then(function(){
+        if(typeof renderEditor==='function')renderEditor();
+        if(typeof renderOrdersView==='function')renderOrdersView();
+      }).catch(function(e){console.warn('[autoCreateSO] PDF save deferred:',e.message)});
     }
     // After SO generation, switch the editor to the SO tab so the staff
     // immediately sees the SO preview. S.etab===10 is the SO tab.

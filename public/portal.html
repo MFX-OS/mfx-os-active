@@ -1716,7 +1716,36 @@ function buildPortalSOHTML(so,soId){
   var _ceoName = so.ceoSignedBy || 'Moises Santillan';
   var _ceoSig = so.ceoSignature || _ceoName;
   var _clientSigned = !!so.clientSignedAt;
-  h+='<div style="padding:18px 24px;background:#fafbfc;border-top:1px solid #e8ecf0;border-bottom:1px solid #e8ecf0">'
+  // 2026-05-27 round 44: 5-stage signature timeline at top of the
+  // Signatures block. Each stage shows date+who when complete, gray
+  // pending state otherwise. Mirrors the multi-step approval chain:
+  // CEO requested → CEO signed → Client requested → Client signed → CSR confirmed.
+  var _tl = [
+    {label:'CEO REQUESTED', at:so.ceoSignRequestSentAt, by:so.signatureFlowStartedBy||'Staff'},
+    {label:'CEO SIGNED', at:so.ceoSignedAt, by:so.ceoSignedBy},
+    {label:'CLIENT REQUESTED', at:so.clientSignRequestSentAt, by:'Microflex'},
+    {label:'CLIENT SIGNED', at:so.clientSignedAt, by:so.clientSignature},
+    {label:'CSR CONFIRMED', at:so.csrConfirmedAt, by:so.csrConfirmedBy}
+  ];
+  h+='<div style="padding:14px 24px 6px;background:#fafbfc;border-top:1px solid #e8ecf0;border-bottom:1px solid #f0f3f6">';
+  h+='<div style="font-size:9px;color:#0a2e3e;font-weight:800;letter-spacing:2.5px;margin-bottom:8px;text-align:center">SIGNATURE TIMELINE</div>';
+  h+='<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:separate"><tr>';
+  _tl.forEach(function(stage, i){
+    var done = !!stage.at;
+    var fg = done ? '#16a34a' : '#94a3b0';
+    var bg = done ? '#f0fdf4' : '#fafbfc';
+    h+='<td style="vertical-align:top;text-align:center;width:20%;padding:0 3px">'
+     + '<div style="background:'+bg+';border:1px solid '+(done?'rgba(22,163,74,.3)':'#e8ecf0')+';border-radius:6px;padding:8px 6px">'
+     +   '<div style="font-size:14px;color:'+fg+';line-height:1">'+(done?'✓':'○')+'</div>'
+     +   '<div style="font-size:7px;color:'+fg+';font-weight:800;letter-spacing:.5px;margin-top:4px;line-height:1.2">'+escPortal(stage.label)+'</div>'
+     +   '<div style="font-size:8px;color:'+(done?'#0a2030':'#cbd5e1')+';margin-top:3px;line-height:1.2;min-height:18px">'
+     +     (done ? escPortal(_fD(stage.at)) + (stage.by ? '<br>'+escPortal(stage.by) : '') : 'pending')
+     +   '</div>'
+     + '</div>'
+     +'</td>';
+  });
+  h+='</tr></table></div>';
+  h+='<div style="padding:18px 24px;background:#fafbfc;border-bottom:1px solid #e8ecf0">'
    +'<div style="font-size:9px;color:#0a2e3e;font-weight:800;letter-spacing:2.5px;margin-bottom:12px;text-align:center">SIGNATURES</div>'
    +'<table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:separate"><tr>'
      // CEO half
@@ -1967,11 +1996,15 @@ function submitSOApproval(soId){
   var btn=document.getElementById('soApproveBtn');
   if(btn){btn.textContent='Submitting...';btn.disabled=true}
   var sig=sigInput.value.trim();
+  // 2026-05-27 round 43: client signing also bumps signatureFlow to
+  // 'awaiting_csr' so the CSR confirmation banner appears on staff side.
   db.collection('salesOrders').doc(soId).update({
     clientSignature:sig,
     clientSignedAt:new Date().toISOString(),
     clientEmail:CLIENT_EMAIL||'',
-    clientApproved:true
+    clientApproved:true,
+    signatureFlow:'awaiting_csr',
+    updatedAt:new Date().toISOString()
   }).then(function(){
     if(btn){btn.textContent='Sales Order Approved ✓';btn.style.background='#22c55e'}
     // Log activity
