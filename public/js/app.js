@@ -2374,17 +2374,37 @@ if(!linkedSO){
   h+='<select id="shipTplSelect" onchange="if(window._loadShipTemplate)window._loadShipTemplate()" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px">';
   h+='<option value="confirmation">Order Confirmation</option><option value="followup">Follow-up</option><option value="shipping">Shipping Notice</option><option value="thankyou">Thank You</option>';
   h+='</select></div>';
-  // To field
+  // From (mailbox the email sends as — must be on the domain-wide delegation list)
+  h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">FROM</div>';
+  h+='<select id="shipFrom" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px">';
+  h+='<option value="flex@microflexfilm.com">MFX OS &lt;flex@microflexfilm.com&gt;</option>';
+  h+='<option value="quotes@microflexfilm.com">Quotes &lt;quotes@microflexfilm.com&gt;</option>';
+  h+='<option value="info@microflexfilm.com">Info &lt;info@microflexfilm.com&gt;</option>';
+  h+='</select></div>';
+  // To
   h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">TO</div>';
   h+='<input id="shipTo" type="text" value="'+esc(linkedSO.email||'')+'" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px"></div>';
+  // Cc
+  h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">CC</div>';
+  h+='<input id="shipCc" type="text" placeholder="optional — comma-separated" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px"></div>';
+  // Bcc (prefilled with the internal-archive addresses that the old hardcoded path used)
+  h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">BCC</div>';
+  h+='<input id="shipBcc" type="text" value="team@microflexfilm.com, quotes@microflexfilm.com" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px"></div>';
   // Subject
   h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">SUBJECT</div>';
   h+='<input id="shipSubject" type="text" style="width:100%;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:12px"></div>';
-  // Body
-  h+='<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin-bottom:2px">BODY (HTML) — edit freely, {{placeholders}} get filled at send time</div>';
-  h+='<textarea id="shipBody" style="width:100%;height:220px;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:10px;font-family:JetBrains Mono,Consolas,monospace;resize:vertical"></textarea></div>';
-  // Placeholder help
-  h+='<div style="font-size:9px;color:var(--tx3);line-height:1.6;margin-bottom:10px">Placeholders: <code>{{soNum}}</code> <code>{{company}}</code> <code>{{contact}}</code> <code>{{email}}</code> <code>{{quoteNum}}</code> <code>{{poNumber}}</code> <code>{{jobDesc}}</code> <code>{{qty}}</code> <code>{{total}}</code> <code>{{payTerms}}</code> <code>{{date}}</code></div>';
+  // Body — rendered Preview by default, with HTML source toggle
+  h+='<div style="margin-bottom:8px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+  h+='<div style="font-size:9px;color:var(--tx3);font-weight:700;letter-spacing:1px">EMAIL BODY</div>';
+  h+='<div style="display:flex;gap:4px">';
+  h+='<button type="button" id="shipBodyTabPreview" class="btn btn-pr btn-sm" style="font-size:9px;padding:3px 10px" onclick="window._shipBodyView&&_shipBodyView(\'preview\')">👁 Preview</button>';
+  h+='<button type="button" id="shipBodyTabHtml" class="btn btn-ghost btn-sm" style="font-size:9px;padding:3px 10px" onclick="window._shipBodyView&&_shipBodyView(\'html\')">&lt;/&gt; HTML</button>';
+  h+='</div></div>';
+  h+='<iframe id="shipBodyPreview" sandbox="allow-same-origin" style="width:100%;height:300px;background:#fff;border:1px solid var(--bdr);border-radius:6px;display:block"></iframe>';
+  h+='<textarea id="shipBody" style="display:none;width:100%;height:300px;padding:8px;background:var(--inp);border:1px solid var(--bdr);border-radius:6px;color:var(--tx);font-size:10px;font-family:JetBrains Mono,Consolas,monospace;resize:vertical" oninput="window._shipBodySync&&_shipBodySync()"></textarea></div>';
+  // Placeholder help — only meaningful when editing HTML
+  h+='<div style="font-size:9px;color:var(--tx3);line-height:1.6;margin-bottom:10px">Placeholders (resolved at send): <code>{{soNum}}</code> <code>{{company}}</code> <code>{{contact}}</code> <code>{{email}}</code> <code>{{quoteNum}}</code> <code>{{poNumber}}</code> <code>{{jobDesc}}</code> <code>{{qty}}</code> <code>{{total}}</code> <code>{{payTerms}}</code> <code>{{date}}</code></div>';
   // Actions
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
   h+='<button class="btn btn-pr" onclick="shipSOFromPane(\''+linkedSO.id+'\')" style="flex:1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Email with PDF</button>';

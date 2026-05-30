@@ -3181,8 +3181,45 @@ function _loadShipTemplate(){
   var bodyEl=document.getElementById('shipBody');
   if(subjEl)subjEl.value=subj;
   if(bodyEl)bodyEl.value=body;
+  // Refresh the rendered preview iframe so the user sees the resolved
+  // email content, not the raw HTML/placeholders.
+  _shipBodySync();
 }
 window._loadShipTemplate=_loadShipTemplate;
+
+// Render the textarea HTML into the preview iframe via srcdoc. Called
+// whenever the body changes (template switch, manual HTML edit, etc.).
+function _shipBodySync(){
+  var iframe=document.getElementById('shipBodyPreview');
+  var ta=document.getElementById('shipBody');
+  if(!iframe||!ta)return;
+  iframe.srcdoc=ta.value
+    ||'<div style="padding:24px;color:#94a3b8;font-family:sans-serif;font-size:12px">No body — pick a template above.</div>';
+}
+window._shipBodySync=_shipBodySync;
+
+// Toggle between rendered Preview and raw HTML source views.
+// Preview is the default; HTML is for power-user edits to markup.
+function _shipBodyView(mode){
+  var iframe=document.getElementById('shipBodyPreview');
+  var ta=document.getElementById('shipBody');
+  var tabP=document.getElementById('shipBodyTabPreview');
+  var tabH=document.getElementById('shipBodyTabHtml');
+  if(!iframe||!ta||!tabP||!tabH)return;
+  if(mode==='html'){
+    iframe.style.display='none';
+    ta.style.display='block';
+    tabH.classList.remove('btn-ghost');tabH.classList.add('btn-pr');
+    tabP.classList.remove('btn-pr');tabP.classList.add('btn-ghost');
+  }else{
+    ta.style.display='none';
+    iframe.style.display='block';
+    tabP.classList.remove('btn-ghost');tabP.classList.add('btn-pr');
+    tabH.classList.remove('btn-pr');tabH.classList.add('btn-ghost');
+    _shipBodySync(); // re-render in case HTML was edited
+  }
+}
+window._shipBodyView=_shipBodyView;
 
 // Send button on the ship pane. Reads the composer's live values
 // (so any edits stick), generates the PDF, sends via Gmail with PDF
@@ -3190,7 +3227,12 @@ window._loadShipTemplate=_loadShipTemplate;
 // /api/saveSalesOrderPDF (server-side, service-account auth).
 function shipSOFromPane(soId){
   var so=getSO(soId);if(!so)return toast('SO not found','err');
+  // Read all five address fields from the composer. From/Bcc keep their
+  // previous defaults if the user hasn't touched them; Cc is opt-in.
+  var from=((document.getElementById('shipFrom')||{}).value||'flex@microflexfilm.com').trim();
   var to=((document.getElementById('shipTo')||{}).value||so.email||'').trim();
+  var cc=((document.getElementById('shipCc')||{}).value||'').trim();
+  var bcc=((document.getElementById('shipBcc')||{}).value||'team@microflexfilm.com, quotes@microflexfilm.com').trim();
   var subj=((document.getElementById('shipSubject')||{}).value||'').trim();
   var body=((document.getElementById('shipBody')||{}).value||'').trim();
   var sel=document.getElementById('shipTplSelect');
@@ -3206,13 +3248,15 @@ function shipSOFromPane(soId){
     getGoogleToken().then(function(token){
       if(!token)return toast('Gmail auth required — sign out and back in','err');
 
-      // Multipart MIME: HTML body + PDF attachment. BCC matches the
-      // other SO send paths.
+      // Multipart MIME: HTML body + PDF attachment. From/Cc/Bcc come
+      // from the composer fields so the user can edit per-send.
       var boundary='----=mfx_so_ship_'+Date.now();
+      var fromHeader=(from.indexOf('<')>=0)?from:('MFX OS <'+from+'>');
       var raw=''
-        +'From: MFX OS <flex@microflexfilm.com>\r\n'
+        +'From: '+fromHeader+'\r\n'
         +'To: '+to+'\r\n'
-        +'Bcc: team@microflexfilm.com, quotes@microflexfilm.com\r\n'
+        +(cc?'Cc: '+cc+'\r\n':'')
+        +(bcc?'Bcc: '+bcc+'\r\n':'')
         +'Reply-To: quotes@microflexfilm.com\r\n'
         +'Subject: '+finalSubj+'\r\n'
         +'MIME-Version: 1.0\r\n'
