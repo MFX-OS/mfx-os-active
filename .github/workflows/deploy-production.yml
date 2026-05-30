@@ -1,12 +1,12 @@
 # MFX OS — Production Deploy Pipeline
-# Triggers on push to main branch
+# Triggers on push to master branch
 # Builds bundle → runs tests → deploys to Firebase
 
 name: Deploy Production
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   build-and-deploy:
@@ -31,21 +31,36 @@ jobs:
       - name: Build bundle
         run: npm run build
 
-      - name: Verify bundle exists
+      - name: Verify chunked bundles exist
         run: |
-          BUNDLE=$(ls public/js/mfx-bundle.*.js 2>/dev/null)
-          if [ -z "$BUNDLE" ]; then
-            echo "ERROR: No bundle file found!"
-            exit 1
-          fi
-          SIZE=$(wc -c < "$BUNDLE")
-          echo "Bundle: $BUNDLE ($SIZE bytes)"
-          if [ "$SIZE" -gt 2000000 ]; then
-            echo "WARNING: Bundle exceeds 2MB"
-          fi
+          set -e
+          CHUNKS=(core chat ai mats)
+          for c in "${CHUNKS[@]}"; do
+            f=$(ls public/js/mfx-$c.*.js 2>/dev/null | head -1)
+            if [ -z "$f" ]; then
+              echo "ERROR: No mfx-$c.*.js bundle found"
+              exit 1
+            fi
+            SIZE=$(wc -c < "$f")
+            echo "  $(basename "$f"): $SIZE bytes"
+            if [ "$c" = "core" ] && [ "$SIZE" -gt 3000000 ]; then
+              echo "WARNING: mfx-core exceeds 3MB — investigate before shipping"
+            fi
+          done
 
-      - name: Syntax check bundle
-        run: node -c public/js/mfx-bundle.*.js
+      - name: Syntax check all chunks
+        run: |
+          for f in public/js/mfx-core.*.js public/js/mfx-chat.*.js public/js/mfx-ai.*.js public/js/mfx-mats.*.js; do
+            node -c "$f"
+          done
+
+      - name: Syntax check functions/index.js
+        run: node -c functions/index.js
+
+      - name: Smoke-load functions module
+        run: |
+          cd functions
+          node -e "const x = require('./index.js'); const n = Object.keys(x).length; if (n < 40) { console.error('Only', n, 'exports found — expected 50+'); process.exit(1); } console.log(n, 'function exports loaded OK')"
 
       - name: Deploy to Firebase (Production)
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -61,7 +76,17 @@ jobs:
       - name: Post-deploy summary
         run: |
           echo "## Deploy Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bundle:** $(ls public/js/mfx-bundle.*.js)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Size:** $(wc -c < public/js/mfx-bundle.*.js) bytes" >> $GITHUB_STEP_SUMMARY
-          echo "- **URL:** https://mfx-2026.web.app" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Chunk | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+          for c in core chat ai mats; do
+            f=$(ls public/js/mfx-$c.*.js 2>/dev/null | head -1)
+            if [ -n "$f" ]; then
+              echo "| $(basename "$f") | $(wc -c < "$f") bytes |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://os.microflexfilm.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project:** mfx-2026" >> $GITHUB_STEP_SUMMARY
           echo "- **Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "- **SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

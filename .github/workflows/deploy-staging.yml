@@ -8,7 +8,7 @@ on:
   push:
     branches: [develop]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   build-and-preview:
@@ -30,13 +30,23 @@ jobs:
       - name: Build bundle
         run: npm run build
 
-      - name: Verify bundle
+      - name: Verify chunked bundles
         run: |
-          BUNDLE=$(ls public/js/mfx-bundle.*.js 2>/dev/null)
-          echo "Bundle: $BUNDLE ($(wc -c < "$BUNDLE") bytes)"
+          set -e
+          for c in core chat ai mats; do
+            f=$(ls public/js/mfx-$c.*.js 2>/dev/null | head -1)
+            if [ -z "$f" ]; then
+              echo "ERROR: No mfx-$c.*.js bundle found"
+              exit 1
+            fi
+            echo "  $(basename "$f"): $(wc -c < "$f") bytes"
+          done
 
-      - name: Syntax check
-        run: node -c public/js/mfx-bundle.*.js
+      - name: Syntax check all chunks
+        run: |
+          for f in public/js/mfx-core.*.js public/js/mfx-chat.*.js public/js/mfx-ai.*.js public/js/mfx-mats.*.js; do
+            node -c "$f"
+          done
 
       - name: Deploy to Firebase Preview Channel
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -50,6 +60,15 @@ jobs:
       - name: Post staging summary
         run: |
           echo "## Staging Deploy" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bundle:** $(wc -c < public/js/mfx-bundle.*.js) bytes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Chunk | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+          for c in core chat ai mats; do
+            f=$(ls public/js/mfx-$c.*.js 2>/dev/null | head -1)
+            if [ -n "$f" ]; then
+              echo "| $(basename "$f") | $(wc -c < "$f") bytes |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- Preview URL will appear in PR comments" >> $GITHUB_STEP_SUMMARY

@@ -6,7 +6,7 @@ name: PR Checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   build-and-audit:
@@ -31,25 +31,46 @@ jobs:
       - name: Build bundle
         run: npm run build
 
-      - name: Verify bundle exists and references match
+      - name: Verify chunked bundles exist and references match
+        # PERF-09 split: build.js produces mfx-core (always loaded) plus
+        # mfx-chat, mfx-ai, mfx-mats (lazy). Index + SW reference the core
+        # filename; the chunk manifest in core.js points at the rest.
         run: |
-          BUNDLE=$(ls public/js/mfx-bundle.*.js 2>/dev/null)
-          if [ -z "$BUNDLE" ]; then
-            echo "::error::No bundle file generated"
+          set -e
+          CHUNKS=(core chat ai mats)
+          for c in "${CHUNKS[@]}"; do
+            f=$(ls public/js/mfx-$c.*.js 2>/dev/null | head -1)
+            if [ -z "$f" ]; then
+              echo "::error::No mfx-$c.*.js bundle generated"
+              exit 1
+            fi
+            echo "  ✓ $(basename "$f") ($(wc -c < "$f") bytes)"
+          done
+          CORE_NAME=$(basename "$(ls public/js/mfx-core.*.js | head -1)")
+          if ! grep -q "$CORE_NAME" public/index.html; then
+            echo "::error::index.html does not reference $CORE_NAME"
             exit 1
           fi
-          BUNDLE_NAME=$(basename "$BUNDLE")
-          if ! grep -q "$BUNDLE_NAME" public/index.html; then
-            echo "::error::index.html does not reference $BUNDLE_NAME"
-            exit 1
-          fi
-          if ! grep -q "$BUNDLE_NAME" public/sw.js; then
-            echo "::error::sw.js does not reference $BUNDLE_NAME"
+          if ! grep -q "$CORE_NAME" public/sw.js; then
+            echo "::error::sw.js does not reference $CORE_NAME"
             exit 1
           fi
 
-      - name: Syntax check bundle
-        run: node -c public/js/mfx-bundle.*.js
+      - name: Syntax check all chunks
+        run: |
+          for f in public/js/mfx-core.*.js public/js/mfx-chat.*.js public/js/mfx-ai.*.js public/js/mfx-mats.*.js; do
+            node -c "$f"
+          done
+
+      - name: Syntax check functions/index.js
+        run: node -c functions/index.js
+
+      - name: Smoke-load functions module
+        # Catches require()/export breakage from refactors (e.g. the
+        # functions/lib reorg landed in rounds 54a/54b).
+        run: |
+          cd functions
+          node -e "const x = require('./index.js'); const n = Object.keys(x).length; if (n < 40) { console.error('Only', n, 'exports found — expected 50+'); process.exit(1); } console.log(n, 'function exports loaded OK')"
 
       - name: Check for forbidden files under public/
         run: |
