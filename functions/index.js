@@ -1,250 +1,66 @@
+// ═══════════════════════════════════════════════════════════════════
+// MFX OS Cloud Functions — endpoint declarations + trigger handlers.
+// Phase 1 reorg (2026-05-28): generic helpers extracted to ./lib/*.
+// Phase 2 (next): each endpoint moves to ./http/<name>.js, with
+// index.js becoming a thin re-export layer.
+// ═══════════════════════════════════════════════════════════════════
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
-const { defineSecret } = require("firebase-functions/params");
-
-// 2026-05-27: Gmail service account JSON for domain-wide-delegated sends
-// (info/flex@microflexfilm.com via gmail.send scope). Set with:
-//   firebase functions:secrets:set GMAIL_SERVICE_ACCOUNT_JSON
-// Then paste the entire service-account JSON file when prompted. Any
-// function that uses sendDelegatedEmail() or getDelegatedGmailClient()
-// must include this secret in its options.secrets list so the runtime
-// injects it into process.env at cold start.
-const GMAIL_SA_SECRET = defineSecret("GMAIL_SERVICE_ACCOUNT_JSON");
-const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { getAuth } = require("firebase-admin/auth");
 const { google } = require("googleapis");
 const Busboy = require("busboy");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
 
-initializeApp();
-const db = getFirestore();
+// Firebase admin singleton — init-once + shared db/FieldValue/getAuth
+const { db, FieldValue, getAuth } = require("./lib/firebase");
 
-const DRIVE_SCOPE = ["https://www.googleapis.com/auth/drive"];
-const DOCS_SCOPE = ["https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/drive"];
-const SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"];
-// Split read vs send so the inbox-ingest path doesn't request send rights
-// it doesn't need, and the auto-email path actually has send scope.
-// Both must be added to domain-wide delegation in Workspace admin.
-const GMAIL_READ_SCOPE = ["https://www.googleapis.com/auth/gmail.readonly"];
-const GMAIL_SEND_SCOPE = ["https://www.googleapis.com/auth/gmail.send"];
-const GMAIL_SCOPE = GMAIL_READ_SCOPE; // legacy alias — old callers default to read
-const DRIVE_NAME = "MFX-CORE";
-const DEFAULT_PPD_SUBFOLDERS = [
-  "01_Request",
-  "02_Source_Art",
-  "03_Working_Files",
-  "04_Proofs",
-  "05_Approvals",
-  "06_Plates_Tools",
-  "07_Released",
-  "08_Obsolete",
-  "09_Issues_CAPA",
-  "10_Master_Regs_Exports",
-  "11_Sync_Audit"
-];
+// Secrets + Google scope/Drive constants
+const {
+  GMAIL_SA_SECRET,
+  DRIVE_SCOPE,
+  DOCS_SCOPE,
+  SHEETS_SCOPE,
+  GMAIL_READ_SCOPE,
+  GMAIL_SEND_SCOPE,
+  GMAIL_SCOPE,
+  DRIVE_NAME,
+  DEFAULT_PPD_SUBFOLDERS,
+} = require("./lib/secrets");
 
-function sendJson(res, code, payload) {
-  res.status(code).json(payload);
-}
+// Generic helpers
+const { sendJson, safeName, qEscape, nowIso, daysSinceIso, logServerEvent } = require("./lib/utils");
 
-function ensurePost(req, res) {
-  if (req.method !== "POST") {
-    sendJson(res, 405, { error: "POST only" });
-    return false;
-  }
-  return true;
-}
+// HTTP auth
+const { parseBearer, relaxedHttpAuthEnabled, ensurePost, requireInternalUser, requireAnyUser } = require("./lib/auth");
 
-function safeName(input, fallback = "Untitled") {
-  const cleaned = String(input || "")
-    .replace(/[\\/:*?"<>|#%{}~]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return cleaned || fallback;
-}
+// Rate limiting
+const { checkRateLimit, enforceRateLimit } = require("./lib/rateLimit");
 
-function qEscape(value) {
-  return String(value || "").replace(/'/g, "\\'");
-}
+// Google Drive / Docs / Sheets + folder helpers
+const {
+  getDriveClient,
+  getDocsClient,
+  getSheetsClient,
+  getMFXCoreId,
+  findFolder,
+  createFolder,
+  findOrCreateFolder,
+} = require("./lib/drive");
 
-function nowIso() {
-  return new Date().toISOString();
-}
+// Gmail clients + delegated send
+const {
+  getDelegatedGmailClient,
+  sendDelegatedEmail,
+  getOAuthClient,
+  getGmailClient,
+} = require("./lib/gmail");
 
+// Server-side sequence allocator (systemCounters)
+const { issueSequence } = require("./lib/sequence");
 
-function parseBearer(req) {
-  const auth = req.headers.authorization || req.headers.Authorization || "";
-  if (!/^Bearer\s+/i.test(auth)) return "";
-  return auth.replace(/^Bearer\s+/i, "").trim();
-}
-
-function relaxedHttpAuthEnabled() {
-  // Auth bypass disabled in production — only allow in Firebase emulator
-  if (process.env.FUNCTIONS_EMULATOR === 'true' && process.env.MFX_RELAXED_HTTP_AUTH === 'true') return true;
-  return false;
-}
-
-async function requireInternalUser(req, res) {
-  if (relaxedHttpAuthEnabled()) return { uid: "relaxed-http-auth", email: "relaxed@microflexfilm.com" };
-  const token = parseBearer(req);
-  if (!token) {
-    sendJson(res, 401, { error: "Missing auth token" });
-    return null;
-  }
-  try {
-    const decoded = await getAuth().verifyIdToken(token);
-    const email = String(decoded.email || "").toLowerCase();
-    if (!/@microflexfilm\.com$/.test(email)) {
-      sendJson(res, 403, { error: "Internal access only" });
-      return null;
-    }
-    return decoded;
-  } catch (err) {
-    sendJson(res, 401, { error: "Invalid auth token" });
-    return null;
-  }
-}
-
-// Allows any Firebase-authenticated user (including portal clients)
-async function requireAnyUser(req, res) {
-  if (relaxedHttpAuthEnabled()) return { uid: "relaxed-http-auth", email: "relaxed@portal.com" };
-  const token = parseBearer(req);
-  if (!token) {
-    sendJson(res, 401, { error: "Missing auth token" });
-    return null;
-  }
-  try {
-    const decoded = await getAuth().verifyIdToken(token);
-    return decoded;
-  } catch (err) {
-    sendJson(res, 401, { error: "Invalid auth token" });
-    return null;
-  }
-}
-
-async function logServerEvent(type, payload) {
-  try {
-    await db.collection("syncEvents").add({
-      type,
-      payload: payload || {},
-      createdAt: FieldValue.serverTimestamp(),
-      createdAtIso: nowIso()
-    });
-  } catch (err) {
-    console.warn("syncEvents log failed:", err.message || err);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// RATE LIMITER — Firestore-backed sliding window per user+action
-// ═══════════════════════════════════════════════════════════════════
-const _rateLimitCache = new Map(); // in-memory fast check
-
-async function checkRateLimit(uid, action, maxPerWindow, windowMs) {
-  windowMs = windowMs || 60000; // default 1 minute
-  const key = `${uid}:${action}`;
-  const now = Date.now();
-
-  // Fast in-memory check first
-  const cached = _rateLimitCache.get(key);
-  if (cached && cached.count >= maxPerWindow && (now - cached.windowStart) < windowMs) {
-    return false; // rate limited
-  }
-
-  // Firestore persistent check for cross-instance consistency
-  const ref = db.collection("_rateLimits").doc(key);
-  try {
-    const result = await db.runTransaction(async (tx) => {
-      const doc = await tx.get(ref);
-      const data = doc.exists ? doc.data() : { count: 0, windowStart: now };
-
-      if ((now - data.windowStart) >= windowMs) {
-        // Window expired — reset
-        tx.set(ref, { count: 1, windowStart: now, uid, action, updatedAt: FieldValue.serverTimestamp() });
-        _rateLimitCache.set(key, { count: 1, windowStart: now });
-        return true;
-      }
-
-      if (data.count >= maxPerWindow) {
-        return false; // rate limited
-      }
-
-      // DATA-15 follow-up fix (2026-05-24): use set(...,{merge:true}) instead
-      // of update() so the FIRST call for a user (whose _rateLimits doc has
-      // never been created — true for everyone post-SEC-10, since the rate
-      // check was broken by IAM until now) doesn't throw NOT_FOUND.
-      tx.set(ref, { count: data.count + 1, windowStart: data.windowStart, uid, action, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      _rateLimitCache.set(key, { count: data.count + 1, windowStart: data.windowStart });
-      return true;
-    });
-    return result;
-  } catch (err) {
-    console.warn("Rate limit check failed, denying:", err.message);
-    return false; // fail closed
-  }
-}
-
-async function enforceRateLimit(req, res, uid, action, maxPerWindow, windowMs) {
-  const allowed = await checkRateLimit(uid, action, maxPerWindow, windowMs);
-  if (!allowed) {
-    sendJson(res, 429, { error: "Rate limit exceeded. Please try again later." });
-    return false;
-  }
-  return true;
-}
-
-function getDelegatedGmailClient(mailbox, scopes) {
-  const raw = process.env.GMAIL_SERVICE_ACCOUNT_JSON || "";
-  if (!raw || !mailbox) return null;
-  const creds = JSON.parse(raw);
-  const auth = new google.auth.JWT(
-    creds.client_email,
-    null,
-    creds.private_key,
-    scopes || GMAIL_READ_SCOPE,
-    mailbox
-  );
-  return google.gmail({ version: "v1", auth });
-}
-
-// Send an HTML email via the delegated Gmail service account.
-// Encodes recipients in standard RFC 822 headers (To, Bcc, Subject).
-// Returns the Gmail message id on success, null on failure (logged).
-async function sendDelegatedEmail({ from, to, bcc, subject, html, replyTo }) {
-  if (!from || !to || !subject || !html) {
-    console.warn("sendDelegatedEmail: missing required fields");
-    return null;
-  }
-  const gmail = getDelegatedGmailClient(from, GMAIL_SEND_SCOPE);
-  if (!gmail) {
-    console.warn(`sendDelegatedEmail: no delegated client for ${from} (set GMAIL_SERVICE_ACCOUNT_JSON + domain-wide delegation with gmail.send scope)`);
-    return null;
-  }
-  const headers = [
-    `From: ${from}`,
-    `To: ${to}`
-  ];
-  if (bcc) headers.push(`Bcc: ${bcc}`);
-  if (replyTo) headers.push(`Reply-To: ${replyTo}`);
-  headers.push(`Subject: ${subject}`);
-  headers.push(`MIME-Version: 1.0`);
-  headers.push(`Content-Type: text/html; charset=UTF-8`);
-  const raw = headers.join("\r\n") + "\r\n\r\n" + html;
-  // Gmail requires URL-safe base64
-  const encoded = Buffer.from(raw, "utf8").toString("base64")
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  try {
-    const r = await gmail.users.messages.send({ userId: "me", requestBody: { raw: encoded } });
-    return r.data && r.data.id ? r.data.id : null;
-  } catch (err) {
-    console.error(`sendDelegatedEmail failed (${from} -> ${to}):`, err.message);
-    return null;
-  }
-}
+// ─── helpers moved to ./lib/utils, ./lib/auth, ./lib/rateLimit, ./lib/gmail ───
 
 // Build the SO confirmation email HTML — branded, matches Quote look-and-feel.
 // Leads with the "Sign in Google Drive" CTA when signingDocLink is available
@@ -308,20 +124,7 @@ function buildSOConfirmationEmail({ soNum, quoteNum, company, contact, jobDesc, 
 }
 
 
-async function getDriveClient() {
-  const auth = new google.auth.GoogleAuth({ scopes: DRIVE_SCOPE });
-  return google.drive({ version: "v3", auth });
-}
-
-async function getDocsClient() {
-  const auth = new google.auth.GoogleAuth({ scopes: DOCS_SCOPE });
-  return google.docs({ version: "v1", auth });
-}
-
-async function getSheetsClient() {
-  const auth = new google.auth.GoogleAuth({ scopes: SHEETS_SCOPE });
-  return google.sheets({ version: "v4", auth });
-}
+// ─── Drive / Docs / Sheets clients moved to ./lib/drive ───
 
 // Create a Google Doc copy of the SO inside the per-quote SO folder,
 // populated via Docs API batchUpdate, then share with the client as
@@ -478,93 +281,7 @@ async function createSOSigningDoc(so) {
   return { docId, docLink, folderId: soFolder.id };
 }
 
-function getOAuthClient(accessToken) {
-  const auth = new google.auth.OAuth2();
-  auth.setCredentials({ access_token: accessToken });
-  return auth;
-}
-
-async function getGmailClient(accessToken) {
-  const auth = getOAuthClient(accessToken);
-  return google.gmail({ version: "v1", auth });
-}
-
-async function getMFXCoreId(drive) {
-  const r = await drive.drives.list({ pageSize: 100, useDomainAdminAccess: false });
-  console.log('[Drive] Found drives:', (r.data.drives || []).map(d => d.name));
-  const d = (r.data.drives || []).find((x) => x.name === DRIVE_NAME);
-  if (!d) {
-    // Try case-insensitive / partial match
-    const partial = (r.data.drives || []).find((x) => x.name.toUpperCase().includes('MFX'));
-    if (partial) { console.log('[Drive] Partial match:', partial.name); return partial.id; }
-  }
-  return d ? d.id : null;
-}
-
-async function findFolder(drive, name, parentId) {
-  const q = [
-    `name='${qEscape(name)}'`,
-    "mimeType='application/vnd.google-apps.folder'",
-    `'${parentId}' in parents`,
-    "trashed=false"
-  ].join(" and ");
-  const r = await drive.files.list({
-    q,
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-    corpora: "allDrives",
-    fields: "files(id,name,webViewLink)"
-  });
-  return (r.data.files || [])[0] || null;
-}
-
-async function createFolder(drive, name, parentId) {
-  const c = await drive.files.create({
-    requestBody: {
-      name,
-      mimeType: "application/vnd.google-apps.folder",
-      parents: [parentId]
-    },
-    supportsAllDrives: true,
-    fields: "id,name,webViewLink"
-  });
-  return c.data;
-}
-
-async function findOrCreateFolder(drive, name, parentId) {
-  const existing = await findFolder(drive, name, parentId);
-  if (existing) return existing;
-  return createFolder(drive, name, parentId);
-}
-
-async function issueSequence(kind, prefix, padLength = 3) {
-  const bucket = (() => {
-    const d = new Date();
-    return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}`;
-  })();
-  const ref = db.collection("systemCounters").doc(kind);
-  const result = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    let seq = 1;
-    if (snap.exists) {
-      const data = snap.data() || {};
-      seq = data.bucket === bucket ? Number(data.value || 0) + 1 : 1;
-    }
-    tx.set(ref, {
-      kind,
-      prefix,
-      bucket,
-      value: seq,
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-    return {
-      bucket,
-      value: seq,
-      formatted: `${prefix}${bucket}-${String(seq).padStart(padLength, "0")}`
-    };
-  });
-  return result;
-}
+// ─── OAuth/Gmail client, MFX-CORE finder, folder helpers, sequence allocator moved to ./lib/{gmail,drive,sequence} ───
 
 function parseEmailAddress(raw) {
   const value = String(raw || "");
@@ -3411,12 +3128,7 @@ async function sendSOStatusChangeNotification(so, newStatus, extras) {
 // Idempotency: tracks lastReminderAt + reminderCount on each doc.
 // ═══════════════════════════════════════════════════════════════════
 
-function daysSinceIso(iso) {
-  if (!iso) return null;
-  const then = new Date(iso).getTime();
-  if (!isFinite(then)) return null;
-  return (Date.now() - then) / (1000 * 60 * 60 * 24);
-}
+// ─── daysSinceIso moved to ./lib/utils ───
 
 // Per-doc-type reminder thresholds. Configurable via env if needed.
 const REMINDER_CFG = {
