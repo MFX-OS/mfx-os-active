@@ -257,7 +257,33 @@ if(c.err){
 }
 if(sb)sb.innerHTML=`<div class="cbox-t">Computed</div><div class="crow"><span class="clbl">Print WW</span><span class="cval">${c.ww.toFixed(4)}"</span></div><div class="crow"><span class="clbl">Off-Cut</span><span class="cval" style="color:var(--or)">${c.oc>0?'+'+c.oc.toFixed(4)+'"':'0"'}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Material WW</span><span class="cval" style="color:#fff;font-weight:700">${c.mww.toFixed(4)}"</span></div>${c.bs>0?'<div class="crow"><span class="clbl">Press Blank</span><span class="cval" style="color:#22c55e">'+c.bs.toFixed(2)+'" ✓</span></div>':''}<div class="crow"><span class="clbl">Repeat</span><span class="cval">${c.rp.toFixed(4)}"</span></div>${c.trueRepeat>0?'<div class="crow"><span class="clbl">Cyl Max Repeat</span><span class="cval" style="color:#22c55e">'+c.trueRepeat.toFixed(3)+'" ✓</span></div>':''}<div class="crow"><span class="clbl">Cylinder</span><span class="cval">${c.cy.toFixed(0)} tooth</span></div>`;
 const pb=$('priceBox');if(pb)pb.innerHTML=`<div class="cbox-t">Pricing Formula</div><div style="font-size:9px;color:var(--tx3);padding:4px 0;line-height:1.5">WW = sA×nA + (nA-1)×gA + edgeTrim(${(c.edgeTrim||0.875).toFixed(3)}")<br>MatWW = WW + offCuts<br>NeedFt = (qty×repeat/12)/nA<br>TotalFt(per-SKU) = NeedFt×${(c.overage||1.2).toFixed(2)} + SKU×setupFt<br>MatCost(per-SKU) = MatWW × TotalFt × 0.012 × MSI × margin<br>Total = (SKU×MatCost + baseSetup + SKU×perSkuSetup$) × (1+MFX%) × (1+Rep%)</div><div class="cdiv"></div><div class="cbox-t">One-time Base</div><div class="crow"><span class="clbl">MR Base</span><span class="cval">${f$(c.mrBase||0)}</span></div><div class="crow"><span class="clbl">CU Base</span><span class="cval">${f$(c.cuBase||0)}</span></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Base Total</span><span class="cval" style="color:#fff;font-weight:700">${f$(c.baseSetup||0)}</span></div><div class="cdiv"></div><div class="cbox-t">Per-SKU Setup</div><div class="crow"><span class="clbl">Plates</span><span class="cval">${f$(c.pl)}</span></div><div class="crow"><span class="clbl">Color Chg</span><span class="cval">${f$(c.cc)}</span></div><div class="crow"><span class="clbl">MR/SKU</span><span class="cval">${f$(c.mr)}</span></div><div class="crow"><span class="clbl">CU/SKU</span><span class="cval">${f$(c.cu)}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Per-SKU Total</span><span class="cval" style="color:#fff;font-weight:700">${f$(c.setup)}</span></div>${c.rpct>0?'<div class="crow"><span class="clbl" style="color:var(--or)">Rep Commission</span><span class="cval" style="color:var(--or)">'+(c.rpct*100).toFixed(1)+'%</span></div>':''}`;
-edPreview(c)}
+edPreview(c);
+// 2026-06-01 round 66: live Pouch Forming preview. Shows the per-pouch
+// rate breakdown and the total forming add to the first qty tier so the
+// estimator can sanity-check the matrix lookup at a glance.
+try{
+  var _pp=document.getElementById('pouchPreview');
+  if(_pp){
+    if(c.pouchActive && c.mtx && c.mtx[0] && c.mtx[0].skus && c.mtx[0].skus[1]){
+      var sk1=c.mtx[0].skus[1];
+      var pf=window.computePouchForming({style:c.pouchType,widthIn:parseFloat(c.f.pouchWidthIn)||0,qty:c.mtx[0].qty,copies:1,zipper:!!c.f.pouchZipper,crZipper:!!c.f.pouchCRZipper,gusset:!!c.f.pouchGusset});
+      if(pf.fitErr){
+        _pp.innerHTML='<span style="color:#dc2626;font-weight:700">⚠ '+pf.fitErr+'</span>';
+      }else{
+        _pp.innerHTML='<strong style="color:var(--ac)">Per-pouch ('+pf.style.toUpperCase()+' · '+pf.widthBracket+' · '+pf.qtyBracket+'):</strong> '+
+          '$'+pf.matrixRate.toFixed(4)+' forming'+
+          (pf.zipperRate>0?' + $'+pf.zipperRate.toFixed(4)+' zipper':'')+
+          (pf.crZipperRate>0?' + $'+pf.crZipperRate.toFixed(4)+' CR':'')+
+          (pf.multiSkuRate>0?' + $'+pf.multiSkuRate.toFixed(4)+' multi-SKU':'')+
+          ' = <strong style="color:#22c55e">$'+pf.perPouch.toFixed(5)+'/pouch</strong> · adds <strong>$'+(sk1._pouchSk||0).toFixed(2)+'</strong> to qty '+c.mtx[0].qty.toLocaleString();
+      }
+    } else if(c.f.pouchType && c.f.pouchType!=='none' && !c.pouchActive){
+      _pp.innerHTML='<span style="color:var(--or)">Pouch forming inactive — fill in Pouch Width to activate.</span>';
+    } else {
+      _pp.innerHTML='<span style="color:var(--tx3)">Select <em>Pouch Type</em> above to add Shannon forming cost to every qty tier.</span>';
+    }
+  }
+}catch(_pe){console.warn('[pouchPreview] non-fatal',_pe.message);}}
 
 
 function generateMFXQR(){

@@ -30,7 +30,7 @@ const CHUNK_GROUPS = {
     'email-guard.js',
     // 2026-05-24: communications.js — per-quote Comms hub (composer + timeline)
     'communications.js',
-    'sentry-config.js', 'sound.js', 'intro.js', 'core.js', 'full-menu.js',
+    'sentry-config.js', 'sound.js', 'intro.js', 'core.js', 'pouch-forming.js', 'full-menu.js',
     'os-search.js', 'audit-log.js', 'app.js', 'modules.js',
     'features.js', 'gamification.js', 'analytics.js', 'pipeline-patch.js',
     'realtime.js', 'orders.js', 'so-workflow.js', 'production.js',

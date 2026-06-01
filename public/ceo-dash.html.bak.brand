@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MFX CEO Daily Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: #060d14; /* MFX canonical brand black */
+      color: #f5f2ed;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    #root {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(180deg, #0a1520, #060d14);
+      border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 70px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Brand splash echo — subtle nod to the logo paint splash */
+    .header::after {
+      content: "";
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      top: -70px;
+      right: -70px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #1ab6dc 0%, transparent 70%);
+      opacity: 0.06;
+      filter: blur(6px);
+      pointer-events: none;
+    }
+    .header > * { position: relative; z-index: 1; }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    /* MFX canonical logo + wordmark — matches /logo.png brand */
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+    .logo img {
+      height: 32px;
+      width: auto;
+      filter: drop-shadow(0 0 10px rgba(0,229,255,.18));
+    }
+    .logo-wm {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+    .logo-wm .wm-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 17px;
+      font-weight: 900;
+      color: #e0f2fe;
+      letter-spacing: -.4px;
+    }
+    .logo-wm .wm-tag {
+      font-family: 'Outfit', sans-serif;
+      font-size: 7px;
+      font-weight: 300;
+      color: #00838f;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    .header-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: #8aa8b8;
+      text-transform: uppercase;
+      padding-left: 16px;
+      border-left: 1px solid rgba(0,229,255,.18);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .datetime {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: #8aa8b8;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #00e5ff;
+      color: #061e2a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      cursor: pointer;
+      border: 2px solid rgba(0, 229, 255, 0.3);
+    }
+
+    .btn-back {
+      padding: 0.5rem 1rem;
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: #00e5ff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+      background: rgba(0, 229, 255, 0.2);
+    }
+
+    /* KPI Row */
+    .kpi-row {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem 2rem;
+      background: #060d14;
+      overflow-x: auto;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+      min-height: 100px;
+    }
+
+    .kpi-card {
+      background: #0a2535;
+      border: 1px solid rgba(0, 229, 255, 0.12);
+      border-radius: 5px;
+      padding: 1rem;
+      min-width: 160px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #00e5ff;
+      margin: 0.5rem 0;
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      color: #8aa8b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Main Content Area */
+    .main-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: auto 1fr 1fr;
+      gap: 1rem;
+      padding: 1rem 2rem;
+      overflow: hidden;
+    }
+
+    .panel {
+      background: #0a2535;
+      border: 1px solid rgba(0, 229, 255, 0.12);
+      border-radius: 5px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 1rem;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f5f2ed;
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+    }
+
+    /* Alerts Section */
+    .alerts-section {
+      grid-column: 1 / -1;
+      max-height: 250px;
+    }
+
+    .alert-card {
+      background: rgba(244, 68, 68, 0.1);
+      border: 1px solid rgba(244, 68, 68, 0.3);
+      border-radius: 5px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .alert-card.warning {
+      background: rgba(255, 152, 0, 0.1);
+      border-color: rgba(255, 152, 0, 0.3);
+    }
+
+    .alert-card.success {
+      background: rgba(67, 209, 122, 0.1);
+      border-color: rgba(67, 209, 122, 0.3);
+    }
+
+    .alert-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 1rem;
+      font-size: 12px;
+    }
+
+    .alert-card .alert-icon {
+      background: #f44;
+      color: white;
+    }
+
+    .alert-card.warning .alert-icon {
+      background: #ff9800;
+      color: white;
+    }
+
+    .alert-content {
+      flex: 1;
+    }
+
+    .alert-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .alert-desc {
+      font-size: 11px;
+      color: #8aa8b8;
+    }
+
+    .alert-age {
+      font-size: 10px;
+      color: #4a6478;
+      font-family: 'DM Mono', monospace;
+      margin-right: 1rem;
+    }
+
+    .alert-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn-small {
+      padding: 0.4rem 0.8rem;
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: #00e5ff;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-small:hover {
+      background: rgba(0, 229, 255, 0.25);
+    }
+
+    /* Status Boards */
+    .status-board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+
+    .status-mini {
+      background: #112d3f;
+      border: 1px solid rgba(0, 229, 255, 0.12);
+      border-radius: 5px;
+      padding: 0.75rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .status-mini:hover {
+      border-color: rgba(0, 229, 255, 0.5);
+    }
+
+    .status-label {
+      font-size: 10px;
+      color: #8aa8b8;
+      text-transform: uppercase;
+      margin-bottom: 0.3rem;
+    }
+
+    .status-count {
+      font-size: 24px;
+      font-weight: 700;
+      color: #00e5ff;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 0.3rem;
+    }
+
+    /* Comms Hub */
+    .comms-section {
+      grid-column: 1;
+      grid-row: 2 / -1;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+      background: #112d3f;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.75rem;
+      border: none;
+      background: transparent;
+      color: #8aa8b8;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      color: #00e5ff;
+      border-bottom-color: #00e5ff;
+    }
+
+    .message-item {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.08);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .message-item:hover {
+      background: rgba(0, 229, 255, 0.05);
+      padding-left: 0.5rem;
+      margin-left: -0.5rem;
+      padding-right: 0.5rem;
+      margin-right: -0.5rem;
+    }
+
+    .message-from {
+      font-size: 11px;
+      font-weight: 600;
+      color: #f5f2ed;
+      margin-bottom: 0.2rem;
+    }
+
+    .message-subject {
+      font-size: 10px;
+      color: #8aa8b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 0.2rem;
+    }
+
+    .message-time {
+      font-size: 9px;
+      color: #4a6478;
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* Calendar */
+    .calendar-section {
+      grid-column: 3;
+      grid-row: 2 / 3;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+    }
+
+    .calendar-header button {
+      padding: 0.3rem 0.6rem;
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: #00e5ff;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 500;
+    }
+
+    .calendar-event {
+      background: rgba(0, 229, 255, 0.2);
+      border-left: 3px solid #00e5ff;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+
+    .calendar-event.personal {
+      border-left-color: #00e5ff;
+    }
+
+    .calendar-event.org {
+      border-left-color: #43d17a;
+      background: rgba(67, 209, 122, 0.1);
+    }
+
+    .calendar-event.dept {
+      border-left-color: #ff9800;
+      background: rgba(255, 152, 0, 0.1);
+    }
+
+    .event-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      color: #8aa8b8;
+    }
+
+    /* Tasks */
+    .tasks-section {
+      grid-column: 2 / 3;
+      grid-row: 2 / 3;
+    }
+
+    .task-item {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.08);
+      align-items: flex-start;
+    }
+
+    .task-checkbox {
+      width: 18px;
+      height: 18px;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 3px;
+      cursor: pointer;
+      margin-top: 0.2rem;
+      flex-shrink: 0;
+    }
+
+    .task-content {
+      flex: 1;
+    }
+
+    .task-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: #f5f2ed;
+      margin-bottom: 0.3rem;
+    }
+
+    .task-meta {
+      display: flex;
+      gap: 0.5rem;
+      font-size: 9px;
+      color: #8aa8b8;
+    }
+
+    .priority-badge {
+      padding: 0.2rem 0.4rem;
+      background: rgba(244, 68, 68, 0.2);
+      color: #ff9999;
+      border-radius: 2px;
+      font-size: 8px;
+      font-weight: 600;
+    }
+
+    .priority-badge.high {
+      background: rgba(244, 68, 68, 0.2);
+      color: #ff9999;
+    }
+
+    .priority-badge.medium {
+      background: rgba(255, 152, 0, 0.2);
+      color: #ffb333;
+    }
+
+    .priority-badge.low {
+      background: rgba(67, 209, 122, 0.2);
+      color: #7ae7a8;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .btn-action {
+      padding: 0.6rem 0.75rem;
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: #00e5ff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .btn-action:hover {
+      background: rgba(0, 229, 255, 0.25);
+    }
+
+    /* Employee Status */
+    .employee-status-section {
+      grid-column: 2;
+      grid-row: 3;
+    }
+
+    .employee-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.08);
+    }
+
+    .employee-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(0, 229, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: #00e5ff;
+      flex-shrink: 0;
+    }
+
+    .employee-info {
+      flex: 1;
+    }
+
+    .employee-name {
+      font-size: 11px;
+      font-weight: 500;
+      color: #f5f2ed;
+    }
+
+    .employee-activity {
+      font-size: 9px;
+      color: #8aa8b8;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #43d17a;
+    }
+
+    .status-indicator.offline {
+      background: #4a6478;
+    }
+
+    /* Time Clock */
+    .time-clock-section {
+      grid-column: 3;
+      grid-row: 3;
+    }
+
+    /* Admin Tools (full-width row beneath the dashboard) */
+    .admin-tools-section {
+      grid-column: 1 / -1;
+      grid-row: 4;
+    }
+    .admin-tool-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.08);
+    }
+    .admin-tool-row:last-child { border-bottom: none; }
+    .admin-tool-info { flex: 1; min-width: 0; }
+    .admin-tool-title { font-size: 12px; font-weight: 600; color: #f5f2ed; margin-bottom: 0.2rem; }
+    .admin-tool-desc { font-size: 10px; color: #8aa8b8; line-height: 1.4; }
+    .admin-tool-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+    .admin-tool-toggle {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 10px; color: #8aa8b8; cursor: pointer; user-select: none;
+    }
+    .admin-tool-toggle input { accent-color: #00e5ff; cursor: pointer; }
+    .admin-tool-btn {
+      background: #00e5ff; color: #060d14; border: none;
+      padding: 0.5rem 1rem; border-radius: 4px;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      font-family: inherit; letter-spacing: 0.5px;
+    }
+    .admin-tool-btn:hover { background: #33ebff; }
+    .admin-tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .admin-tool-result {
+      margin-top: 0.5rem; padding: 0.75rem;
+      background: #060d14; border: 1px solid rgba(0, 229, 255, 0.18);
+      border-radius: 4px; font-family: 'DM Mono', monospace;
+      font-size: 10px; color: #8aa8b8; line-height: 1.5;
+      white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow-y: auto;
+    }
+    .admin-tool-result.err { border-color: rgba(255, 100, 116, 0.4); color: #ffb4be; }
+    .admin-tool-result.ok { border-color: rgba(46, 232, 158, 0.4); color: #d9fce8; }
+
+    .hours-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.4rem;
+      height: 60px;
+      margin: 1rem 0;
+    }
+
+    .hour-bar {
+      flex: 1;
+      background: rgba(0, 229, 255, 0.3);
+      border-radius: 2px;
+      position: relative;
+      min-height: 4px;
+    }
+
+    .hour-label {
+      position: absolute;
+      bottom: -20px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 8px;
+      color: #8aa8b8;
+    }
+
+    .clock-item {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.08);
+      font-size: 11px;
+    }
+
+    .clock-name {
+      font-weight: 500;
+      color: #f5f2ed;
+      margin-bottom: 0.2rem;
+    }
+
+    .clock-time {
+      font-size: 9px;
+      color: #8aa8b8;
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* Loading Skeleton */
+    .skeleton {
+      background: rgba(0, 229, 255, 0.08);
+      border-radius: 3px;
+      height: 1em;
+      margin-bottom: 0.5rem;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    /* Empty State */
+    .empty-state {
+      padding: 2rem 1rem;
+      text-align: center;
+      color: #8aa8b8;
+      font-size: 12px;
+    }
+
+    .empty-state-icon {
+      font-size: 32px;
+      margin-bottom: 0.5rem;
+      opacity: 0.5;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #112d3f;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: #f5f2ed;
+      padding: 1rem 1.5rem;
+      border-radius: 5px;
+      font-size: 12px;
+      animation: slideIn 0.3s ease-out;
+      z-index: 1000;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Auth Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+
+    .modal {
+      background: #0a2535;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 5px;
+      padding: 2rem;
+      max-width: 500px;
+      text-align: center;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #f5f2ed;
+    }
+
+    .modal-desc {
+      color: #8aa8b8;
+      margin-bottom: 1.5rem;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .btn-primary {
+      padding: 0.75rem 1.5rem;
+      background: #00e5ff;
+      color: #061e2a;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: #00d4e8;
+    }
+
+    /* Responsive */
+    @media (max-width: 1400px) {
+      .main-content {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto auto 1fr;
+      }
+
+      .alerts-section {
+        grid-column: 1 / -1;
+      }
+
+      .comms-section {
+        grid-column: 1;
+        grid-row: 2;
+      }
+
+      .calendar-section {
+        grid-column: 2;
+        grid-row: 2;
+      }
+
+      .tasks-section {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        max-height: 250px;
+      }
+
+      .employee-status-section {
+        grid-column: 1;
+        grid-row: 4;
+      }
+
+      .time-clock-section {
+        grid-column: 2;
+        grid-row: 4;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- Google Sign-In -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- React & Babel (standalone page — requires unsafe-eval CSP override for /ceo-dash.html) -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useReducer } = React;
+
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyA5N8V4jVNe4pVt3jmjEdbQEfv1lnKj7PM",
+      authDomain: "os.microflexfilm.com",
+      projectId: "mfx-2026",
+      storageBucket: "mfx-2026.firebasestorage.app",
+      messagingSenderId: "21746521413",
+      appId: "1:21746521413:web:7229f14cabaebb1e0a1a2c"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Google API Helper
+    async function gFetch(url) {
+      if (!window.GTOKEN) return null;
+      const res = await fetch(url, {
+        headers: { Authorization: 'Bearer ' + window.GTOKEN }
+      });
+      if (!res.ok) return null;
+      return res.json();
+    }
+
+    // Toast Component
+    const Toast = ({ message, onClose }) => {
+      useEffect(() => {
+        const timer = setTimeout(onClose, 3000);
+        return () => clearTimeout(timer);
+      }, [onClose]);
+
+      return <div className="toast">{message}</div>;
+    };
+
+    // Loading Skeleton
+    const Skeleton = () => {
+      return (
+        <>
+          <div className="skeleton" style={{ width: '80%' }} />
+          <div className="skeleton" style={{ width: '60%' }} />
+          <div className="skeleton" style={{ width: '90%' }} />
+        </>
+      );
+    };
+
+    // Empty State
+    const EmptyState = ({ icon = '∅', message = 'No data' }) => {
+      return (
+        <div className="empty-state">
+          <div className="empty-state-icon">{icon}</div>
+          <div>{message}</div>
+        </div>
+      );
+    };
+
+    // KPI Cards
+    const KPIRow = ({ data, loading }) => {
+      const defaults = {
+        activeQuotes: 0,
+        pendingPOs: 0,
+        openSOs: 0,
+        productionJobs: 0,
+        alerts: 0,
+        overdueItems: 0
+      };
+
+      const stats = loading ? defaults : data;
+
+      return (
+        <div className="kpi-row">
+          <div className="kpi-card">
+            <div className="kpi-label">Active Quotes</div>
+            <div className="kpi-value">{stats.activeQuotes}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Pending POs</div>
+            <div className="kpi-value">{stats.pendingPOs}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Open SOs</div>
+            <div className="kpi-value">{stats.openSOs}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Production Jobs</div>
+            <div className="kpi-value">{stats.productionJobs}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Alerts</div>
+            <div className="kpi-value" style={{ color: '#f44' }}>{stats.alerts}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Overdue Items</div>
+            <div className="kpi-value" style={{ color: '#ff9800' }}>{stats.overdueItems}</div>
+          </div>
+        </div>
+      );
+    };
+
+    // Alerts Section
+    const AlertsSection = ({ alerts, loading, onAction }) => {
+      if (loading) {
+        return (
+          <div className="panel alerts-section">
+            <div className="panel-header">
+              <div className="panel-title">ALERTS & ACTION REQUIRED</div>
+            </div>
+            <div className="panel-body">
+              <Skeleton />
+              <Skeleton />
+            </div>
+          </div>
+        );
+      }
+
+      if (!alerts || alerts.length === 0) {
+        return (
+          <div className="panel alerts-section">
+            <div className="panel-header">
+              <div className="panel-title">ALERTS & ACTION REQUIRED</div>
+            </div>
+            <div className="panel-body">
+              <EmptyState icon="✓" message="No active alerts" />
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="panel alerts-section">
+          <div className="panel-header">
+            <div className="panel-title">ALERTS & ACTION REQUIRED ({alerts.length})</div>
+          </div>
+          <div className="panel-body">
+            {alerts.map((alert, idx) => (
+              <div key={idx} className={`alert-card ${alert.severity}`}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', flex: 1 }}>
+                  <div className="alert-icon">!</div>
+                  <div className="alert-content">
+                    <div className="alert-title">{alert.title}</div>
+                    <div className="alert-desc">{alert.description}</div>
+                  </div>
+                </div>
+                <div className="alert-age">{alert.age}</div>
+                <div className="alert-actions">
+                  <button className="btn-small" onClick={() => onAction('snooze', alert)}>Snooze</button>
+                  <button className="btn-small" onClick={() => onAction('act', alert)}>Act Now</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    // Status Boards
+    const StatusBoards = ({ data, loading }) => {
+      const sc = (data && data.statusCounts) || {};
+      const boards = [
+        { name: 'Job Tickets by Status', statuses: Object.keys(sc).length > 0 ? Object.keys(sc) : ['CSR INTAKE','PRE-PRESS','PRODUCTION','ON HOLD','CLOSED'], counts: sc }
+      ];
+
+      if (loading) {
+        return (
+          <div className="panel">
+            <div className="panel-header">
+              <div className="panel-title">STATUS BOARDS</div>
+            </div>
+            <div className="panel-body">
+              <Skeleton />
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="panel">
+          <div className="panel-header">
+            <div className="panel-title">STATUS BOARDS</div>
+          </div>
+          <div className="panel-body">
+            {boards.map((board, idx) => (
+              <div key={idx} style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '0.5rem', color: '#8aa8b8' }}>
+                  {board.name}
+                </div>
+                <div className="status-board">
+                  {board.statuses.map((status, sidx) => (
+                    <div key={sidx} className="status-mini">
+                      <div className="status-label">{status}</div>
+                      <div className="status-count">{(board.counts && board.counts[status]) || 0}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    // Communications Hub
+    const CommsHub = ({ loading }) => {
+      const [activeTab, setActiveTab] = useState('client');
+      const [messages, setMessages] = useState([]);
+      const [hasToken, setHasToken] = useState(!!window.GTOKEN);
+
+      useEffect(() => {
+        if (!hasToken) return;
+
+        const fetchMessages = async () => {
+          if (activeTab === 'inbox') {
+            const data = await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=in:inbox');
+            if (data && data.messages) {
+              setMessages(data.messages.slice(0, 10).map((m, i) => ({
+                from: `Contact ${i + 1}`,
+                subject: `Message ${i + 1}`,
+                time: `${Math.floor(Math.random() * 120)}m ago`
+              })));
+            }
+          }
+        };
+
+        fetchMessages();
+      }, [activeTab, hasToken]);
+
+      const mockMessages = [];
+
+      const deptMessages = {
+        Sales: mockMessages.slice(0, 2),
+        Production: mockMessages.slice(2, 4),
+        Accounting: mockMessages.slice(4, 5)
+      };
+
+      const getTabContent = () => {
+        const msgList = activeTab === 'client' ? messages : activeTab === 'inbox' ? messages : deptMessages[activeTab] || [];
+
+        if (msgList.length === 0) {
+          return <EmptyState icon="@" message="No messages" />;
+        }
+
+        return msgList.map((msg, idx) => (
+          <div key={idx} className="message-item">
+            <div className="message-from">{msg.from}</div>
+            <div className="message-subject">{msg.subject}</div>
+            <div className="message-time">{msg.time}</div>
+          </div>
+        ));
+      };
+
+      return (
+        <div className="panel comms-section">
+          <div className="tabs">
+            <button className={`tab ${activeTab === 'client' ? 'active' : ''}`} onClick={() => setActiveTab('client')}>
+              Client Comms
+            </button>
+            <button className={`tab ${activeTab === 'inbox' ? 'active' : ''}`} onClick={() => setActiveTab('inbox')}>
+              My Inbox
+            </button>
+            <button className={`tab ${activeTab === 'Sales' ? 'active' : ''}`} onClick={() => setActiveTab('Sales')}>
+              Depts
+            </button>
+          </div>
+          <div className="panel-body">
+            {loading ? <Skeleton /> : getTabContent()}
+          </div>
+        </div>
+      );
+    };
+
+    // Master Calendar
+    const MasterCalendar = ({ loading }) => {
+      const [viewMode, setViewMode] = useState('week');
+      const [events, setEvents] = useState([]);
+      const [hasToken, setHasToken] = useState(!!window.GTOKEN);
+
+      const mockEvents = [];
+
+      return (
+        <div className="panel calendar-section">
+          <div className="calendar-header">
+            <div className="panel-title" style={{ marginBottom: 0 }}>MASTER CALENDAR</div>
+            <div>
+              <button onClick={() => setViewMode('week')} style={{ marginRight: '0.25rem', background: viewMode === 'week' ? 'rgba(0, 229, 255, 0.3)' : 'rgba(0, 229, 255, 0.15)' }}>
+                Week
+              </button>
+              <button onClick={() => setViewMode('month')} style={{ background: viewMode === 'month' ? 'rgba(0, 229, 255, 0.3)' : 'rgba(0, 229, 255, 0.15)' }}>
+                Month
+              </button>
+            </div>
+          </div>
+          <div className="panel-body">
+            {loading ? (
+              <Skeleton />
+            ) : !hasToken ? (
+              <EmptyState icon="🔗" message="Connect Google Account to view calendar" />
+            ) : mockEvents.length === 0 ? (
+              <EmptyState icon="📅" message="No events this week" />
+            ) : (
+              mockEvents.map((event, idx) => (
+                <div key={idx} className={`calendar-event ${event.type}`}>
+                  <div style={{ fontWeight: 500 }}>{event.title}</div>
+                  <div className="event-time">{event.time}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Tasks Section
+    const TasksSection = ({ loading, onActionClick }) => {
+      const [tasks, setTasks] = useState([
+        { id: 1, title: 'Review quote from ABC Corp', dueDate: 'Today', priority: 'high', assignedBy: 'Sarah' },
+        { id: 2, title: 'Approve PO #2401', dueDate: 'Tomorrow', priority: 'high', assignedBy: 'Mike' },
+        { id: 3, title: 'Schedule client meeting', dueDate: '3 days', priority: 'medium', assignedBy: 'John' }
+      ]);
+
+      const quickActions = [
+        { label: 'Request Quote', action: 'quote' },
+        { label: 'Request PO', action: 'po' },
+        { label: 'Request Sample', action: 'sample' },
+        { label: 'Schedule Meeting', action: 'meeting' },
+        { label: 'Assign Task', action: 'task' },
+        { label: 'Request Report', action: 'report' }
+      ];
+
+      const handleTaskCheck = (id) => {
+        setTasks(tasks.filter(t => t.id !== id));
+      };
+
+      return (
+        <div className="panel tasks-section">
+          <div className="panel-header">
+            <div className="panel-title">TASKS & REQUESTS</div>
+          </div>
+          <div className="panel-body">
+            <div className="quick-actions">
+              {quickActions.map((action, idx) => (
+                <button
+                  key={idx}
+                  className="btn-action"
+                  onClick={() => onActionClick(action.action)}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '1rem' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '0.75rem', color: '#8aa8b8' }}>
+                MY TASKS
+              </div>
+              {loading ? (
+                <Skeleton />
+              ) : tasks.length === 0 ? (
+                <EmptyState icon="✓" message="All tasks completed!" />
+              ) : (
+                tasks.map((task) => (
+                  <div key={task.id} className="task-item">
+                    <input
+                      type="checkbox"
+                      className="task-checkbox"
+                      onChange={() => handleTaskCheck(task.id)}
+                    />
+                    <div className="task-content">
+                      <div className="task-title">{task.title}</div>
+                      <div className="task-meta">
+                        <span>{task.dueDate}</span>
+                        <span className={`priority-badge ${task.priority}`}>
+                          {task.priority.toUpperCase()}
+                        </span>
+                        <span>by {task.assignedBy}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Employee Status
+    const EmployeeStatus = ({ loading }) => {
+      const [employees, setEmployees] = useState([
+        { name: 'Alice Johnson', status: 'online', activity: 'Reviewing quotes', dept: 'Sales' },
+        { name: 'Bob Williams', status: 'online', activity: 'Running press', dept: 'Production' },
+        { name: 'Carol Davis', status: 'offline', activity: 'Lunch break', dept: 'Prepress' },
+        { name: 'David Miller', status: 'online', activity: 'Processing PO', dept: 'Accounting' }
+      ]);
+
+      return (
+        <div className="panel employee-status-section">
+          <div className="panel-header">
+            <div className="panel-title">EMPLOYEE STATUS</div>
+          </div>
+          <div className="panel-body">
+            {loading ? (
+              <Skeleton />
+            ) : employees.length === 0 ? (
+              <EmptyState icon="👥" message="No employees" />
+            ) : (
+              employees.map((emp, idx) => (
+                <div key={idx} className="employee-item">
+                  <div className="employee-avatar">
+                    {emp.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div className="employee-info">
+                    <div className="employee-name">{emp.name}</div>
+                    <div className="employee-activity">{emp.activity}</div>
+                  </div>
+                  <div className={`status-indicator ${emp.status === 'offline' ? 'offline' : ''}`} />
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Time Clock
+    const TimeClock = ({ loading }) => {
+      const [clockData, setClockData] = useState([
+        { name: 'Alice Johnson', clockIn: '8:00 AM', todayHours: '8.5h', weeklyHours: '42.5h' },
+        { name: 'Bob Williams', clockIn: '7:30 AM', todayHours: '9h', weeklyHours: '44h' }
+      ]);
+
+      const weeklyData = [
+        { day: 'Mon', hours: 9 },
+        { day: 'Tue', hours: 8.5 },
+        { day: 'Wed', hours: 8 },
+        { day: 'Thu', hours: 8.5 },
+        { day: 'Fri', hours: 8 }
+      ];
+
+      const maxHours = Math.max(...weeklyData.map(d => d.hours));
+
+      return (
+        <div className="panel time-clock-section">
+          <div className="panel-header">
+            <div className="panel-title">TIME CLOCK / HOURS</div>
+          </div>
+          <div className="panel-body">
+            {loading ? (
+              <Skeleton />
+            ) : (
+              <>
+                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '0.75rem', color: '#8aa8b8' }}>
+                  WEEKLY HOURS
+                </div>
+                <div className="hours-chart">
+                  {weeklyData.map((day, idx) => (
+                    <div
+                      key={idx}
+                      className="hour-bar"
+                      style={{ height: `${(day.hours / maxHours) * 100}%` }}
+                    >
+                      <div className="hour-label">{day.day}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ fontSize: '11px', fontWeight: '600', marginTop: '1.5rem', marginBottom: '0.75rem', color: '#8aa8b8' }}>
+                  CLOCK IN
+                </div>
+                {clockData.map((emp, idx) => (
+                  <div key={idx} className="clock-item">
+                    <div className="clock-name">{emp.name}</div>
+                    <div className="clock-time">{emp.clockIn} • {emp.todayHours} today • {emp.weeklyHours} week</div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // ─── Admin Tools (CEO-only maintenance actions) ────────────────────
+    // 2026-05-27: portal email backfill UI. Calls /api/backfillPortalEmails
+    // (gated server-side to @microflexfilm.com via requireInternalUser).
+    // Lets staff lowercase the email keys on existing /quotes and /salesOrders
+    // so portal clients can actually find their records (Firestore queries
+    // are exact-case but Firebase Auth normalizes tokens to lowercase).
+    const AdminTools = ({ user }) => {
+      const [dryRun, setDryRun] = useState(true);
+      const [running, setRunning] = useState(false);
+      const [result, setResult] = useState(null);
+      const [resultKind, setResultKind] = useState('');
+
+      const runBackfill = async () => {
+        if (running) return;
+        if (!user || !/@microflexfilm\.com$/i.test(user.email || '')) {
+          setResultKind('err');
+          setResult('Only @microflexfilm.com staff can run this maintenance action.');
+          return;
+        }
+        if (!dryRun) {
+          const confirmed = window.confirm(
+            'Run portal email backfill for REAL?\n\n' +
+            'This will lowercase poClientEmail on /quotes and email on /salesOrders ' +
+            'so portal clients can find their records. Idempotent — safe to re-run.'
+          );
+          if (!confirmed) return;
+        }
+        setRunning(true);
+        setResult('Running…');
+        setResultKind('');
+        try {
+          const token = await firebase.auth().currentUser.getIdToken();
+          const resp = await fetch('/api/backfillPortalEmails', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryRun })
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            setResultKind('err');
+            setResult('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2));
+          } else {
+            setResultKind('ok');
+            setResult(JSON.stringify(data, null, 2));
+          }
+        } catch (err) {
+          setResultKind('err');
+          setResult('Error: ' + (err && err.message ? err.message : String(err)));
+        } finally {
+          setRunning(false);
+        }
+      };
+
+      return (
+        <div className="panel admin-tools-section">
+          <div className="panel-header">
+            <div className="panel-title">ADMIN TOOLS</div>
+          </div>
+          <div className="panel-body">
+            <div className="admin-tool-row">
+              <div className="admin-tool-info">
+                <div className="admin-tool-title">Portal Email Backfill</div>
+                <div className="admin-tool-desc">
+                  Lowercases <code>poClientEmail</code> on every quote and <code>email</code> on every sales order so portal clients can find their records. Idempotent — re-running is safe. Always do a Dry Run first to preview the diff.
+                </div>
+              </div>
+              <div className="admin-tool-controls">
+                <label className="admin-tool-toggle">
+                  <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+                  Dry Run
+                </label>
+                <button className="admin-tool-btn" onClick={runBackfill} disabled={running}>
+                  {running ? 'Running…' : (dryRun ? 'Preview' : 'Run Backfill')}
+                </button>
+              </div>
+            </div>
+            {result !== null && (
+              <div className={'admin-tool-result' + (resultKind ? ' ' + resultKind : '')}>{result}</div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Header Component
+    const Header = ({ user, onSignOut }) => {
+      const [currentTime, setCurrentTime] = useState(new Date());
+
+      useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      const formatTime = (date) => {
+        return date.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      };
+
+      const goBackToOS = () => {
+        window.location.href = '/';
+      };
+
+      return (
+        <div className="header">
+          <div className="header-left">
+            <a href="/" className="logo" title="Return to MFX OS">
+              <img src="/logo.png" alt="Microflex Film Corporation" />
+              <span className="logo-wm">
+                <span className="wm-name">Microflex</span>
+                <span className="wm-tag">Film Corporation</span>
+              </span>
+            </a>
+            <div className="header-title">CEO Daily Dash</div>
+          </div>
+          <div className="header-right">
+            <div className="datetime">{formatTime(currentTime)}</div>
+            <div className="user-avatar" title={user?.email || 'User'}>
+              {user?.displayName?.[0] || user?.email?.[0] || 'U'}
+            </div>
+            <button className="btn-back" onClick={goBackToOS}>
+              ← Back to OS
+            </button>
+            <button className="btn-back" onClick={onSignOut} style={{ marginLeft: '0.5rem', borderColor: 'rgba(255,100,116,0.3)', color: '#ff6474' }}>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // Main App
+    const CEODashboard = () => {
+      const [user, setUser] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [showAuthModal, setShowAuthModal] = useState(false);
+      const [toast, setToast] = useState(null);
+      const [kpiData, setKpiData] = useState(null);
+      const [alerts, setAlerts] = useState([]);
+
+      useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((authUser) => {
+          if (authUser) {
+            // SEC-13 fix (2026-05-24): mirror the @microflexfilm.com domain check
+            // from core.js. Firestore rules already gate reads, but this keeps
+            // non-company Google accounts from seeing the CEO dashboard UI shell.
+            if (authUser.email && !authUser.email.endsWith('@microflexfilm.com') && !authUser.isAnonymous) {
+              try { auth.signOut(); } catch (e) { console.warn('signOut:', e); }
+              setShowAuthModal(true);
+              setLoading(false);
+              setTimeout(function(){ alert('Access restricted to @microflexfilm.com accounts only.'); }, 100);
+              return;
+            }
+            setUser(authUser);
+            setShowAuthModal(false);
+            fetchData();
+          } else {
+            setShowAuthModal(true);
+            setLoading(false);
+          }
+        });
+
+        return () => unsubscribe();
+      }, []);
+
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          // Fetch quotes
+          const quotesSnap = await db.collection('quotes').get();
+          const quotes = quotesSnap.docs.map(d => d.data());
+
+          // Fetch sales orders
+          const sosSnap = await db.collection('salesOrders').get();
+          const sos = sosSnap.docs.map(d => d.data());
+
+          // Fetch job tickets
+          const jobsSnap = await db.collection('jobTickets').get();
+          const jobs = jobsSnap.docs.map(d => {
+            const data = d.data();
+            data.id = d.id;
+            return data;
+          });
+
+          // Calculate KPIs — handle both native and Zoho-imported data
+          const activeQuotes = quotes.filter(q => q.status === 'pending' || q.status === 'Pending').length;
+          const openSOs = sos.filter(s => s.status !== 'completed' && s.status !== 'Closed').length;
+          const activeStatuses = ['CSR INTAKE','PRE-PRESS','WAITING APPROVAL','MATERIALS','PRODUCTION','ON HOLD'];
+          const productionJobs = jobs.filter(j => activeStatuses.includes(j.status) || (j.workflowStatus && j.workflowStatus !== 'Closed' && j.workflowStatus !== 'Accounting' && j.workflowStatus !== 'Cancelled')).length;
+
+          // Generate alerts from real data
+          const now = Date.now();
+          const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
+
+          // Find overdue jobs (past due date and not closed)
+          const overdueJobs = jobs.filter(j => {
+            if(j.status === 'CLOSED' || j.status === 'ACCOUNTING') return false;
+            const due = j.jobDueDate || j.dueDate;
+            if(!due) return false;
+            return new Date(due).getTime() < now;
+          });
+
+          // Find blocked jobs
+          const blockedJobs = jobs.filter(j => j.blocked === true || j.blocked === 'Yes');
+
+          // Find rush jobs
+          const rushJobs = jobs.filter(j => (j.rush === true || j.rush === 'Yes') && j.status !== 'CLOSED');
+
+          // Find urgent priority active jobs
+          const urgentJobs = jobs.filter(j => j.priority === 'Urgent' && j.status !== 'CLOSED' && j.status !== 'ACCOUNTING');
+
+          const alertsList = [
+            ...overdueJobs.slice(0, 3).map(j => ({
+              title: `OVERDUE: Job #${j.ticketNumber || j.id}`,
+              description: `${j.clientName || j.client || 'Unknown'} — Due: ${j.jobDueDate || j.dueDate} — Status: ${j.status}`,
+              age: `${Math.floor((now - new Date(j.jobDueDate || j.dueDate).getTime()) / (24*60*60*1000))}d overdue`,
+              severity: 'alert'
+            })),
+            ...blockedJobs.slice(0, 2).map(j => ({
+              title: `BLOCKED: Job #${j.ticketNumber || j.id}`,
+              description: `${j.clientName || 'Unknown'} — ${j.blockerNotes || j.blockerCategory || 'Blocked'}`,
+              age: 'Active',
+              severity: 'warning'
+            })),
+            ...rushJobs.slice(0, 2).map(j => ({
+              title: `RUSH: Job #${j.ticketNumber || j.id}`,
+              description: `${j.clientName || 'Unknown'} — ${j.jobDescription || ''}`.substring(0,80),
+              age: j.jobDueDate || 'No date',
+              severity: 'warning'
+            }))
+          ];
+
+          // Status breakdown for the board
+          const statusCounts = {};
+          jobs.forEach(j => { statusCounts[j.status] = (statusCounts[j.status]||0)+1; });
+
+          setKpiData({
+            activeQuotes,
+            pendingPOs: overdueJobs.length,
+            openSOs,
+            productionJobs,
+            alerts: alertsList.length,
+            overdueItems: overdueJobs.length + blockedJobs.length,
+            totalJobs: jobs.length,
+            urgentJobs: urgentJobs.length,
+            rushJobs: rushJobs.length,
+            statusCounts
+          });
+
+          setAlerts(alertsList);
+        } catch (error) {
+          console.error('Data fetch error:', error);
+          setKpiData({
+            activeQuotes: 0,
+            pendingPOs: 0,
+            openSOs: 0,
+            productionJobs: 0,
+            alerts: 0,
+            overdueItems: 0
+          });
+          setAlerts([]);
+        }
+
+        setLoading(false);
+      };
+
+      const handleGoogleSignIn = async (response) => {
+        try {
+          const { credential } = response;
+          const credentialDecoded = JSON.parse(atob(credential.split('.')[1]));
+
+          // Try to sign in with Google credential
+          const result = await auth.signInWithPopup(
+            new firebase.auth.GoogleAuthProvider()
+          );
+
+          // Capture access token for Google APIs
+          window.GTOKEN = result.credential.accessToken;
+
+          setUser(result.user);
+          setShowAuthModal(false);
+          fetchData();
+          setToast('Signed in successfully!');
+        } catch (error) {
+          console.error('Sign-in error:', error);
+          setToast('Sign-in failed. Please try again.');
+        }
+      };
+
+      const handleSignOut = () => {
+        auth.signOut();
+        window.GTOKEN = null;
+        setUser(null);
+        setShowAuthModal(true);
+      };
+
+      const handleAction = (action, item) => {
+        if (action === 'snooze') {
+          setToast('Alert snoozed for 1 hour');
+          setAlerts(alerts.filter(a => a !== item));
+        } else if (action === 'act') {
+          setToast('Opening action panel...');
+        }
+      };
+
+      const handleQuickAction = (actionType) => {
+        const messages = {
+          quote: 'Opening quote request form...',
+          po: 'Opening PO request form...',
+          sample: 'Opening sample request form...',
+          meeting: 'Opening meeting scheduler...',
+          task: 'Opening task assignment form...',
+          report: 'Opening report request form...'
+        };
+        setToast(messages[actionType] || 'Action initiated');
+      };
+
+      if (showAuthModal) {
+        return (
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-title">Welcome to MFX CEO Dashboard</div>
+              <div className="modal-desc">
+                Please sign in with your Google account to access your dashboard and connect to Gmail, Calendar, and Tasks APIs.
+              </div>
+              <div
+                id="google_signin_button"
+                style={{ marginBottom: '1rem' }}
+              ></div>
+              {/* Demo button removed */}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div id="dashboard-root">
+          <Header user={user} o

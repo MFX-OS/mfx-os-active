@@ -1454,6 +1454,20 @@ return h})()}
 <div class="var-row"><span class="var-lbl">Die Charge</span><input class="var-inp" data-field="dieChg" type="number" value="${f.dieChg}" oninput="asave()"><span class="var-unit">$</span></div>
 <div class="var-row"><span class="var-lbl">Shipping (Est.)</span><input class="var-inp" data-field="shipping" type="number" value="${f.shipping||''}" oninput="asave()"><span class="var-unit">$</span></div>
 <div class="var-row"><span class="var-lbl">Plate Cost</span><input class="var-inp" data-field="plCost" type="number" value="${f.plCost}" oninput="asave()"><span class="var-unit">$</span></div>
+<!-- 2026-06-01 round 66: Shannon Pouch Forming integration. When
+     Pouch Type is SUP or Flat, the calc engine adds per-pouch forming
+     cost (matrix lookup by width + qty bracket) plus optional zipper /
+     CR zipper / multi-SKU adders to every priced quantity tier. -->
+<div class="vsec">📦 Pouch Forming <span style="font-size:8px;color:var(--tx3)">Shannon pre-formed (SUP / Flat) — adds per-pouch converting cost</span></div>
+<div class="var-row"><span class="var-lbl">Pouch Type</span><select class="var-inp" data-field="pouchType" onchange="asave()"><option value="none"${(f.pouchType||'none')==='none'?' selected':''}>None (labels only)</option><option value="sup"${f.pouchType==='sup'?' selected':''}>Stand-Up Pouch (SUP)</option><option value="flat"${f.pouchType==='flat'?' selected':''}>Flat Pouch</option></select><span class="var-unit"></span></div>
+<div class="var-row"><span class="var-lbl">Pouch Width</span><input class="var-inp hi" data-field="pouchWidthIn" type="number" step="0.125" value="${f.pouchWidthIn||''}" placeholder="0-15" oninput="asave()"><span class="var-unit">in</span></div>
+<div class="var-row"><span class="var-lbl">Pouch Height</span><input class="var-inp" data-field="pouchHeightIn" type="number" step="0.125" value="${f.pouchHeightIn||''}" placeholder="info only" oninput="asave()"><span class="var-unit">in</span></div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:6px 0">
+  <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--tx)" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bdr)'"><input type="checkbox" data-field="pouchZipper" ${f.pouchZipper?'checked':''} onchange="asave()" style="margin:0;flex-shrink:0">Zipper</label>
+  <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--tx)" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bdr)'"><input type="checkbox" data-field="pouchCRZipper" ${f.pouchCRZipper?'checked':''} onchange="asave()" style="margin:0;flex-shrink:0">CR Zipper</label>
+  <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--bdr);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--tx)" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bdr)'"><input type="checkbox" data-field="pouchGusset" ${f.pouchGusset?'checked':''} onchange="asave()" style="margin:0;flex-shrink:0">Gusset (forces SUP)</label>
+</div>
+<div id="pouchPreview" style="font-size:10px;color:var(--tx3);line-height:1.5;padding:6px 8px;background:var(--bg);border-radius:4px;border:1px dashed var(--bdr);margin-bottom:10px"></div>
 <div class="vsec">PDF Display Options</div>
 <div style="font-size:9px;color:var(--tx3);margin:-2px 0 8px;line-height:1.4">Toggle what clients see on the quote PDF. All values stay recorded internally.</div>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">

@@ -1218,7 +1218,14 @@ let S={view:'dashboard',editId:null,profileId:null,etab:0,qFilter:'all',qSearch:
 //   overagePct NEW 20   (replaces hard-coded 1.2 in 4 places)
 //   edgeTrim   NEW 0.875 (replaces hard-coded 0.875 in 3 places)
 //   gearTooth/blankSize/repeat seeded so the calc engine can validate fit
-const FDEF={estimator:'',jobType:'Flexographic',salesRep:'',payTerms:'Net 30',custCo:'',custAttn:'',custPhone:'',custEmail:'',jobDesc:'',copyPos:'3BOE',shapeType:'Rectangle Label',sA:6,sar:6,nAcross:1,nAround:1,colors:4,gA:0.125,gar:0.125,cRad:0.125,nCopies:1,nPlates:1,offCuts:0,blankSize:'',gearTooth:0,repeat:'',labRoll:'TBD',maxOD:'15"',windDir:'TBD',coreDia:'TBD',faceStock:'539SHP',lamination:'557SW',liner:'NA',adhesive:'NA',coating:'NA',otherMat:'NA',notes:'',msiCost:0.129,stockMgn:2.0,matSetup:400,overagePct:20,edgeTrim:0.875,mkupPct:15,cppPlate:20,plPerSku:1,ccCost:80,nCC:2,mrHrs:0.5,mrBaseHrs:2,mrRate:200,cuHrs:0,cuBaseHrs:2,cuRate:100,dieChg:0,plCost:3,repPct:0,skuCols:1,showMode:'both',qStart:10000,qStep:5000,qRows:1};
+// Round 66: Shannon pouch forming fields added.
+//   pouchType: 'none' | 'sup' | 'flat'  (default 'none' = label-only)
+//   pouchWidthIn: face width for the matrix lookup
+//   pouchHeightIn: stored but not yet priced (info only)
+//   pouchZipper / pouchCRZipper / pouchGusset: boolean add-ons
+//                                              (gusset forces sup)
+//   pouchCopies: SKU count for multi-SKU adder; defaults to skuCols.
+const FDEF={estimator:'',jobType:'Flexographic',salesRep:'',payTerms:'Net 30',custCo:'',custAttn:'',custPhone:'',custEmail:'',jobDesc:'',copyPos:'3BOE',shapeType:'Rectangle Label',sA:6,sar:6,nAcross:1,nAround:1,colors:4,gA:0.125,gar:0.125,cRad:0.125,nCopies:1,nPlates:1,offCuts:0,blankSize:'',gearTooth:0,repeat:'',labRoll:'TBD',maxOD:'15"',windDir:'TBD',coreDia:'TBD',faceStock:'539SHP',lamination:'557SW',liner:'NA',adhesive:'NA',coating:'NA',otherMat:'NA',notes:'',msiCost:0.129,stockMgn:2.0,matSetup:400,overagePct:20,edgeTrim:0.875,mkupPct:15,cppPlate:20,plPerSku:1,ccCost:80,nCC:2,mrHrs:0.5,mrBaseHrs:2,mrRate:200,cuHrs:0,cuBaseHrs:2,cuRate:100,dieChg:0,plCost:3,repPct:0,skuCols:1,showMode:'both',qStart:10000,qStep:5000,qRows:1,pouchType:'none',pouchWidthIn:0,pouchHeightIn:0,pouchZipper:false,pouchCRZipper:false,pouchGusset:false};
 const DEFAULT_TERMS=[
 'Quote valid for 30 days from date of issue.',
 'Subject to artwork review and approval.',
@@ -1700,6 +1707,12 @@ function computePricingMatrix(fields, qtys){
   var sc=Math.min(10,Math.max(1,parseInt(f.skuCols)||1));
   var rpct=gv('repPct')/100;
   var qList=(qtys||[]).filter(function(x){return x>0});
+  // ─── Round 66: Shannon pouch forming (per-pouch converting cost) ──
+  // When pouchType is 'sup' or 'flat', we add per-pouch forming cost
+  // to the per-SKU material. The matrix lookup picks the qty bracket
+  // per tier so larger orders get the volume discount automatically.
+  var pouchType=String(f.pouchType||'none').toLowerCase();
+  var pouchActive=(pouchType==='sup'||pouchType==='flat') && typeof window!=='undefined' && typeof window.computePouchForming==='function';
   // ─── Per-tier per-SKU pricing ────────────────────────────────────
   var mtx=qList.map(function(qty){
     var nft=(qty*rp/12)/nA;
@@ -1707,16 +1720,33 @@ function computePricingMatrix(fields, qtys){
     for(var sk=1;sk<=sc;sk++){
       var tftSk=nft*overage + sk*ms;
       var matSk=mww*tftSk*0.012*msi*sm;
-      var raw=matSk + baseSetup + sk*perSkuSetup;
+      // Pouch forming adds per-pouch × qty cost per SKU. The "copies"
+      // for multi-SKU adjustment is the current SKU tier (sk).
+      var pouchSk=0, pouchPerPouchSk=0;
+      if(pouchActive){
+        var pf=window.computePouchForming({
+          style:pouchType,
+          widthIn:gv('pouchWidthIn'),
+          qty:qty,
+          copies:sk,
+          zipper:!!f.pouchZipper,
+          crZipper:!!f.pouchCRZipper,
+          gusset:!!f.pouchGusset
+        });
+        if(!pf.fitErr){
+          pouchPerPouchSk=pf.perPouch;
+          pouchSk=pf.total; // perPouch × qty
+        }
+      }
+      var raw=matSk + baseSetup + sk*perSkuSetup + pouchSk;
       var base=raw*(1+mu);
       var tot=base*(1+rpct);
       // 2026-06-01 round 65 audit fix: round tot to 2¢ + ppu to 5 dec
       // at source so all downstream surfaces (editor preview, PDF,
-      // registry export, portal display) reconcile. Was: 2/4/5 dec
-      // mismatch across surfaces caused qty×displayed_ppu ≠ total.
+      // registry export, portal display) reconcile.
       var tot2=Math.round(tot*100)/100;
       var ppu5=Math.round((tot2/qty)*100000)/100000;
-      row.skus[sk]={tot:tot2,ppu:ppu5,rep:Math.round(base*rpct*100)/100,_matSk:matSk,_tftSk:tftSk};
+      row.skus[sk]={tot:tot2,ppu:ppu5,rep:Math.round(base*rpct*100)/100,_matSk:matSk,_tftSk:tftSk,_pouchSk:Math.round(pouchSk*100)/100,_pouchPerPouchSk:pouchPerPouchSk};
     }
     return row;
   });
@@ -1724,7 +1754,8 @@ function computePricingMatrix(fields, qtys){
     ww:ww, mww:mww, oc:oc, rp:rp, cy:cy, trueRepeat:trueRepeat, bs:bs,
     pl:pl, cc:cc, mrPerSku:mrPerSku, mrBase:mrBase, cuPerSku:cuPerSku, cuBase:cuBase,
     perSkuSetup:perSkuSetup, baseSetup:baseSetup, setup:setup,
-    mtx:mtx, qtys:qList, sc:sc, f:f, rpct:rpct, nAr:nAr, overage:overage, edgeTrim:edgeTrim
+    mtx:mtx, qtys:qList, sc:sc, f:f, rpct:rpct, nAr:nAr, overage:overage, edgeTrim:edgeTrim,
+    pouchType:pouchType, pouchActive:pouchActive
   };
 }
 window.computePricingMatrix=computePricingMatrix;
@@ -1789,7 +1820,8 @@ const el=id=>{const e=document.querySelector('#v-editor [data-field="'+id+'"]');
 // the double-stringify of large quote field objects on every save.
 for(const k of Object.keys(q.fields)){const v=el(k);if(v!==undefined)q.fields[k]=v}
 // Also capture checkbox fields that might not be in FDEF yet
-['showSetupOnPDF','showShippingOnPDF','showPlateOnPDF'].forEach(function(k){const v=el(k);if(v!==undefined)q.fields[k]=v});
+// Round 66: pouch zipper/CR/gusset are booleans, captured here.
+['showSetupOnPDF','showShippingOnPDF','showPlateOnPDF','pouchZipper','pouchCRZipper','pouchGusset'].forEach(function(k){const v=el(k);if(v!==undefined)q.fields[k]=v});
 const descEl=document.querySelector('#v-editor [data-field="description"]');if(descEl)q.description=descEl.value;
 // 2026-05-27: keep poClientEmail (the portal-access lookup key) in sync with
 // whatever the rep types into the main editor's email field. Firestore queries
