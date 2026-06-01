@@ -793,11 +793,25 @@ function renderClientWorkspace(quotes,salesOrders){
 
   // Empty state if NOTHING at all
   if(!quotes.length && !salesOrders.length){
+    // 2026-06-01 round 62: detect non-staff signed-in emails and offer
+    // a Switch to Staff Account button so the user can hop to their
+    // @microflexfilm.com account without manually signing out.
+    var _sigDomain=String(CLIENT_EMAIL||'').split('@')[1]||'';
+    var _isStaffDomain=/^microflexfilm\.com$/i.test(_sigDomain);
     h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:40px 24px;text-align:center">'
       +'<div style="font-size:32px;margin-bottom:10px;opacity:.4">📭</div>'
       +'<div style="font-size:14px;font-weight:700;color:var(--h1);margin-bottom:6px">Nothing here yet</div>'
-      +'<div style="font-size:12px;color:var(--sub);line-height:1.5">We couldn\'t find any quotes or orders shared with <strong>'+escPortal(CLIENT_EMAIL)+'</strong>.<br>If you\'re expecting one, check that your Microflex contact sent it to this exact email.</div>'
-      +'<div style="margin-top:18px;font-size:11px;color:var(--sub)">Questions? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent);text-decoration:none">quotes@microflexfilm.com</a></div>'
+      +'<div style="font-size:12px;color:var(--sub);line-height:1.5">We couldn\'t find any quotes or orders shared with <strong>'+escPortal(CLIENT_EMAIL)+'</strong>.<br>If you\'re expecting one, check that your Microflex contact sent it to this exact email.</div>';
+    // Hint + Switch button for non-staff signed-in emails. Catches the
+    // common "I'm Microflex staff but I signed in with my personal
+    // email" case (e.g., randy@a10tion.digital).
+    if(CLIENT_EMAIL && !_isStaffDomain){
+      h+='<div style="margin-top:18px;padding:12px;background:rgba(0,229,255,.04);border:1px dashed var(--accent);border-radius:8px;font-size:11px;color:var(--sub);line-height:1.5">'
+        +'Microflex staff? <strong>randy@a10tion.digital</strong> is not a staff email. Switch to your @microflexfilm.com account to see every quote and SO in the system.'
+        +'<div style="margin-top:10px"><button onclick="(function(){try{localStorage.setItem(\'mfxPortalPrefillEmail\',\'randy@microflexfilm.com\');}catch(_){}auth.signOut().then(function(){location.reload()});})()" style="background:var(--accent);border:none;color:#060d14;padding:8px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:11px">🧑‍💼 Switch to Staff Account</button></div>'
+        +'</div>';
+    }
+    h+='<div style="margin-top:18px;font-size:11px;color:var(--sub)">Questions? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent);text-decoration:none">quotes@microflexfilm.com</a></div>'
       +'</div>';
     wrap.innerHTML=h;
     return;
