@@ -46,21 +46,23 @@ function saveDiscussion(){var title=($('disc-title')||{}).value;if(!title)return
 function openDiscussion(did){fbDb.collection('discussions').doc(did).get().then(function(doc){if(!doc.exists)return;var d=Object.assign({id:doc.id},doc.data());var h='<div class="modal-title">'+esc(d.title)+'</div><div style="font-size:10px;color:var(--tx3);margin-bottom:6px">'+esc(d.owner)+' → '+esc(d.assignedTo||'—')+'</div>';if(d.description)h+='<div style="font-size:11px;background:var(--bg3);padding:6px;border-radius:6px;margin-bottom:6px">'+esc(d.description)+'</div>';h+='<button class="btn btn-ghost btn-sm" onclick="closeModal()" style="width:100%">Close</button>';openModal(h)}).catch(function(e){ console.warn('MODULES get:', e.message); })}
 
 
+// Round 64: registry export now routes through computePricingMatrix
+// so analytics match invoices exactly. Mirrors q.total semantics (sk=1).
 function getQuotePricingForRegistry(q){
 if(!q)return{qtyBreakdown:'',totalPerQty:'',ppuPerQty:'',setupTotal:'',materialWW:''};
-var f=q.fields;var gv=function(k){return parseFloat(f[k])||0};
-var sA=gv('sA'),nA=Math.max(1,gv('nAcross')),gA=gv('gA'),oc=gv('offCuts');
-var msi=gv('msiCost'),sm=gv('stockMgn'),ms=gv('matSetup'),mu=gv('mkupPct')/100;
-var cpp=gv('cppPlate'),pps=gv('plPerSku'),ccc=gv('ccCost'),ncc=gv('nCC');
-var mrH=gv('mrHrs'),mrR=gv('mrRate'),cuH=gv('cuHrs'),cuR=gv('cuRate');
-var ww=sA*nA+(nA-1)*gA+0.875,mww=ww+oc,rp=(gv('sar')||0)+(gv('gar')||0);
-var pl=cpp*pps,cc=ccc*ncc,mr=mrH*mrR,cu=cuH*cuR,setup=pl+cc+mr+cu;
-var rpct=gv('repPct')/100;var qtys=(q.qtys||[]).filter(function(x){return x>0});
+var c=(typeof window.computePricingMatrix==='function')
+  ? window.computePricingMatrix(q.fields, q.qtys)
+  : null;
+if(!c || c.fitErr){
+  return{qtyBreakdown:'',totalPerQty:c&&c.fitErr?'(fit error)':'',ppuPerQty:'',setupTotal:'',materialWW:c?c.mww.toFixed(4):''};
+}
 var bd=[],tt=[],pp=[];
-qtys.forEach(function(qty){var nft=(qty*rp/12)/nA;var tft=nft*1.2+ms;var matCost=mww*tft*0.012*msi*sm;
-var raw=matCost+1*setup;var base=raw*(1+mu);var tot=base*(1+rpct);var ppu=tot/qty;
-bd.push(qty.toLocaleString());tt.push('$'+tot.toFixed(2));pp.push('$'+ppu.toFixed(4))});
-return{qtyBreakdown:bd.join(' | '),totalPerQty:tt.join(' | '),ppuPerQty:pp.join(' | '),setupTotal:'$'+setup.toFixed(2),materialWW:mww.toFixed(4)}}
+c.mtx.forEach(function(row){
+  bd.push(row.qty.toLocaleString());
+  tt.push('$'+row.skus[1].tot.toFixed(2));
+  pp.push('$'+row.skus[1].ppu.toFixed(4));
+});
+return{qtyBreakdown:bd.join(' | '),totalPerQty:tt.join(' | '),ppuPerQty:pp.join(' | '),setupTotal:'$'+(c.perSkuSetup+c.baseSetup).toFixed(2),materialWW:c.mww.toFixed(4)}}
 
 function createGoogleTask(title,notes,dueDate){
 getGoogleToken().then(function(token){if(!token)return;
@@ -222,58 +224,27 @@ h+='</table>';el.innerHTML=h}
 function edDQ(i){const all=DB.quotes();const q=all.find(x=>x.id===S.editId);if(!q||q.qtys.length<=1)return;q.qtys.splice(i,1);DB.saveQ(all,S.editId);edRQ();edCalcAll()}
 function edSeedQ(){saveQ();const q=getQ(S.editId);if(!q)return;const f=q.fields;const qs=Math.max(1,parseInt(f.qStart)||10000),qst=Math.max(1,parseInt(f.qStep)||1000),qr=Math.min(20,Math.max(1,parseInt(f.qRows)||10));const all=DB.quotes();const qx=all.find(x=>x.id===S.editId);qx.qtys=[];for(let i=0;i<qr;i++)qx.qtys.push(qs+i*qst);DB.saveQ(all,S.editId);edRQ();edCalcAll()}
 
-// CALC
-// 2026-06-01 round 63 — fixes from cylinder-math audit:
-//   1. Multi-SKU material undercount: sc_ now multiplied by sk inside loop
-//   2. Web-fit guard: returns {err} when ww > die.blankSize
-//   3. Repeat-fit guard: returns {err} when rp > cylinder true repeat
-//   4. Cylinder tooth display uses die.gearTooth (real) not nA-based guess
-//   5. matSetup multiplied by sk on multi-SKU (each SKU = own makeready)
-function edCalc(){const q=getQ(S.editId);if(!q)return null;const f=q.fields;const gv=k=>parseFloat(f[k])||0;
-const sA=gv('sA'),sar=gv('sar'),nA=Math.max(1,gv('nAcross')),nAr=Math.max(1,gv('nAround')),gA=gv('gA'),gar=gv('gar'),oc=gv('offCuts');
-const msi=gv('msiCost'),sm=gv('stockMgn'),ms=gv('matSetup'),mu=gv('mkupPct')/100;
-const cpp=gv('cppPlate'),pps=gv('plPerSku'),ccc=gv('ccCost'),ncc=gv('nCC');
-const mrH=gv('mrHrs'),mrR=gv('mrRate'),cuH=gv('cuHrs'),cuR=gv('cuRate');
-const ww=sA*nA+(nA-1)*gA+0.875,mww=ww+oc,rp=sar+gar;
-// Cylinder teeth: prefer the die's real gearTooth; fall back to derived.
-const gtRaw=gv('gearTooth');
-const cy=gtRaw>0 ? gtRaw : Math.round(rp*nAr*8);
-// True cylinder repeat (if gearTooth is known) for the repeat-fit guard
-const trueRepeat=gtRaw>0 ? (gtRaw*0.125)/Math.max(1,nAr) : 0;
-// Press blank (web max) for the web-fit guard
-const blankRaw=String(f.blankSize||'').replace(/["']/g,'').trim();
-const bs=parseFloat(blankRaw)||0;
-// ─── Fit guards ─────────────────────────────────────────────────────
-// These return early with {err} so edCalcAll renders a red banner and
-// downstream send-paths can refuse to advance status. No pricing is
-// returned for unrunnable jobs — sales must fix the layout first.
-if(bs>0 && ww>bs+0.001){
-  return {err:'Web layout '+ww.toFixed(3)+'" exceeds press blank '+bs+'". Reduce # Across, size, or gap — or pick a different die.', ww, mww, bs, f};
+// CALC — round 64: now a thin wrapper around computePricingMatrix
+// (single source of truth, defined in core.js). Returns {err} when the
+// matrix returns a fit error, so edCalcAll's existing red-banner code
+// continues to work unchanged.
+function edCalc(){
+  const q=getQ(S.editId); if(!q) return null;
+  const c=window.computePricingMatrix(q.fields, q.qtys);
+  if(c.fitErr){ return {err:c.fitErr, ww:c.ww, mww:c.mww, bs:c.bs, rp:c.rp, trueRepeat:c.trueRepeat, f:c.f}; }
+  // Legacy contract: callers read mr (per-SKU MR$), cu, setup as the
+  // per-SKU bundled setup so the existing edPreview/PDF code keeps
+  // working. Expose mrBase/cuBase + baseSetup separately for the
+  // base/per-SKU split UI.
+  return {
+    ww:c.ww, mww:c.mww, oc:c.oc, rp:c.rp, cy:c.cy, trueRepeat:c.trueRepeat, bs:c.bs, nAr:c.nAr,
+    pl:c.pl, cc:c.cc,
+    mr:c.mrPerSku, mrBase:c.mrBase,
+    cu:c.cuPerSku, cuBase:c.cuBase,
+    setup:c.perSkuSetup, perSkuSetup:c.perSkuSetup, baseSetup:c.baseSetup,
+    mtx:c.mtx, qtys:c.qtys, sc:c.sc, f:c.f, rpct:c.rpct, overage:c.overage, edgeTrim:c.edgeTrim
+  };
 }
-if(trueRepeat>0 && rp>trueRepeat+0.001){
-  return {err:'Repeat '+rp.toFixed(3)+'" exceeds die cylinder repeat '+trueRepeat.toFixed(3)+'" ('+gtRaw+' teeth × 0.125 ÷ '+nAr+' around). Reduce Size Around or Gap Around.', rp, trueRepeat, f};
-}
-const pl=cpp*pps,cc=ccc*ncc,mr=mrH*mrR,cu=cuH*cuR,setup=pl+cc+mr+cu;
-const sc=Math.min(10,Math.max(1,parseInt(f.skuCols)||1));
-const rpct=gv('repPct')/100;
-const qtys=q.qtys.filter(x=>x>0);
-const mtx=qtys.map(qty=>{
-  const row={qty,skus:{}};
-  // Per-SKU material cost: each SKU is a separate run that consumes its
-  // own web + its own setup waste. Audit fix #1: previously sc_ was
-  // outside the sk loop → multi-SKU jobs undercharged by (sk-1)×sc_.
-  const nft=(qty*rp/12)/nA;
-  for(let sk=1;sk<=sc;sk++){
-    const tftSk=nft*1.2 + sk*ms;        // each SKU adds its own setup waste
-    const matSk=mww*tftSk*0.012*msi*sm;  // per-SKU material cost
-    const raw=matSk + sk*setup;          // setup already scales per-SKU
-    const base=raw*(1+mu);
-    const tot=base*(1+rpct);
-    row.skus[sk]={tot,ppu:tot/qty,rep:base*rpct,_matSk:matSk,_tftSk:tftSk};
-  }
-  return row;
-});
-return{ww,mww,oc,rp,cy,pl,cc,mr,cu,setup,mtx,qtys,sc,f,rpct,trueRepeat,bs,nAr}}
 
 function edCalcAll(){const c=edCalc();if(!c)return;
 // 2026-06-01 round 63 audit fix #2/3: surface fit errors with a red
@@ -285,7 +256,7 @@ if(c.err){
   return;
 }
 if(sb)sb.innerHTML=`<div class="cbox-t">Computed</div><div class="crow"><span class="clbl">Print WW</span><span class="cval">${c.ww.toFixed(4)}"</span></div><div class="crow"><span class="clbl">Off-Cut</span><span class="cval" style="color:var(--or)">${c.oc>0?'+'+c.oc.toFixed(4)+'"':'0"'}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Material WW</span><span class="cval" style="color:#fff;font-weight:700">${c.mww.toFixed(4)}"</span></div>${c.bs>0?'<div class="crow"><span class="clbl">Press Blank</span><span class="cval" style="color:#22c55e">'+c.bs.toFixed(2)+'" ✓</span></div>':''}<div class="crow"><span class="clbl">Repeat</span><span class="cval">${c.rp.toFixed(4)}"</span></div>${c.trueRepeat>0?'<div class="crow"><span class="clbl">Cyl Max Repeat</span><span class="cval" style="color:#22c55e">'+c.trueRepeat.toFixed(3)+'" ✓</span></div>':''}<div class="crow"><span class="clbl">Cylinder</span><span class="cval">${c.cy.toFixed(0)} tooth</span></div>`;
-const pb=$('priceBox');if(pb)pb.innerHTML=`<div class="cbox-t">Pricing Formula</div><div style="font-size:9px;color:var(--tx3);padding:4px 0;line-height:1.5">WW = sA×nA + (nA-1)×gA + 0.875<br>MatWW = WW + offCuts<br>NeedFt = (qty×repeat/12)/nA<br>TotalFt(per-SKU) = NeedFt×1.2 + SKU×setupFt<br>MatCost(per-SKU) = MatWW × TotalFt × 0.012 × MSI × margin<br>Total = (SKU×MatCost + SKU×setup$) × (1+MFX%) × (1+Rep%)</div><div class="cdiv"></div><div class="cbox-t">Per-SKU Setup</div><div class="crow"><span class="clbl">Plates</span><span class="cval">${f$(c.pl)}</span></div><div class="crow"><span class="clbl">Color Chg</span><span class="cval">${f$(c.cc)}</span></div><div class="crow"><span class="clbl">MR</span><span class="cval">${f$(c.mr)}</span></div><div class="crow"><span class="clbl">CU</span><span class="cval">${f$(c.cu)}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Total Setup</span><span class="cval" style="color:#fff;font-weight:700">${f$(c.setup)}</span></div>${c.rpct>0?'<div class="crow"><span class="clbl" style="color:var(--or)">Rep Commission</span><span class="cval" style="color:var(--or)">'+(c.rpct*100).toFixed(1)+'%</span></div>':''}`;
+const pb=$('priceBox');if(pb)pb.innerHTML=`<div class="cbox-t">Pricing Formula</div><div style="font-size:9px;color:var(--tx3);padding:4px 0;line-height:1.5">WW = sA×nA + (nA-1)×gA + edgeTrim(${(c.edgeTrim||0.875).toFixed(3)}")<br>MatWW = WW + offCuts<br>NeedFt = (qty×repeat/12)/nA<br>TotalFt(per-SKU) = NeedFt×${(c.overage||1.2).toFixed(2)} + SKU×setupFt<br>MatCost(per-SKU) = MatWW × TotalFt × 0.012 × MSI × margin<br>Total = (SKU×MatCost + baseSetup + SKU×perSkuSetup$) × (1+MFX%) × (1+Rep%)</div><div class="cdiv"></div><div class="cbox-t">One-time Base</div><div class="crow"><span class="clbl">MR Base</span><span class="cval">${f$(c.mrBase||0)}</span></div><div class="crow"><span class="clbl">CU Base</span><span class="cval">${f$(c.cuBase||0)}</span></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Base Total</span><span class="cval" style="color:#fff;font-weight:700">${f$(c.baseSetup||0)}</span></div><div class="cdiv"></div><div class="cbox-t">Per-SKU Setup</div><div class="crow"><span class="clbl">Plates</span><span class="cval">${f$(c.pl)}</span></div><div class="crow"><span class="clbl">Color Chg</span><span class="cval">${f$(c.cc)}</span></div><div class="crow"><span class="clbl">MR/SKU</span><span class="cval">${f$(c.mr)}</span></div><div class="crow"><span class="clbl">CU/SKU</span><span class="cval">${f$(c.cu)}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Per-SKU Total</span><span class="cval" style="color:#fff;font-weight:700">${f$(c.setup)}</span></div>${c.rpct>0?'<div class="crow"><span class="clbl" style="color:var(--or)">Rep Commission</span><span class="cval" style="color:var(--or)">'+(c.rpct*100).toFixed(1)+'%</span></div>':''}`;
 edPreview(c)}
 
 
@@ -328,6 +299,9 @@ var salesRep=f.salesRep||f.estimator||'—';
 // Build pricing table — compute material per qty × SKU
 var _nA=Math.max(1,parseFloat(f.nAcross)||1);
 var _ms=parseFloat(f.matSetup)||0;
+// Round 64: use editable overagePct (fall back to legacy 1.2)
+var _ov=parseFloat(f.overagePct);
+_ov=_ov>0 ? (1+_ov/100) : 1.2;
 var tbl='<table style="width:100%;border-collapse:collapse"><thead><tr>';
 tbl+='<th style="background:#0a2e3e;color:#00e5ff;padding:5px 8px;font-size:8px;font-weight:800;text-align:center;border:1px solid #0d3a4f;width:22%">QTY</th>';
 for(var sk=1;sk<=c.sc;sk++)tbl+='<th style="background:#0a2e3e;color:#00e5ff;padding:5px 8px;font-size:8px;font-weight:800;text-align:center;border:1px solid #0d3a4f">'+sk+' SKU'+(sk>1?'s':'')+'</th>';
@@ -335,7 +309,7 @@ tbl+='</tr></thead><tbody>';
 for(var ri=0;ri<c.mtx.length;ri++){var r=c.mtx[ri];
 var bg=ri%2===0?'#fff':'#f8fafb';
 var _nft=(r.qty*c.rp/12)/_nA;
-var _tft=_nft*1.2+_ms;
+var _tft=_nft*_ov+_ms;
 tbl+='<tr><td style="background:#edf1f5;padding:6px 8px;text-align:center;font-size:13px;font-weight:800;color:#0a2030;border:1px solid #e0e4ea;vertical-align:middle">'+fN(r.qty)+'</td>';
 for(var sk=1;sk<=c.sc;sk++){var _skuFt=_tft*sk;tbl+='<td style="background:'+bg+';padding:5px 6px;text-align:center;border:1px solid #e8ecf0"><div style="font-size:11px;font-weight:800;color:#0a2030">'+f5$(r.skus[sk].ppu)+'</div><div style="font-size:7px;color:#00838f;font-weight:600;margin-top:1px;background:#e8f8fa;display:inline-block;padding:1px 5px;border-radius:2px">'+f$(r.skus[sk].tot)+'</div>'+(_pvMode==='internal'?'<div style="font-size:6px;color:#7c3aed;font-weight:600;margin-top:2px">'+fN(Math.round(_skuFt))+' ft</div>':'')+'</td>'}
 tbl+='</tr>'}

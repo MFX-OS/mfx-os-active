@@ -1209,7 +1209,16 @@ window.lazyLoad = function(src) {
 };
 
 let S={view:'dashboard',editId:null,profileId:null,etab:0,qFilter:'all',qSearch:'',cSearch:''};
-const FDEF={estimator:'',jobType:'Flexographic',salesRep:'',payTerms:'Net 30',custCo:'',custAttn:'',custPhone:'',custEmail:'',jobDesc:'',copyPos:'3BOE',shapeType:'Rectangle Label',sA:6,sar:6,nAcross:1,nAround:1,colors:4,gA:0.125,gar:0.125,cRad:0.125,nCopies:1,nPlates:1,offCuts:0,labRoll:'TBD',maxOD:'15"',windDir:'TBD',coreDia:'TBD',faceStock:'539SHP',lamination:'557SW',liner:'NA',adhesive:'NA',coating:'NA',otherMat:'NA',notes:'',msiCost:0.129,stockMgn:2.0,matSetup:3500,mkupPct:15,cppPlate:20,plPerSku:1,ccCost:80,nCC:2,mrHrs:2,mrRate:200,cuHrs:2,cuRate:100,dieChg:200,plCost:3,repPct:0,skuCols:1,showMode:'both',qStart:10000,qStep:5000,qRows:1};
+// Round 64 — defaults adjusted per cylinder-math audit:
+//   matSetup 3500 → 400 (industry typical 200-500 ft of waste/setup)
+//   mrHrs    2    → 0.5 (per-SKU increment; was bundled flat)
+//   cuHrs    2    → 0   (per-SKU; was bundled flat)
+//   mrBaseHrs NEW 2     (one-time make-ready base hours)
+//   cuBaseHrs NEW 2     (one-time clean-up base hours)
+//   overagePct NEW 20   (replaces hard-coded 1.2 in 4 places)
+//   edgeTrim   NEW 0.875 (replaces hard-coded 0.875 in 3 places)
+//   gearTooth/blankSize/repeat seeded so the calc engine can validate fit
+const FDEF={estimator:'',jobType:'Flexographic',salesRep:'',payTerms:'Net 30',custCo:'',custAttn:'',custPhone:'',custEmail:'',jobDesc:'',copyPos:'3BOE',shapeType:'Rectangle Label',sA:6,sar:6,nAcross:1,nAround:1,colors:4,gA:0.125,gar:0.125,cRad:0.125,nCopies:1,nPlates:1,offCuts:0,blankSize:'',gearTooth:0,repeat:'',labRoll:'TBD',maxOD:'15"',windDir:'TBD',coreDia:'TBD',faceStock:'539SHP',lamination:'557SW',liner:'NA',adhesive:'NA',coating:'NA',otherMat:'NA',notes:'',msiCost:0.129,stockMgn:2.0,matSetup:400,overagePct:20,edgeTrim:0.875,mkupPct:15,cppPlate:20,plPerSku:1,ccCost:80,nCC:2,mrHrs:0.5,mrBaseHrs:2,mrRate:200,cuHrs:0,cuBaseHrs:2,cuRate:100,dieChg:0,plCost:3,repPct:0,skuCols:1,showMode:'both',qStart:10000,qStep:5000,qRows:1};
 const DEFAULT_TERMS=[
 'Quote valid for 30 days from date of issue.',
 'Subject to artwork review and approval.',
@@ -1640,39 +1649,98 @@ if(st==='ready'||st==='sent'||st==='won'){bakePricing(q)}
 logQuoteEvent(q,'status','Status → '+st);DB.saveQ(all,qid);DB.logActivity('quote.'+st,q.quoteNum+' → '+st);logClientActivity(q.fields.custCo,q.quoteNum+' → '+st);S.editId=qid;setTimeout(function(){updateRegistry(qid,'Status → '+st)},500);if(S.view==='editor')renderEditor();else renderQuotes();
 MFX.emit('quote.status',{quote:q,status:st,quoteId:qid})}
 
+// 2026-06-01 round 64 cylinder-math audit fix #5: extracted single
+// source of truth for the pricing matrix. Used by edCalc (live editor),
+// bakePricing (persist on send), edPreview (PDF), and the registry
+// export. Returns {fitErr, ww, mww, rp, cy, ..., mtx, ...} OR
+// {fitErr:'...message...'} if web/repeat doesn't fit.
+//
+// Round 64 also implements:
+//   - MR/CU split: mrBaseHrs (flat) + mrHrs (per-SKU)
+//   - editable overagePct (was hard-coded 1.2)
+//   - editable edgeTrim (was hard-coded 0.875)
+function computePricingMatrix(fields, qtys){
+  var f=fields||{};
+  var gv=function(k){return parseFloat(f[k])||0};
+  var sA=gv('sA'),sar=gv('sar'),nA=Math.max(1,gv('nAcross')),nAr=Math.max(1,gv('nAround')),gA=gv('gA'),gar=gv('gar'),oc=gv('offCuts');
+  var msi=gv('msiCost'),sm=gv('stockMgn'),ms=gv('matSetup'),mu=gv('mkupPct')/100;
+  var cpp=gv('cppPlate'),pps=gv('plPerSku'),ccc=gv('ccCost'),ncc=gv('nCC');
+  // MR/CU now split into per-SKU (mrHrs) and flat base (mrBaseHrs).
+  // Backward compat: when mrBaseHrs is missing, base falls to 0 and
+  // mrHrs keeps its old "applied per SKU" semantics.
+  var mrH=gv('mrHrs'),mrR=gv('mrRate'),cuH=gv('cuHrs'),cuR=gv('cuRate');
+  var mrBaseH=gv('mrBaseHrs'),cuBaseH=gv('cuBaseHrs');
+  // Editable edge trim and overage. Default to old hard-coded values
+  // when the field is missing or 0 so existing quotes keep their math.
+  var edgeTrim=gv('edgeTrim')||0.875;
+  var ovPct=gv('overagePct');
+  var overage=ovPct>0 ? (1+ovPct/100) : 1.2;
+  var ww=sA*nA+(nA-1)*gA+edgeTrim,mww=ww+oc,rp=sar+gar;
+  // Cylinder teeth + true repeat (for the repeat-fit guard)
+  var gtRaw=gv('gearTooth');
+  var cy=gtRaw>0 ? gtRaw : Math.round(rp*nAr*8);
+  var trueRepeat=gtRaw>0 ? (gtRaw*0.125)/nAr : 0;
+  // Press blank (web max) for web-fit guard
+  var blankRaw=String(f.blankSize||'').replace(/["']/g,'').trim();
+  var bs=parseFloat(blankRaw)||0;
+  // ─── Fit guards ───────────────────────────────────────────────────
+  if(bs>0 && ww>bs+0.001){
+    return {fitErr:'Web layout '+ww.toFixed(3)+'" exceeds press blank '+bs+'". Reduce # Across, size, or gap.', ww:ww, mww:mww, bs:bs, f:f};
+  }
+  if(trueRepeat>0 && rp>trueRepeat+0.001){
+    return {fitErr:'Repeat '+rp.toFixed(3)+'" exceeds die cylinder repeat '+trueRepeat.toFixed(3)+'" ('+gtRaw+' teeth × 0.125 ÷ '+nAr+' around). Reduce Size Around or Gap Around.', rp:rp, trueRepeat:trueRepeat, f:f};
+  }
+  // ─── Setup buckets ────────────────────────────────────────────────
+  var pl=cpp*pps,cc=ccc*ncc;
+  var mrPerSku=mrH*mrR,mrBase=mrBaseH*mrR;
+  var cuPerSku=cuH*cuR,cuBase=cuBaseH*cuR;
+  var perSkuSetup=pl+cc+mrPerSku+cuPerSku;
+  var baseSetup=mrBase+cuBase;
+  var setup=perSkuSetup; // legacy name kept for callers; per-SKU portion
+  var sc=Math.min(10,Math.max(1,parseInt(f.skuCols)||1));
+  var rpct=gv('repPct')/100;
+  var qList=(qtys||[]).filter(function(x){return x>0});
+  // ─── Per-tier per-SKU pricing ────────────────────────────────────
+  var mtx=qList.map(function(qty){
+    var nft=(qty*rp/12)/nA;
+    var row={qty:qty,skus:{}};
+    for(var sk=1;sk<=sc;sk++){
+      var tftSk=nft*overage + sk*ms;
+      var matSk=mww*tftSk*0.012*msi*sm;
+      var raw=matSk + baseSetup + sk*perSkuSetup;
+      var base=raw*(1+mu);
+      var tot=base*(1+rpct);
+      row.skus[sk]={tot:tot,ppu:tot/qty,rep:base*rpct,_matSk:matSk,_tftSk:tftSk};
+    }
+    return row;
+  });
+  return {
+    ww:ww, mww:mww, oc:oc, rp:rp, cy:cy, trueRepeat:trueRepeat, bs:bs,
+    pl:pl, cc:cc, mrPerSku:mrPerSku, mrBase:mrBase, cuPerSku:cuPerSku, cuBase:cuBase,
+    perSkuSetup:perSkuSetup, baseSetup:baseSetup, setup:setup,
+    mtx:mtx, qtys:qList, sc:sc, f:f, rpct:rpct, nAr:nAr, overage:overage, edgeTrim:edgeTrim
+  };
+}
+window.computePricingMatrix=computePricingMatrix;
+
 function bakePricing(q){
 try{
-var f=q.fields;var gv=function(k){return parseFloat(f[k])||0};
-var sA=gv('sA'),sar=gv('sar'),nA=Math.max(1,gv('nAcross')),gA=gv('gA'),gar=gv('gar'),oc=gv('offCuts');
-var msi=gv('msiCost'),sm=gv('stockMgn'),ms=gv('matSetup'),mu=gv('mkupPct')/100;
-var cpp=gv('cppPlate'),pps=gv('plPerSku'),ccc=gv('ccCost'),ncc=gv('nCC');
-var mrH=gv('mrHrs'),mrR=gv('mrRate'),cuH=gv('cuHrs'),cuR=gv('cuRate');
-var ww=sA*nA+(nA-1)*gA+0.875,mww=ww+oc,rp=sar+gar;
-var pl=cpp*pps,cc=ccc*ncc,mr=mrH*mrR,cu=cuH*cuR,setup=pl+cc+mr+cu;
-var sc=Math.min(10,Math.max(1,parseInt(f.skuCols)||1));
-var rpct=gv('repPct')/100;
-var qtys=(q.qtys||[]).filter(function(x){return x>0});
-// 2026-06-01 round 63 cylinder-math audit fix: per-SKU material cost.
-// Previously sc_ was computed once outside the sk loop → multi-SKU
-// quotes undercharged by (sk-1)×sc_ per qty row. Now matches the live
-// edCalc engine: each SKU consumes its own web + its own setup waste.
-var pricedQtys=qtys.map(function(qty){
-  var nft=(qty*rp/12)/nA;
-  var row={qty:qty,skus:{}};
-  for(var sk=1;sk<=sc;sk++){
-    var tftSk=nft*1.2 + sk*ms;
-    var matSk=mww*tftSk*0.012*msi*sm;
-    var raw=matSk + sk*setup;
-    var base=raw*(1+mu);
-    var tot=base*(1+rpct);
-    row.skus[sk]={tot:tot,ppu:tot/qty,rep:base*rpct};
-  }
-  row.ppu=row.skus[1].ppu;row.total=row.skus[1].tot;row.setup=setup;
-  return row
+var c=computePricingMatrix(q.fields, q.qtys);
+if(c.fitErr){
+  console.warn('[bakePricing] '+q.quoteNum+' has fit error, skipping bake:', c.fitErr);
+  return;
+}
+// Persist legacy + new fields. row.ppu and row.total mirror sk=1 for
+// callers that read q.pricedQtys[i].ppu/total directly.
+var pricedQtys=c.mtx.map(function(row){
+  row.ppu=row.skus[1].ppu;
+  row.total=row.skus[1].tot;
+  row.setup=c.setup;
+  return row;
 });
 q.pricedQtys=pricedQtys;
-q.setupTotal=setup;
-q.fixedCharges={die:gv('dieChg'),plates:pl,mr:mr,cu:cu,shipping:gv('shipping')};
+q.setupTotal=c.setup;
+q.fixedCharges={die:parseFloat(q.fields.dieChg)||0,plates:c.pl,mr:c.mrPerSku+c.mrBase,cu:c.cuPerSku+c.cuBase,shipping:parseFloat(q.fields.shipping)||0};
 console.log('💰 Pricing baked into quote:',q.quoteNum,pricedQtys.length,'quantities');
 }catch(e){console.warn('bakePricing error:',e)}}
 function delQuote(qid) {

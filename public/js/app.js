@@ -1428,7 +1428,9 @@ return h})()}
 <div class="vsec">Material Cost <span style="font-size:8px;color:var(--tx3)">Formula: MatCost = MatWW × TotalFt × 0.012 × MSI × Margin</span></div>
 <div class="var-row"><span class="var-lbl">MSI Cost <span style="font-size:8px;color:var(--tx3)">(auto from material, editable)</span></span><input class="var-inp hi" data-field="msiCost" type="number" value="${f.msiCost}" step="0.001" oninput="asave()"><span class="var-unit">$/MSI</span></div>
 <div class="var-row"><span class="var-lbl">Stock Margin</span><input class="var-inp" data-field="stockMgn" type="number" value="${f.stockMgn}" step="0.1" oninput="asave()"><span class="var-unit">×</span></div>
-<div class="var-row"><span class="var-lbl">Setup/Waste</span><input class="var-inp" data-field="matSetup" type="number" value="${f.matSetup}" step="100" oninput="asave()"><span class="var-unit">ft</span></div>
+<div class="var-row"><span class="var-lbl">Setup Waste</span><input class="var-inp" data-field="matSetup" type="number" value="${f.matSetup}" step="50" oninput="asave()"><span class="var-unit">ft</span></div>
+<div class="var-row"><span class="var-lbl">Overage</span><input class="var-inp" data-field="overagePct" type="number" value="${f.overagePct!=null?f.overagePct:20}" step="1" oninput="asave()"><span class="var-unit">%</span></div>
+<div class="var-row"><span class="var-lbl">Edge Trim</span><input class="var-inp" data-field="edgeTrim" type="number" value="${f.edgeTrim!=null?f.edgeTrim:0.875}" step="0.125" oninput="asave()"><span class="var-unit">"</span></div>
 <div class="vsec">Markup <span style="font-size:8px;color:var(--tx3)">Applied after material + setup costs</span></div>
 <div class="var-row"><span class="var-lbl">MFX Markup</span><input class="var-inp hi" data-field="mkupPct" type="number" value="${f.mkupPct}" step="0.5" oninput="asave()"><span class="var-unit">%</span></div>
 <div class="vsec">Plate/Color Corrections <span style="font-size:8px;color:var(--tx3)">Fixed per SKU: plates + color changes + MR + CU</span></div>
@@ -1436,12 +1438,14 @@ return h})()}
 <div class="var-row"><span class="var-lbl">Plates/SKU</span><input class="var-inp" data-field="plPerSku" type="number" value="${f.plPerSku}" oninput="asave()"><span class="var-unit">#</span></div>
 <div class="var-row"><span class="var-lbl">CC Cost</span><input class="var-inp" data-field="ccCost" type="number" value="${f.ccCost}" oninput="asave()"><span class="var-unit">$</span></div>
 <div class="var-row"><span class="var-lbl"># CC</span><input class="var-inp" data-field="nCC" type="number" value="${f.nCC}" oninput="asave()"><span class="var-unit">#</span></div>
-<div class="vsec">MR & Clean-Up <span style="font-size:8px;color:var(--tx3)">Labor: hours × rate per job</span></div>
-<div class="var-row"><span class="var-lbl">MR Hours</span><input class="var-inp" data-field="mrHrs" type="number" value="${f.mrHrs}" step=".5" oninput="asave()"><span class="var-unit">hrs</span></div>
+<div class="vsec">MR & Clean-Up <span style="font-size:8px;color:var(--tx3)">Split: base (one-time) + per-SKU increment</span></div>
+<div class="var-row"><span class="var-lbl">MR Base Hrs</span><input class="var-inp hi" data-field="mrBaseHrs" type="number" value="${f.mrBaseHrs!=null?f.mrBaseHrs:2}" step=".25" oninput="asave()"><span class="var-unit">hrs</span></div>
+<div class="var-row"><span class="var-lbl">MR Hrs/SKU</span><input class="var-inp" data-field="mrHrs" type="number" value="${f.mrHrs}" step=".25" oninput="asave()"><span class="var-unit">hrs</span></div>
 <div class="var-row"><span class="var-lbl">MR Rate</span><input class="var-inp hi" data-field="mrRate" type="number" value="${f.mrRate}" oninput="asave()"><span class="var-unit">$</span></div>
-<div class="var-row"><span class="var-lbl">CU Hours</span><input class="var-inp" data-field="cuHrs" type="number" value="${f.cuHrs}" step=".5" oninput="asave()"><span class="var-unit">hrs</span></div>
+<div class="var-row"><span class="var-lbl">CU Base Hrs</span><input class="var-inp hi" data-field="cuBaseHrs" type="number" value="${f.cuBaseHrs!=null?f.cuBaseHrs:2}" step=".25" oninput="asave()"><span class="var-unit">hrs</span></div>
+<div class="var-row"><span class="var-lbl">CU Hrs/SKU</span><input class="var-inp" data-field="cuHrs" type="number" value="${f.cuHrs}" step=".25" oninput="asave()"><span class="var-unit">hrs</span></div>
 <div class="var-row"><span class="var-lbl">CU Rate</span><input class="var-inp" data-field="cuRate" type="number" value="${f.cuRate}" oninput="asave()"><span class="var-unit">$</span></div>
-<div class="vsec">Charges <span style="font-size:8px;color:var(--tx3)">One-time costs per job</span></div>
+<div class="vsec">Charges <span style="font-size:8px;color:var(--tx3)">One-time. Existing die = $0; new die ≈ $300-1,200.</span></div>
 <div class="var-row"><span class="var-lbl">Die Charge</span><input class="var-inp" data-field="dieChg" type="number" value="${f.dieChg}" oninput="asave()"><span class="var-unit">$</span></div>
 <div class="var-row"><span class="var-lbl">Shipping (Est.)</span><input class="var-inp" data-field="shipping" type="number" value="${f.shipping||''}" oninput="asave()"><span class="var-unit">$</span></div>
 <div class="var-row"><span class="var-lbl">Plate Cost</span><input class="var-inp" data-field="plCost" type="number" value="${f.plCost}" oninput="asave()"><span class="var-unit">$</span></div>
@@ -2552,6 +2556,15 @@ var platesEl = document.querySelector('[data-field="nPlates"]');
 if (platesEl && colors > 0) { platesEl.value = colors; }
 var plPerSkuEl = document.querySelector('[data-field="plPerSku"]');
 if (plPerSkuEl && colors > 0) { plPerSkuEl.value = colors; }
+// 2026-06-01 round 64 audit fix: picked die = owned/existing die.
+// Tooling fee defaults to 0 unless the die record explicitly carries
+// a toolingFee (for user-added net-new dies). Previously every reorder
+// of a stock AG-series die got billed $200 of phantom tooling.
+var dieChgEl = document.querySelector('[data-field="dieChg"]');
+if (dieChgEl) {
+  var tf = parseFloat(d.toolingFee);
+  dieChgEl.value = (isFinite(tf) && tf>0) ? tf : 0;
+}
 asave()}
 
 // Coating/varnish picker — modal-based now. Just seed the input value.
