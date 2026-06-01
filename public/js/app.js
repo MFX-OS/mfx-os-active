@@ -2077,6 +2077,15 @@ h+='<div class="fg"><label>Created By</label><input value="'+esc(_s.createdBy||g
 h+='</div></div></div>';
 // Client section
 h+='<div class="scard"><div class="scard-h open" onclick="togCard(this)"><span class="ico">🏢</span><span class="ttl">Client Information</span><span class="arr">▾</span></div><div class="scard-b open">';
+// 2026-06-01 round 58: "Refill from Quote" button — re-pulls client
+// info from the linked quote into the SO. Use when the SO fields got
+// blanked out (e.g., earlier mirror bug) but the quote still has the
+// data. Idempotent.
+if(linkedSO){
+  h+='<div style="display:flex;justify-content:flex-end;margin-bottom:6px">';
+  h+='<button class="btn btn-ghost btn-xs" onclick="refillSOFromQuote(\''+so.id+'\')" title="Re-pull customer info from the linked quote" style="font-size:9px">↺ Refill from Quote</button>';
+  h+='</div>';
+}
 h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
 // When an SO exists, each field saves on blur (onchange) via saveSOField.
 // When creating a new SO, mark dirty so the create flow captures values.
@@ -2653,9 +2662,14 @@ function saveSOField(soId,key,val){
       }
     }catch(_e){console.warn('[saveSOField] preview refresh failed',_e.message);}
     // 2026-05-27 round 50: mirror identity fields back to the linked
-    // quote so the SO + quote stay in sync (otherwise next edit of
-    // the quote could clobber the SO with the old client info).
-    if(so && so.quoteId && (key==='company'||key==='contact'||key==='email'||key==='phone'||key==='shipTo'||key==='billToAddress'||key==='industry')){
+    // quote so the SO + quote stay in sync.
+    // 2026-06-01 round 58: BUG FIX — only mirror NON-EMPTY values.
+    // Previously, clearing an SO field (or accidentally blurring on an
+    // empty fallback) wiped the matching quote field. Blank values
+    // never propagate back now.
+    var _mirrorVal=(typeof val==='string')?val.trim():val;
+    var _shouldMirror=so && so.quoteId && _mirrorVal && (key==='company'||key==='contact'||key==='email'||key==='phone'||key==='shipTo'||key==='billToAddress'||key==='industry');
+    if(_shouldMirror){
       try{
         var qPatch={};
         if(key==='company')qPatch['fields.custCo']=val;
@@ -2771,6 +2785,75 @@ function attachSOToPortal(soId, reAttach){
   });
 }
 window.attachSOToPortal=attachSOToPortal;
+
+// 2026-06-01 round 58: Refill SO customer info from the linked quote.
+// Reads the quote's fields.* + poClientEmail and writes them back to
+// the SO doc. Only fills fields the SO doesn't already have set, so
+// re-running is safe (won't overwrite later edits). Use when an SO
+// was created with empty client fields, or after the round 50 mirror
+// bug nuked them.
+function refillSOFromQuote(soId){
+  if(typeof fbDb==='undefined')return toast&&toast('DB unavailable','err');
+  var sos=typeof getSalesOrders==='function'?getSalesOrders():[];
+  var so=sos.find(function(x){return x.id===soId});
+  if(!so)return toast&&toast('SO not found','err');
+  if(!so.quoteId)return toast&&toast('SO has no linked quote — cannot refill','err');
+  if(window.setSaveState)window.setSaveState('saving');
+  fbDb.collection('quotes').doc(so.quoteId).get().then(function(snap){
+    if(!snap.exists){
+      if(window.setSaveState)window.setSaveState('error');
+      return toast&&toast('Linked quote no longer exists','err');
+    }
+    var q=snap.data()||{};
+    var f=q.fields||{};
+    // Map: SO field → preferred source from quote
+    var map={
+      company:    f.custCo||'',
+      contact:    f.custAttn||q.poSignature||'',
+      email:      f.custEmail||q.poClientEmail||'',
+      phone:      f.custPhone||'',
+      industry:   f.industry||'',
+      cityState:  f.cityState||'',
+      shipTo:     q.poShipTo||f.shipTo||f.cityState||'',
+      poNumber:   q.poNumber||so.poNumber||'',
+      quoteNum:   q.quoteNum||so.quoteNum||'',
+      jobDesc:    so.jobDesc||((f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo'))
+    };
+    var patch={updatedAt:new Date().toISOString(),updatedBy:(typeof getUserName==='function'?getUserName():'Staff')};
+    var filled=[];
+    Object.keys(map).forEach(function(k){
+      var newVal=map[k];
+      var existing=so[k];
+      // Only fill when the new value is non-empty AND the existing is blank/missing
+      if(newVal && (!existing || String(existing).trim()==='')){
+        patch[k]=newVal;
+        if(so) so[k]=newVal;
+        filled.push(k);
+      }
+    });
+    // also normalize email casing if present
+    if(patch.email)patch.email=String(patch.email).trim().toLowerCase();
+    if(!filled.length){
+      if(window.setSaveState)window.setSaveState('saved');
+      toast&&toast('All SO fields already filled — nothing to copy','info');
+      return;
+    }
+    fbDb.collection('salesOrders').doc(soId).update(patch).then(function(){
+      if(window.setSaveState)window.setSaveState('saved');
+      toast&&toast('Refilled '+filled.length+' field'+(filled.length>1?'s':'')+': '+filled.join(', '),'ok');
+      if(typeof renderAll==='function')renderAll();
+    }).catch(function(e){
+      if(window.setSaveState)window.setSaveState('error');
+      console.error('[refillSOFromQuote] write failed',e);
+      toast&&toast('Refill failed: '+e.message,'err');
+    });
+  }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
+    console.error('[refillSOFromQuote] read failed',e);
+    toast&&toast('Could not read quote: '+e.message,'err');
+  });
+}
+window.refillSOFromQuote=refillSOFromQuote;
 window.saveSkuPPField=saveSkuPPField;window.toggleSkuPPCheck=toggleSkuPPCheck;
 
 // ─── Publish artwork proof to client portal ─────────────────────────
