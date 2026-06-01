@@ -1799,14 +1799,14 @@ function buildPortalSOHTML(so,soId){
        +'<div style="background:#fff;border:1.5px solid '+(_clientSigned?'#16a34a':'#dce2e8')+';border-radius:8px;padding:12px 14px;min-height:110px">'
          +'<div style="font-size:8px;color:'+(_clientSigned?'#15803d':'#94a3b0')+';font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Customer / Authorized Signatory'+(_clientSigned?' · ✓ SIGNED':'')+'</div>'
          +(_clientSigned
-           ? '<div style="font-size:22px;font-family:Outfit,sans-serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:6px;line-height:1.2">'+escPortal(so.clientSignature||'—')+'</div>'
-             +'<div style="font-size:11px;color:#0a2030;font-weight:600">'+escPortal(so.clientSignature||'—')+'</div>'
+           ? '<div style="font-size:22px;font-family:Outfit,sans-serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:6px;line-height:1.2">'+escPortal(so.clientSignature||so.clientSignedBy||'—')+'</div>'
+             +'<div style="font-size:11px;color:#0a2030;font-weight:600">'+escPortal(so.clientSignature||so.clientSignedBy||'—')+'</div>'
              +'<div style="font-size:9px;color:#15803d">Signed on '+escPortal(_fD(so.clientSignedAt))+(so.clientEmail?' · '+escPortal(so.clientEmail):'')+'</div>'
            : '<div style="font-size:11px;color:#94a3b0;font-style:italic;padding:18px 0;text-align:center">Awaiting your signature — sign below</div>')
        +'</div>'
      +'</td>'
    +'</tr></table>'
-   +(_ceoSigned && _clientSigned ? '<div style="margin-top:10px;text-align:center;font-size:10px;color:#15803d;font-weight:700;letter-spacing:1px">✓ FULLY EXECUTED — both signatures on file</div>' : '')
+   +(_mfxSigned && _clientSigned ? '<div style="margin-top:10px;text-align:center;font-size:10px;color:#15803d;font-weight:700;letter-spacing:1px">✓ FULLY EXECUTED — both signatures on file</div>' : '')
    +'</div>';
 
   // 2026-05-27 round 47: inline portal sign form removed. Signatures

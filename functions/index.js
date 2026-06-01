@@ -1180,8 +1180,42 @@ exports.portalSubmitPO = onRequest(
         autoSONum = "SO" + bucket + "-" + String(seq).padStart(3, "0");
 
         const f = quote.fields || {};
+        // 2026-06-01 round 60 audit fix #3: previously read qtys[selIdx]
+        // as if it were a pricing row, but qtys is a plain-number array
+        // → every server-created SO had pricing $0. Now mirror
+        // autoCreateSO's resolution: use pricedQtys[selIdx].skus[skuCount]
+        // with fallbacks to poSelectedQty/poSelectedTotal/qtys.
         const selIdx = quote.poQtyIndex || 0;
-        const selRow = (quote.qtys && quote.qtys[selIdx]) ? quote.qtys[selIdx] : { qty: 0, ppu: 0, total: 0 };
+        const skuCount = Math.max(1, parseInt(quote.poSkuCount || 1, 10) || 1);
+        let selQty = 0, selPPU = 0, selTotal = 0;
+        const pricedRow = quote.pricedQtys && quote.pricedQtys[selIdx];
+        const pricedSku = pricedRow && pricedRow.skus && pricedRow.skus[skuCount];
+        if (pricedSku) {
+          selQty = pricedSku.qty || pricedRow.qty || 0;
+          selPPU = pricedSku.ppu || 0;
+          selTotal = pricedSku.total || 0;
+        }
+        if (!selQty && quote.poSelectedQty) selQty = quote.poSelectedQty;
+        if (!selTotal && quote.poSelectedTotal) selTotal = quote.poSelectedTotal;
+        if (!selPPU && selQty && selTotal) selPPU = selTotal / selQty;
+        // Final fallback: legacy qtys row if it's an object
+        if (!selQty) {
+          const legacy = quote.qtys && quote.qtys[selIdx];
+          if (legacy && typeof legacy === 'object') {
+            selQty = legacy.qty || 0; selPPU = legacy.ppu || 0; selTotal = legacy.total || 0;
+          } else if (typeof legacy === 'number') {
+            selQty = legacy;
+          }
+        }
+        // Build allQtys as object array so downstream renderers get pricing
+        const allQtysObjs = Array.isArray(quote.pricedQtys)
+          ? quote.pricedQtys.map(r => {
+              const sk = r && r.skus && r.skus[skuCount];
+              return sk
+                ? { qty: sk.qty || r.qty || 0, ppu: sk.ppu || 0, total: sk.total || 0 }
+                : { qty: (r && r.qty) || 0, ppu: 0, total: 0 };
+            })
+          : (quote.qtys || []);
         const soId = "so_" + Date.now();
         const soDoc = {
           id: soId,
@@ -1192,11 +1226,14 @@ exports.portalSubmitPO = onRequest(
           status: "pending",
           company: f.custCo || "",
           contact: f.custAttn || "",
-          email: f.custEmail || quote.poClientEmail || callerEmail,
-          phone: f.phone || "",
+          email: String(f.custEmail || quote.poClientEmail || callerEmail || "").trim().toLowerCase(),
+          // 2026-06-01 round 60 audit fix #9: phone is stored under custPhone
+          phone: f.custPhone || f.phone || "",
           industry: f.industry || "",
           cityState: f.cityState || "",
-          shipTo: quote.poShipTo || f.cityState || "",
+          shipTo: quote.poShipTo || f.shipTo || f.cityState || "",
+          // 2026-06-01 round 60 audit fix #10: billToAddress was never written
+          billToAddress: f.billTo || "",
           poNumber: quote.poNumber || "",
           poSignature: quote.poSignature || "",
           poSignedAt: quote.poSignedAt || "",
@@ -1208,17 +1245,23 @@ exports.portalSubmitPO = onRequest(
           shapeType: f.shapeType || "",
           colors: f.colors || "",
           jobType: f.jobType || "",
+          // 2026-06-01 round 60 audit fix #8: write canonical names to match
+          // autoCreateSO + downstream production triggers
+          faceStock: f.faceStock || f.face || "",
+          lamination: f.lamination || f.laminate || "",
+          // Keep legacy aliases for code that still reads them
           face: f.face || f.faceStock || "",
           laminate: f.laminate || f.lamination || "",
           coating: f.coating || "",
           windDir: f.windDir || f.copyPos || "",
           selectedQtyIndex: selIdx,
-          selectedQty: selRow.qty || 0,
-          ppu: selRow.ppu || 0,
-          total: selRow.total || 0,
-          allQtys: quote.qtys || [],
+          selectedQty: selQty,
+          ppu: selPPU,
+          total: selTotal,
+          allQtys: allQtysObjs,
           terms: quote.terms || [],
           estimator: f.estimator || "",
+          salesRep: f.salesRep || "",
           payTerms: f.payTerms || "Net 30",
           createdAt: nowIso(),
           createdBy: "System (Auto — Portal PO)",
@@ -1520,6 +1563,13 @@ exports.saveSalesOrderPDF = onRequest(
         } catch (e) {
           return sendJson(res, 400, { error: "Invalid pdfBase64 payload" });
         }
+        // 2026-06-01 round 60 audit fix: reject empty/tiny buffers so
+        // we don't silently overwrite a known-good signed PDF with a
+        // metadata-only placeholder (previous bug: empty pdfBase64 ran
+        // through delete-then-create and lost the signed copy).
+        if (!pdfBuffer || pdfBuffer.length < 1024) {
+          return sendJson(res, 400, { error: "pdfBase64 too small (<1KB) — likely an empty payload; aborting to protect existing PDF" });
+        }
       }
 
       const uploadPdf = async (parentId) => {
@@ -1595,13 +1645,23 @@ exports.saveSalesOrderPDF = onRequest(
       const soRef = db.collection("salesOrders").doc(soId);
       const soSnap = await soRef.get();
       if (soSnap.exists) {
-        await soRef.update({
+        const existing = soSnap.data() || {};
+        const update = {
           driveLink: results.masterLink,
           clientFolderLink: results.clientLink,
           driveSavedAt: nowIso(),
           updatedAt: nowIso(),
           updatedBy: actor.email || "System"
-        });
+        };
+        // 2026-06-01 round 60 audit fix #11: if staff already attached
+        // the previous PDF to the client portal, the pinned link now
+        // points to a deleted file (we delete-then-upload). Repoint the
+        // pinned link to the new file so "Download Signed SO" still
+        // works.
+        if (existing.attachedToPortalAt) {
+          update.portalSignedPdfLink = results.masterLink;
+        }
+        await soRef.update(update);
       }
 
       await logServerEvent("so.pdf.saved", {
@@ -2998,11 +3058,11 @@ exports.autoSendSOOnApproval = onDocumentWritten(
     if (!after) return; // doc was deleted
 
     // ─── Skip conditions (each is a normal expected state, not an error) ──
-    // 2026-05-27: gate is now ceoSignedAt (an explicit human electronic
-    // signature), not autoApproved. CEO signature flips autoApproved=true
-    // as a side effect, but we require BOTH to fire so unsigned-but-
-    // auto-approved (legacy or buggy) SOs don't accidentally send.
-    if (!after.autoApproved) return;
+    // 2026-06-01 round 60 audit fix #2: previously gated on autoApproved
+    // AND ceoSignedAt, but no live code sets autoApproved=true → trigger
+    // was permanently dead. Gate now relies on ceoSignedAt alone (set by
+    // markCEOSigned in orders.js round 49+) — that's the explicit human
+    // electronic signature signal we actually have.
     if (!after.ceoSignedAt) return;
     if (after.sentAt) return;
     if (after.serverAutoSendAt) return; // already attempted; success/fail already recorded
@@ -3047,7 +3107,7 @@ exports.autoSendSOOnApproval = onDocumentWritten(
         const d = fresh.data() || {};
         if (d.sentAt) return; // client-side or earlier server send already
         if (d.serverAutoSendAt) return; // someone else got there first
-        if (!d.autoApproved) return; // changed state mid-flight
+        if (!d.ceoSignedAt) return; // changed state mid-flight (round 60 fix)
         tx.update(ref, {
           serverAutoSendAt: nowIso(),
           serverAutoSendStatus: "in_progress"

@@ -2061,6 +2061,7 @@ window.emailClientForSignFromSelect=emailClientForSignFromSelect;
 // human only has to click Send. This is the "once ceo signed the
 // clients email is sent for final signature" half of the workflow.
 function markCEOSigned(soId, templateKey){
+  if(typeof fbDb==='undefined')return toast&&toast('DB unavailable','err');
   var so=getSO(soId);
   if(!so)return toast&&toast('SO not found','err');
   if(!so.driveLink){
@@ -2075,22 +2076,42 @@ function markCEOSigned(soId, templateKey){
   // compatibility with downstream triggers.
   var approverName=(typeof window!=='undefined' && window.SO_CEO_NAME) || 'Randy';
   var nowSv=(window.firebase&&firebase.firestore&&firebase.firestore.FieldValue&&firebase.firestore.FieldValue.serverTimestamp)?firebase.firestore.FieldValue.serverTimestamp():new Date();
+  // 2026-06-01 round 60: also bump status to 'approved' so the SO leaves
+  // the 'pending' bucket and the server-side autoSendSOOnApproval gate
+  // (now keyed on ceoSignedAt) fires. autoApproved flag stays false —
+  // the gate decision was made at the server level (round 60 audit #2).
   var patch={
     ceoSignedAt:nowSv,
     ceoSignedBy:approverName,
     ceoSignedByUser:who,
     signatureFlow:'awaiting_client',
+    status:'approved',
+    approvedAt:nowSv,
+    approvedBy:approverName,
     updatedAt:nowSv
   };
-  return db.collection('salesOrders').doc(soId).update(patch).then(function(){
+  if(window.setSaveState)window.setSaveState('saving');
+  // 2026-06-01 round 60 audit fix #1: was `db.collection(...)`, but `db`
+  // is not defined in this scope — every click threw ReferenceError.
+  return fbDb.collection('salesOrders').doc(soId).update(patch).then(function(){
+    if(window.setSaveState)window.setSaveState('saved');
     // mirror into local cache so the UI updates immediately
     var cached=(window._soCache||[]).find(function(s){return s.id===soId;});
-    if(cached){ cached.ceoSignedAt=new Date(); cached.ceoSignedBy=approverName; cached.ceoSignedByUser=who; cached.signatureFlow='awaiting_client'; }
+    if(cached){
+      cached.ceoSignedAt=new Date();
+      cached.ceoSignedBy=approverName;
+      cached.ceoSignedByUser=who;
+      cached.signatureFlow='awaiting_client';
+      cached.status='approved';
+      cached.approvedAt=new Date();
+      cached.approvedBy=approverName;
+    }
     toast&&toast('Marked approved — opening client email','ok');
     if(typeof renderAll==='function')renderAll();
     // auto-open client email
     setTimeout(function(){ emailClientForSign(soId, templateKey||'standard'); }, 250);
   }).catch(function(e){
+    if(window.setSaveState)window.setSaveState('error');
     console.error('[markCEOSigned] failed',e);
     toast&&toast('Could not mark approved — '+(e&&e.message||e),'err');
   });
@@ -2955,8 +2976,8 @@ function buildSOPrintHTML(so){
         +'<div style="padding:14px 24px;background:'+(_cliSigned?'#f0fdf4':'#fafcfd')+'">'
           +'<div style="font-size:7px;color:'+(_cliSigned?'#16a34a':'#00BCD4')+';font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Client Acknowledgement'+(_cliSigned?' · ✓':'')+'</div>'
           +(_cliSigned
-            ? '<div style="font-size:22px;font-family:Outfit,Georgia,serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:1.5px solid #16a34a;padding-bottom:3px;line-height:1.2;margin-bottom:4px">'+esc(so.clientSignature||'—')+'</div>'
-              +'<div style="font-size:10px;color:#0a2030;font-weight:700">'+esc(so.clientSignature||'—')+'</div>'
+            ? '<div style="font-size:22px;font-family:Outfit,Georgia,serif;font-style:italic;font-weight:700;color:#0a2030;border-bottom:1.5px solid #16a34a;padding-bottom:3px;line-height:1.2;margin-bottom:4px">'+esc(so.clientSignature||so.clientSignedBy||'—')+'</div>'
+              +'<div style="font-size:10px;color:#0a2030;font-weight:700">'+esc(so.clientSignature||so.clientSignedBy||'—')+'</div>'
               +'<div style="font-size:9px;color:#16a34a;font-weight:700;margin-top:2px">Signed on '+_fD(so.clientSignedAt)+(so.clientEmail?' · '+esc(so.clientEmail):'')+'</div>'
             : '<div style="font-size:10px;color:#94a3b0;font-style:italic">Awaiting client signature</div>'
               +'<div style="border-bottom:1.5px solid #cbd5e1;margin-top:18px;width:70%"></div>'

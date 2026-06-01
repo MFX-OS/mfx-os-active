@@ -2324,8 +2324,8 @@ if(linkedSO&&so.sentAt){
   h+='<div style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:8px;padding:8px 12px;margin-top:6px;font-size:11px"><span style="color:var(--ac);font-weight:700">✉ Sent</span> to '+esc(so.sentTo)+' on '+fD(so.sentAt)+'</div>';
 }
 // Client SO Approval badge
-if(linkedSO&&so.clientSignature){
-  h+='<div style="background:rgba(46,232,158,.06);border:1px solid rgba(46,232,158,.2);border-radius:8px;padding:8px 12px;margin-top:6px;font-size:11px"><span style="color:var(--gn);font-weight:700">✅ Client Signed</span> by '+esc(so.clientSignature)+' on '+fD(so.clientSignedAt||'')+'</div>';
+if(linkedSO&&(so.clientSignature||so.clientSignedBy)){
+  h+='<div style="background:rgba(46,232,158,.06);border:1px solid rgba(46,232,158,.2);border-radius:8px;padding:8px 12px;margin-top:6px;font-size:11px"><span style="color:var(--gn);font-weight:700">✅ Client Signed</span> by '+esc(so.clientSignature||so.clientSignedBy)+' on '+fD(so.clientSignedAt||'')+'</div>';
 }
 // Deposit Configuration
 if(linkedSO){
@@ -2807,17 +2807,26 @@ function refillSOFromQuote(soId){
     var q=snap.data()||{};
     var f=q.fields||{};
     // Map: SO field → preferred source from quote
+    // 2026-06-01 round 60 audit fix #12: extended to include payTerms,
+    // estimator, salesRep, billToAddress so PDFs ship with full data.
+    // Round 58's recovery is now actually a full recovery.
     var map={
-      company:    f.custCo||'',
-      contact:    f.custAttn||q.poSignature||'',
-      email:      f.custEmail||q.poClientEmail||'',
-      phone:      f.custPhone||'',
-      industry:   f.industry||'',
-      cityState:  f.cityState||'',
-      shipTo:     q.poShipTo||f.shipTo||f.cityState||'',
-      poNumber:   q.poNumber||so.poNumber||'',
-      quoteNum:   q.quoteNum||so.quoteNum||'',
-      jobDesc:    so.jobDesc||((f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo'))
+      company:        f.custCo||'',
+      contact:        f.custAttn||q.poSignature||'',
+      email:          f.custEmail||q.poClientEmail||'',
+      phone:          f.custPhone||f.phone||'',
+      industry:       f.industry||'',
+      cityState:      f.cityState||'',
+      shipTo:         q.poShipTo||f.shipTo||f.cityState||'',
+      billToAddress:  f.billTo||'',
+      poNumber:       q.poNumber||so.poNumber||'',
+      quoteNum:       q.quoteNum||so.quoteNum||'',
+      payTerms:       f.payTerms||'Net 30',
+      estimator:      f.estimator||'',
+      salesRep:       f.salesRep||'',
+      faceStock:      f.faceStock||f.face||'',
+      lamination:     f.lamination||f.laminate||'',
+      jobDesc:        so.jobDesc||((f.sA||'?')+'x'+(f.sar||'?')+'" '+(f.shapeType||'')+' - '+(f.colors||'?')+'C '+(f.jobType||'Flexo'))
     };
     var patch={updatedAt:new Date().toISOString(),updatedBy:(typeof getUserName==='function'?getUserName():'Staff')};
     var filled=[];
