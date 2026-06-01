@@ -264,18 +264,38 @@ function renderStaffPreviewBanner(){
 window.addEventListener('error', function(ev){
   try{
     var msg=(ev && ev.error && ev.error.message) || ev.message || 'Unknown error';
-    var src=(ev && ev.filename ? ev.filename.split('/').pop() : 'portal');
+    // 2026-06-01: clean up filename display — for inline scripts the
+    // filename equals the document URL which is noisy + leaks oobCode.
+    // Strip query string and just keep the basename. Skip Cloudflare
+    // injection errors that we can't fix anyway.
+    var rawFile=(ev && ev.filename) ? String(ev.filename) : '';
+    var src='portal';
+    if(rawFile){
+      try{
+        var u=new URL(rawFile);
+        src=(u.pathname.split('/').pop()||'portal');
+      }catch(_e){ src=rawFile.split(/[?&]/)[0].split('/').pop()||'portal'; }
+    }
+    // Ignore cloudflare email-decode / challenge script errors — they
+    // come from injected CDN scripts we don't control.
+    if(/cdn-cgi|cloudflare/i.test(rawFile)){
+      console.warn('[Portal] ignored CF script error:', msg);
+      return;
+    }
     var line=(ev && ev.lineno) ? (' line '+ev.lineno) : '';
-    console.error('[Portal] uncaught:', ev && ev.error ? ev.error : msg);
+    var col=(ev && ev.colno) ? (' col '+ev.colno) : '';
+    console.error('[Portal] uncaught:', msg, 'at', src+line+col, ev && ev.error ? ev.error : '');
     var wrap=document.querySelector('.wrap');
     if(!wrap)return;
     // Don't stomp on the page if the error fired AFTER a useful screen rendered
     if(wrap.querySelector('[data-portal-error]'))return;
     if(wrap.children.length>1)return;
+    // 2026-06-01: also skip if a valid quote view rendered already
+    if(document.querySelector('.section')||document.querySelector('.qcard'))return;
     wrap.innerHTML='<div data-portal-error style="max-width:540px;margin:40px auto;padding:24px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.3);border-radius:10px;color:var(--sub);font-family:Inter,sans-serif">'
       +'<div style="font-size:11px;color:#ef4444;font-weight:800;letter-spacing:2px;margin-bottom:8px">PORTAL ERROR</div>'
       +'<div style="font-size:15px;color:var(--h1);font-weight:700;margin-bottom:8px">Something went wrong loading the portal</div>'
-      +'<div style="font-size:12px;font-family:JetBrains Mono,monospace;background:rgba(0,0,0,.2);padding:10px 12px;border-radius:6px;margin:10px 0;color:#fca5a5;line-height:1.5;word-break:break-word">'+String(msg).replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]})+(src?'<br><span style="color:#94a3b8">at '+src+line+'</span>':'')+'</div>'
+      +'<div style="font-size:12px;font-family:JetBrains Mono,monospace;background:rgba(0,0,0,.2);padding:10px 12px;border-radius:6px;margin:10px 0;color:#fca5a5;line-height:1.5;word-break:break-word">'+String(msg).replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]})+(src?'<br><span style="color:#94a3b8">at '+src+line+col+'</span>':'')+'</div>'
       +'<div style="font-size:11px;color:var(--sub);line-height:1.6">If this keeps happening, copy the message above and email it to <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent)">quotes@microflexfilm.com</a>.</div>'
       +'<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">'
       +'<button onclick="location.reload()" style="padding:9px 18px;background:var(--accent);color:#060d14;border:none;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer">Reload</button>'
@@ -341,13 +361,20 @@ function loadQuote(){
     }).catch(function(e){
       console.error('[Portal Auth] signInWithEmailLink failed:', e.code, e.message);
       // Show error to user instead of silently going back to auth screen
+      // 2026-06-01: fixed broken escape sequence on the Try Again button
+      // that produced an invalid onclick handler (Invalid or unexpected
+      // token when clicked). Now uses a named handler instead of inline.
+      window._portalRetryAuth=function(){
+        var url=location.pathname+location.search.replace(/&?oobCode=[^&]*/g,'').replace(/&?mode=[^&]*/g,'');
+        location.href=url;
+      };
       var wrap=document.querySelector('.wrap');
       if(wrap)wrap.innerHTML='<div style="max-width:380px;margin:60px auto;text-align:center">'
         +'<div style="font-family:Outfit;font-size:28px;font-weight:900;color:var(--h1);margin-bottom:12px">Microflex</div>'
         +'<div style="font-size:14px;color:var(--red,#ff6474);font-weight:700;margin-bottom:8px">Verification Failed</div>'
         +'<div style="font-size:12px;color:var(--sub);margin-bottom:16px">'+escPortal(e.message)+'</div>'
         +'<div style="font-size:11px;color:var(--sub);margin-bottom:16px">This can happen if the link has expired or was already used. Please request a new verification link.</div>'
-        +'<button onclick="location.href=location.pathname+location.search.replace(/&?oobCode=[^&]*/g,\\\'\\\').replace(/&?mode=[^&]*/g,\\\'\\\')" style="padding:10px 24px;border-radius:8px;background:var(--accent,#00e5ff);color:#060d14;font-size:12px;font-weight:700;border:none;cursor:pointer">Try Again</button>'
+        +'<button onclick="window._portalRetryAuth()" style="padding:10px 24px;border-radius:8px;background:var(--accent,#00e5ff);color:#060d14;font-size:12px;font-weight:700;border:none;cursor:pointer">Try Again</button>'
         +'</div>';
     });
     return;
