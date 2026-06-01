@@ -1287,7 +1287,12 @@ $('v-editor').innerHTML=`${(function(){
   b+='<div style="font-size:10px;color:var(--tx3);margin-top:6px">Review the PO details + uploaded files in the PO tab, then click Confirm to generate the sales order. SO will not be created until you confirm.</div>';
   b+='</div>';
   b+='<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
-  b+='<button onclick="confirmIncomingPO(\''+esc(qq.id)+'\')" style="padding:11px 22px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap">✓ Confirm & Generate SO</button>';
+  // 2026-06-01 round 65 audit fix #7: disable on click so a fast
+  // double-click can't create two SOs (the Firestore round-trip on
+  // confirmIncomingPO is 150-500ms — long enough for the user to fire
+  // a second click before the in-memory _soCache idempotency check
+  // sees the new SO).
+  b+='<button id="poConfirmBtn_'+esc(qq.id)+'" onclick="(function(b){b.disabled=true;b.textContent=\'Working…\';confirmIncomingPO(\''+esc(qq.id)+'\');setTimeout(function(){b.disabled=false;b.textContent=\'✓ Confirm & Generate SO\';},5000);})(this)" style="padding:11px 22px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;white-space:nowrap">✓ Confirm & Generate SO</button>';
   b+='<button onclick="switchET(8)" style="padding:7px 12px;background:transparent;color:#f59e0b;border:1px solid rgba(245,158,11,.5);border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">Review PO Details →</button>';
   b+='</div>';
   b+='</div>';

@@ -3474,7 +3474,14 @@ exports.scheduledSendOutstandingReminders = onSchedule(
         const so = { id: d.id, ...d.data() };
         if (so.clientSignedAt) continue;
         // sentAt is set by the auto-flow; if missing fall back to createdAt
-        const sinceIso = so.sentAt || so.createdAt;
+        // 2026-06-01 round 65 audit fix #13: reminder cron should
+        // measure age from the latest customer-facing action, not just
+        // sentAt. The round-49 manual flow stamps clientSignRequestSentAt
+        // when staff fires the "Send for Approval" mailto. If we only
+        // looked at sentAt (only set by the auto-send Cloud Function),
+        // a 5-day-old SO that just got a fresh sign-request would
+        // trigger the overdue reminder immediately.
+        const sinceIso = so.clientSignRequestSentAt || so.sentAt || so.createdAt;
         const daysOpen = daysSinceIso(sinceIso);
         if (daysOpen === null || daysOpen < cfg.unsignedSO.firstAfterDays) continue;
         results.soChecked++;
@@ -4260,7 +4267,18 @@ exports.syncSORegistry = onDocumentWritten(
       }
     } catch (err) {
       console.error("[syncSORegistry] failed:", err.message);
-      // Don't throw — registry sync is best-effort
+      // 2026-06-01 round 65 audit fix #16: surface failures to a
+      // queryable Firestore collection so we notice if the sheet falls
+      // out of sync (most common cause: SA permission revoked, token
+      // expired, sheet ID typo). Don't throw — registry sync is
+      // best-effort and must not block the SO write.
+      try {
+        await logServerEvent("so.registry.sync_failed", {
+          soId: event.params.soId,
+          soNum: after.soNum,
+          error: err.message
+        });
+      } catch (_e) { /* logServerEvent itself can't throw further */ }
     }
   }
 );

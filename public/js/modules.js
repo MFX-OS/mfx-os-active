@@ -296,22 +296,21 @@ var jobDesc=(f.sA||'?')+'\"×'+(f.sar||'?')+'\" '+(f.shapeType||'')+' — '+(f.c
 var clientCode=f.clientCode||'MFX-000-00';
 var salesRep=f.salesRep||f.estimator||'—';
 
-// Build pricing table — compute material per qty × SKU
-var _nA=Math.max(1,parseFloat(f.nAcross)||1);
-var _ms=parseFloat(f.matSetup)||0;
-// Round 64: use editable overagePct (fall back to legacy 1.2)
-var _ov=parseFloat(f.overagePct);
-_ov=_ov>0 ? (1+_ov/100) : 1.2;
+// Build pricing table. Round 65 audit fix: pull tft/material from
+// c.mtx[i].skus[sk]._tftSk/_matSk (computed in computePricingMatrix)
+// instead of re-deriving the same formula a fourth time. The previous
+// re-derivation could drift if overagePct or matSetup changed mid-render.
 var tbl='<table style="width:100%;border-collapse:collapse"><thead><tr>';
 tbl+='<th style="background:#0a2e3e;color:#00e5ff;padding:5px 8px;font-size:8px;font-weight:800;text-align:center;border:1px solid #0d3a4f;width:22%">QTY</th>';
 for(var sk=1;sk<=c.sc;sk++)tbl+='<th style="background:#0a2e3e;color:#00e5ff;padding:5px 8px;font-size:8px;font-weight:800;text-align:center;border:1px solid #0d3a4f">'+sk+' SKU'+(sk>1?'s':'')+'</th>';
 tbl+='</tr></thead><tbody>';
 for(var ri=0;ri<c.mtx.length;ri++){var r=c.mtx[ri];
 var bg=ri%2===0?'#fff':'#f8fafb';
-var _nft=(r.qty*c.rp/12)/_nA;
-var _tft=_nft*_ov+_ms;
+// Round 65: read tft from the matrix (per-SKU bucket) instead of
+// re-deriving it. Falls back to sk=1's tft for the row-level display.
+var _tft=(r.skus[1] && r.skus[1]._tftSk) || 0;
 tbl+='<tr><td style="background:#edf1f5;padding:6px 8px;text-align:center;font-size:13px;font-weight:800;color:#0a2030;border:1px solid #e0e4ea;vertical-align:middle">'+fN(r.qty)+'</td>';
-for(var sk=1;sk<=c.sc;sk++){var _skuFt=_tft*sk;tbl+='<td style="background:'+bg+';padding:5px 6px;text-align:center;border:1px solid #e8ecf0"><div style="font-size:11px;font-weight:800;color:#0a2030">'+f5$(r.skus[sk].ppu)+'</div><div style="font-size:7px;color:#00838f;font-weight:600;margin-top:1px;background:#e8f8fa;display:inline-block;padding:1px 5px;border-radius:2px">'+f$(r.skus[sk].tot)+'</div>'+(_pvMode==='internal'?'<div style="font-size:6px;color:#7c3aed;font-weight:600;margin-top:2px">'+fN(Math.round(_skuFt))+' ft</div>':'')+'</td>'}
+for(var sk=1;sk<=c.sc;sk++){var _skuFt=(r.skus[sk] && r.skus[sk]._tftSk) || 0;tbl+='<td style="background:'+bg+';padding:5px 6px;text-align:center;border:1px solid #e8ecf0"><div style="font-size:11px;font-weight:800;color:#0a2030">'+f5$(r.skus[sk].ppu)+'</div><div style="font-size:7px;color:#00838f;font-weight:600;margin-top:1px;background:#e8f8fa;display:inline-block;padding:1px 5px;border-radius:2px">'+f$(r.skus[sk].tot)+'</div>'+(_pvMode==='internal'?'<div style="font-size:6px;color:#7c3aed;font-weight:600;margin-top:2px">'+fN(Math.round(_skuFt))+' ft</div>':'')+'</td>'}
 tbl+='</tr>'}
 tbl+='</tbody></table>';
 

@@ -1710,7 +1710,13 @@ function computePricingMatrix(fields, qtys){
       var raw=matSk + baseSetup + sk*perSkuSetup;
       var base=raw*(1+mu);
       var tot=base*(1+rpct);
-      row.skus[sk]={tot:tot,ppu:tot/qty,rep:base*rpct,_matSk:matSk,_tftSk:tftSk};
+      // 2026-06-01 round 65 audit fix: round tot to 2¢ + ppu to 5 dec
+      // at source so all downstream surfaces (editor preview, PDF,
+      // registry export, portal display) reconcile. Was: 2/4/5 dec
+      // mismatch across surfaces caused qty×displayed_ppu ≠ total.
+      var tot2=Math.round(tot*100)/100;
+      var ppu5=Math.round((tot2/qty)*100000)/100000;
+      row.skus[sk]={tot:tot2,ppu:ppu5,rep:Math.round(base*rpct*100)/100,_matSk:matSk,_tftSk:tftSk};
     }
     return row;
   });
@@ -1795,7 +1801,41 @@ const descEl=document.querySelector('#v-editor [data-field="description"]');if(d
 {const _custEmailRaw=String((q.fields&&q.fields.custEmail)||'').trim();const _lowered=_custEmailRaw.toLowerCase();if(_lowered && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_lowered) && q.poClientEmail!==_lowered){q.poClientEmail=_lowered}}
 if(!q.activityLog)q.activityLog=[];q.activityLog.push({action:'edit',by:getUserName(),at:new Date().toISOString(),detail:'Fields updated'})
 const qe=document.querySelectorAll('#v-editor .qty-row input');if(qe.length&&S.etab===4)q.qtys=[...qe].map(e=>parseInt(e.value)||0).filter(n=>n>0);
-q.updatedAt=new Date().toISOString();DB.saveQ(all,S.editId)}
+q.updatedAt=new Date().toISOString();
+// 2026-06-01 round 65 audit fix #15: bidirectional quote↔SO sync.
+// Round 50 added SO→quote mirror via saveSOField. The reverse direction
+// was missing — typo fixes on the quote never reached the linked SO.
+// Now any change to identity/shipping fields on the quote propagates
+// to the linked SO doc. Async + fire-and-forget; never blocks save.
+try{
+  if(typeof window!=='undefined' && window._soCache && Array.isArray(window._soCache) && typeof fbDb!=='undefined'){
+    var linkedSO=window._soCache.find(function(s){return s && s.quoteId===q.id;});
+    if(linkedSO && linkedSO.id){
+      var qf=q.fields||{};
+      var soPatch={};
+      if(qf.custCo && linkedSO.company!==qf.custCo) soPatch.company=qf.custCo;
+      if(qf.custAttn && linkedSO.contact!==qf.custAttn) soPatch.contact=qf.custAttn;
+      if(qf.custPhone && linkedSO.phone!==qf.custPhone) soPatch.phone=qf.custPhone;
+      if(qf.custEmail){ var _e=String(qf.custEmail).trim().toLowerCase(); if(linkedSO.email!==_e) soPatch.email=_e; }
+      var newShipTo=q.poShipTo||qf.shipTo||qf.cityState||'';
+      if(newShipTo && linkedSO.shipTo!==newShipTo) soPatch.shipTo=newShipTo;
+      if(qf.industry && linkedSO.industry!==qf.industry) soPatch.industry=qf.industry;
+      if(Object.keys(soPatch).length){
+        soPatch.updatedAt=new Date().toISOString();
+        soPatch.updatedBy=getUserName();
+        // local mirror first so UI doesn't bounce
+        Object.keys(soPatch).forEach(function(k){linkedSO[k]=soPatch[k]});
+        fbDb.collection('salesOrders').doc(linkedSO.id).update(soPatch).catch(function(e){
+          console.warn('[saveQ→SO mirror] non-fatal:',e.message);
+        });
+      }
+    }
+  }
+}catch(_e){console.warn('[saveQ→SO mirror] threw',_e.message);}
+// 2026-06-01 audit fix #2 (LOW): bake pricing on every save so portal
+// + registry never show stale numbers during a sent→draft→edit window.
+if(typeof bakePricing==='function'){ try{ bakePricing(q); }catch(_be){} }
+DB.saveQ(all,S.editId)}
 
 // ═══════════════════════════════════════════════════════════════
 // SECTION 10: CUSTOMER MANAGEMENT

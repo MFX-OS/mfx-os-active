@@ -1770,8 +1770,12 @@
           if (typeof toast === 'function') {
             toast('📦 PO received for ' + (a.quoteNum || 'quote') + ' from ' + (a.company || 'client'), 'ok');
           }
-          // Auto-generate Sales Order if one doesn't exist yet
-          _autoCreateSO(a.quoteId);
+          // 2026-06-01 round 65 audit fix #6: removed client-side
+          // _autoCreateSO. Server-side portalSubmitPO already creates
+          // the SO transactionally. The 4-second client-side delay
+          // raced with the snapshot listener and could create duplicate
+          // SOs on slow connections (one from server, one from this
+          // listener). Server is the source of truth now.
         });
       }, function(err) { console.warn('Portal activity listener:', err.message); });
 
@@ -1784,28 +1788,9 @@
     return _unsub1; // return primary listener for cleanup
   }
 
-  function _autoCreateSO(quoteId) {
-    if (!quoteId) return;
-    // Wait for quote data to sync from Firestore snapshot, then check & create
-    setTimeout(function() {
-      // Check if SO already exists for this quote
-      if (typeof getSalesOrders === 'function') {
-        var existing = getSalesOrders().find(function(s) { return s.quoteId === quoteId; });
-        if (existing) {
-          console.log('SO already exists for ' + quoteId + ': ' + existing.soNum);
-          return;
-        }
-      }
-      if (typeof createSOFromPO === 'function') {
-        console.log('Auto-generating Sales Order for quote ' + quoteId);
-        try {
-          createSOFromPO(quoteId);
-        } catch(e) {
-          console.warn('Auto SO creation failed:', e);
-        }
-      }
-    }, 4000); // 4s delay to ensure quote data is synced from Firestore
-  }
+  // 2026-06-01 round 65: _autoCreateSO removed (was racing with the
+  // server-side portalSubmitPO and producing duplicate SOs). Server is
+  // the single source of truth for SO creation now.
 
   function _watchPortalFileUploads() {
     // We piggyback on the existing quotes snapshot in _cache.quotes
