@@ -409,13 +409,17 @@ function showAuthScreen(qNum, landingMode){
     ? 'We\'ll send a one-tap verification link. After signing in you\'ll see all quotes shared with your email.'
     : 'Your email is used for identification and communication only.';
   var btnLabel=landingMode?'See my quotes':'View Quote';
+  // 2026-06-01 round 61: pre-fill email from the access-denied Switch
+  // to Staff button (mfxPortalPrefillEmail localStorage key).
+  var prefillEmail='';
+  try{ prefillEmail=localStorage.getItem('mfxPortalPrefillEmail')||''; localStorage.removeItem('mfxPortalPrefillEmail'); }catch(_){}
   document.querySelector('.wrap').innerHTML='<div style="max-width:380px;margin:60px auto;text-align:center">'
     +'<div style="font-family:Outfit;font-size:28px;font-weight:900;color:var(--h1);margin-bottom:4px">Microflex</div>'
     +'<div style="width:50px;height:2px;background:var(--accent);margin:0 auto 4px;border-radius:1px"></div>'
     +'<div style="font-family:Outfit;font-size:8px;font-weight:300;color:var(--accent-dk);letter-spacing:4px;text-transform:uppercase;margin-bottom:24px">Film Corporation</div>'
     +'<div style="font-size:14px;color:var(--h1);font-weight:700;margin-bottom:6px">'+headline+'</div>'
     +'<div style="font-size:11px;color:var(--sub);margin-bottom:20px">'+sub+'</div>'
-    +'<input id="portalEmail" type="email" placeholder="your@company.com" autocomplete="email" inputmode="email" style="width:100%;padding:12px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border);color:var(--h1);font-size:13px;margin-bottom:10px;outline:none;box-sizing:border-box">'
+    +'<input id="portalEmail" type="email" value="'+escPortal(prefillEmail)+'" placeholder="your@company.com" autocomplete="email" inputmode="email" style="width:100%;padding:12px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border);color:var(--h1);font-size:13px;margin-bottom:10px;outline:none;box-sizing:border-box">'
     +'<button id="portalBtn" onclick="portalSignIn('+(landingMode?'true':'false')+')" style="width:100%;padding:12px;border-radius:8px;background:var(--accent);color:#060d14;font-size:13px;font-weight:700;border:none;cursor:pointer">'+btnLabel+'</button>'
     +'<div id="portalStatus" style="margin-top:12px;font-size:11px;color:var(--sub)"></div>'
     +'</div>';
@@ -1035,10 +1039,24 @@ function doLoadQuote(){
     var signedAs=(typeof CLIENT_EMAIL!=='undefined'&&CLIENT_EMAIL)?CLIENT_EMAIL:'';
     var rawMsg=String(e&&e.message||e||'').toLowerCase();
     var isPermissionError=rawMsg.indexOf('permission')!==-1||rawMsg.indexOf('insufficient')!==-1;
+    // 2026-06-01 round 61: surface a clearer explanation + Staff Bypass.
+    // The Firestore rule grants access if (a) the signed-in email matches
+    // the quote.poClientEmail, or (b) it's an @microflexfilm.com staff
+    // email. randy@a10tion.digital is neither — needs to sign in with
+    // randy@microflexfilm.com to see any quote.
+    var signedDomain=String(signedAs||'').split('@')[1]||'';
+    var isStaffDomain=/^microflexfilm\.com$/i.test(signedDomain);
     var headline=isPermissionError?'Access denied for this quote':'Error loading quote';
-    var explain=isPermissionError
-      ?'The email you are signed in as does not have access to this quote. The quote either belongs to a different customer, or the link is for a different account.'
-      :'Something went wrong while loading the quote. The error message is below.';
+    var explain;
+    if(isPermissionError){
+      if(signedAs && !isStaffDomain){
+        explain='Your signed-in email ('+signedAs+') does not match the customer this quote was sent to, and is not a Microflex staff email. To view this quote you need to sign in with either the customer email it was sent to OR a @microflexfilm.com staff account.';
+      } else {
+        explain='The email you are signed in as does not have access to this quote. The quote either belongs to a different customer, or the link is for a different account.';
+      }
+    } else {
+      explain='Something went wrong while loading the quote. The error message is below.';
+    }
     var msg='<div style="max-width:540px;margin:40px auto;padding:24px;background:var(--surface);border:1px solid rgba(239,68,68,.3);border-radius:10px;color:var(--sub);font-family:Inter,sans-serif">'
       +'<div style="font-size:11px;color:#ef4444;font-weight:800;letter-spacing:2px;margin-bottom:8px">'+(isPermissionError?'ACCESS DENIED':'ERROR')+'</div>'
       +'<div style="font-size:18px;color:var(--h1);font-weight:800;margin-bottom:10px">'+escPortal(headline)+'</div>'
@@ -1055,6 +1073,12 @@ function doLoadQuote(){
       msg+='<button onclick="loadQuoteList()" style="background:var(--accent);border:none;color:#060d14;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">See My Workspace</button>';
     }
     msg+='<button onclick="portalSignOut()" style="background:transparent;border:1px solid var(--border);color:var(--sub);padding:10px 20px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Sign in with a different email</button>';
+    // 2026-06-01 round 61: explicit "Switch to Staff Account" button
+    // for non-staff signed-in emails. Signs out and pre-fills the staff
+    // login form via localStorage so the user just confirms.
+    if(signedAs && !isStaffDomain){
+      msg+='<button onclick="(function(){try{localStorage.setItem(\'mfxPortalPrefillEmail\',\'randy@microflexfilm.com\');}catch(_){}auth.signOut().then(function(){location.reload()});})()" style="background:transparent;border:1px solid var(--accent);color:var(--accent);padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🧑‍💼 Switch to Staff Account</button>';
+    }
     msg+='</div>';
     msg+='<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;color:var(--sub);line-height:1.6">Still stuck? Email <a href="mailto:quotes@microflexfilm.com" style="color:var(--accent)">quotes@microflexfilm.com</a> with the quote number and a screenshot of this page.</div>';
     msg+='</div>';
@@ -2186,7 +2210,6 @@ window.addEventListener('DOMContentLoaded',loadQuote);
 <div class="hdr">
 <div class="hdr-inner">
 <div class="logo">
-<img src="/logo.png" alt="Microflex Film Corporation" class="logo-img">
 <div class="logo-text">
 <div><b>Microflex</b></div>
 <div class="logo-line"></div>
