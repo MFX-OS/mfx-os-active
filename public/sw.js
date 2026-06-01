@@ -1,10 +1,10 @@
-var CACHE_NAME = 'mfx-mpvuoe5s';
+var CACHE_NAME = 'mfx-mpvuv3a8';
 var STATIC_ASSETS = [
   '/',
   '/index.html',
   '/offline.html',
   '/css/theme.css',
-  '/js/mfx-core.cba6cf5e.js',
+  '/js/mfx-core.b38ef1a8.js',
   '/js/mfx-chat.b5fff599.js',
   '/js/mfx-ai.1efd0bb8.js',
   '/js/mfx-mats.f2ce3e7d.js',
@@ -12,7 +12,7 @@ var STATIC_ASSETS = [
 ];
 
 // CDN resources to cache on first use
-var CDN_CACHE = 'mfx-cdn-mpvuoe5s';
+var CDN_CACHE = 'mfx-cdn-mpvuv3a8';
 var CDN_PATTERNS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',

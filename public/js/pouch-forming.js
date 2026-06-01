@@ -155,9 +155,107 @@ function computePouchForming(opts) {
   };
 }
 
+// ════════════════════════════════════════════════════════════════════
+// Display Box + Master Shipper Configurator (round 67)
+// ════════════════════════════════════════════════════════════════════
+// Ports the "Display & Master Confi. (2)" sheet from the same Excel
+// workbook. It's a DIMENSIONAL configurator — the Excel computes how
+// many display boxes + master shippers each quantity tier needs from
+// pouches-per-display + the master stacking pattern (cols × rows ×
+// stacks). $/display + $/master are entered manually since the
+// supplier sets those.
+//
+// Excel formulas (ported verbatim):
+//   Display dimensions:
+//     L = pouch_width + 0.25"
+//     W = 0.375 × pouches_per_display + 0.25"
+//     D = W + 0.25"  (per F8=D7+0.25)
+//   Display qty needed = run_qty / pouches_per_display
+//
+//   Master shipper dimensions:
+//     L = display_L × cols + 0.25"
+//     W = display_W × rows + 0.25"
+//     D = display_D × stacks + 0.25"
+//   Master qty needed = displays_needed / displays_per_master
+//                     = run_qty / (pouches_per_display × cols × rows × stacks)
+//
+//   Pallet: 48"×40", 4.8 cols × 10 rows = 48 masters per pallet
+//
+// computeCartoning({qty, pouchWidthIn, pouchesPerDisplay,
+//   cols, rows, stacks, displayCost, masterCost}) →
+//   {displays, masters, pallets, displayL/W/D, masterL/W/D,
+//    displayCostTotal, masterCostTotal, total}
+// ════════════════════════════════════════════════════════════════════
+
+var PALLET_COLS = 4.8;       // 4.8 master columns fit on a 48" pallet
+var PALLET_ROWS = 10;        // 10 rows = 48 masters per pallet
+var PALLET_CAPACITY = PALLET_COLS * PALLET_ROWS; // = 48
+
+function computeCartoning(opts) {
+  opts = opts || {};
+  var qty = parseFloat(opts.qty) || 0;
+  var w = parseFloat(opts.pouchWidthIn) || 0;
+  var ppd = Math.max(0, parseFloat(opts.pouchesPerDisplay) || 0);
+  var cols = Math.max(1, parseFloat(opts.cols) || 1);
+  var rows = Math.max(1, parseFloat(opts.rows) || 1);
+  var stacks = Math.max(1, parseFloat(opts.stacks) || 1);
+  var displayCost = parseFloat(opts.displayCost) || 0;
+  var masterCost = parseFloat(opts.masterCost) || 0;
+
+  if (!qty || !ppd) {
+    return { active:false, displays:0, masters:0, total:0 };
+  }
+
+  // Excel formulas G6, G7, G8 (display dimensions):
+  //   G6 = C7 + 0.25                  → L = pouch_width + 0.25
+  //   G7 = 0.375 × E6 + 0.25          → W = 0.375 × ppd + 0.25
+  //   G8 = G7 + 0.25                  → D = W + 0.25
+  var displayL = w + 0.25;
+  var displayW = 0.375 * ppd + 0.25;
+  var displayD = displayW + 0.25;
+
+  // Excel formulas F28, F29, F30 (master dimensions):
+  //   F28 = G6 × B28 + 0.25 → L = displayL × cols + 0.25
+  //   F29 = G7 × C28 + 0.25 → W = displayW × rows + 0.25
+  //   F30 = G8 × D28 + 0.25 → D = displayD × stacks + 0.25
+  var masterL = displayL * cols + 0.25;
+  var masterW = displayW * rows + 0.25;
+  var masterD = displayD * stacks + 0.25;
+
+  // Excel H6/H28: qty / units-per-container, rounded UP (you can't ship
+  // a fractional display). Excel doesn't ceiling explicitly, but real
+  // ops do; we do here.
+  var displays = Math.ceil(qty / ppd);
+  var displaysPerMaster = cols * rows * stacks;
+  var masters = displaysPerMaster > 0 ? Math.ceil(displays / displaysPerMaster) : 0;
+  var pallets = PALLET_CAPACITY > 0 ? Math.ceil(masters / PALLET_CAPACITY) : 0;
+
+  var displayCostTotal = Math.round(displays * displayCost * 100) / 100;
+  var masterCostTotal = Math.round(masters * masterCost * 100) / 100;
+  var total = Math.round((displayCostTotal + masterCostTotal) * 100) / 100;
+
+  return {
+    active: true,
+    displays: displays,
+    masters: masters,
+    pallets: pallets,
+    displaysPerMaster: displaysPerMaster,
+    displayL: Math.round(displayL * 100) / 100,
+    displayW: Math.round(displayW * 100) / 100,
+    displayD: Math.round(displayD * 100) / 100,
+    masterL: Math.round(masterL * 100) / 100,
+    masterW: Math.round(masterW * 100) / 100,
+    masterD: Math.round(masterD * 100) / 100,
+    displayCostTotal: displayCostTotal,
+    masterCostTotal: masterCostTotal,
+    total: total
+  };
+}
+
 // Expose for computePricingMatrix + UI
 if (typeof window !== 'undefined') {
   window.computePouchForming = computePouchForming;
+  window.computeCartoning = computeCartoning;
   window.SHANNON_SUP_MATRIX = SHANNON_SUP_MATRIX;
   window.SHANNON_FLAT_MATRIX = SHANNON_FLAT_MATRIX;
 }

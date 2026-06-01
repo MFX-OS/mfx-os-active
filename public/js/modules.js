@@ -283,7 +283,35 @@ try{
       _pp.innerHTML='<span style="color:var(--tx3)">Select <em>Pouch Type</em> above to add Shannon forming cost to every qty tier.</span>';
     }
   }
-}catch(_pe){console.warn('[pouchPreview] non-fatal',_pe.message);}}
+}catch(_pe){console.warn('[pouchPreview] non-fatal',_pe.message);}
+// 2026-06-01 round 67: live Carton Configurator preview.
+try{
+  var _cp=document.getElementById('cartonPreview');
+  if(_cp){
+    var ppd=parseFloat(c.f.pouchesPerDisplay)||0;
+    var dEa=parseFloat(c.f.displayCostEa)||0;
+    var mEa=parseFloat(c.f.masterCostEa)||0;
+    if(c.mtx && c.mtx[0] && ppd>0 && typeof window.computeCartoning==='function'){
+      var cf=window.computeCartoning({
+        qty:c.mtx[0].qty, pouchWidthIn:parseFloat(c.f.pouchWidthIn)||0,
+        pouchesPerDisplay:ppd,
+        cols:parseFloat(c.f.cartonCols)||1, rows:parseFloat(c.f.cartonRows)||1, stacks:parseFloat(c.f.cartonStacks)||1,
+        displayCost:dEa, masterCost:mEa
+      });
+      if(cf.active){
+        _cp.innerHTML='<strong style="color:var(--ac)">Per qty '+c.mtx[0].qty.toLocaleString()+':</strong> '+
+          fN(cf.displays)+' displays ('+cf.displayL+'×'+cf.displayW+'×'+cf.displayD+'") · '+
+          fN(cf.masters)+' masters ('+cf.masterL+'×'+cf.masterW+'×'+cf.masterD+'") · '+
+          fN(cf.pallets)+' pallet'+(cf.pallets===1?'':'s')+
+          (cf.total>0?' · adds <strong style="color:#22c55e">'+f$(cf.total)+'</strong> to qty':' · <span style="color:var(--or)">enter $/Display or $/Master to price</span>');
+      } else {
+        _cp.innerHTML='<span style="color:var(--tx3)">Fill <em>Pouches/Display</em> + <em>Cols × Rows × Stacks</em> to compute carton counts.</span>';
+      }
+    } else {
+      _cp.innerHTML='<span style="color:var(--tx3)">Cartoning inactive — leave Pouches/Display at 0 for direct ship.</span>';
+    }
+  }
+}catch(_ce){console.warn('[cartonPreview] non-fatal',_ce.message);}}
 
 
 function generateMFXQR(){

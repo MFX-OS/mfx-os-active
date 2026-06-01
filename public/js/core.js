@@ -1225,7 +1225,14 @@ let S={view:'dashboard',editId:null,profileId:null,etab:0,qFilter:'all',qSearch:
 //   pouchZipper / pouchCRZipper / pouchGusset: boolean add-ons
 //                                              (gusset forces sup)
 //   pouchCopies: SKU count for multi-SKU adder; defaults to skuCols.
-const FDEF={estimator:'',jobType:'Flexographic',salesRep:'',payTerms:'Net 30',custCo:'',custAttn:'',custPhone:'',custEmail:'',jobDesc:'',copyPos:'3BOE',shapeType:'Rectangle Label',sA:6,sar:6,nAcross:1,nAround:1,colors:4,gA:0.125,gar:0.125,cRad:0.125,nCopies:1,nPlates:1,offCuts:0,blankSize:'',gearTooth:0,repeat:'',labRoll:'TBD',maxOD:'15"',windDir:'TBD',coreDia:'TBD',faceStock:'539SHP',lamination:'557SW',liner:'NA',adhesive:'NA',coating:'NA',otherMat:'NA',notes:'',msiCost:0.129,stockMgn:2.0,matSetup:400,overagePct:20,edgeTrim:0.875,mkupPct:15,cppPlate:20,plPerSku:1,ccCost:80,nCC:2,mrHrs:0.5,mrBaseHrs:2,mrRate:200,cuHrs:0,cuBaseHrs:2,cuRate:100,dieChg:0,plCost:3,repPct:0,skuCols:1,showMode:'both',qStart:10000,qStep:5000,qRows:1,pouchType:'none',pouchWidthIn:0,pouchHeightIn:0,pouchZipper:false,pouchCRZipper:false,pouchGusset:false};
+// Round 67: cartoning (display box + master shipper) fields added.
+//   pouchesPerDisplay: # pouches per display box (0 = no displays)
+//   cartonCols/Rows/Stacks: master shipper stacking pattern
+//   displayCostEa / masterCostEa: $ per display / master (supplier-priced)
+//   displayMaterial / displayCoating / displayStyle / displayColors:
+//     descriptive only (info for the PO to the carton vendor)
+//   masterMaterial / masterStyle: same
+const FDEF={estimator:'',jobType:'Flexographic',salesRep:'',payTerms:'Net 30',custCo:'',custAttn:'',custPhone:'',custEmail:'',jobDesc:'',copyPos:'3BOE',shapeType:'Rectangle Label',sA:6,sar:6,nAcross:1,nAround:1,colors:4,gA:0.125,gar:0.125,cRad:0.125,nCopies:1,nPlates:1,offCuts:0,blankSize:'',gearTooth:0,repeat:'',labRoll:'TBD',maxOD:'15"',windDir:'TBD',coreDia:'TBD',faceStock:'539SHP',lamination:'557SW',liner:'NA',adhesive:'NA',coating:'NA',otherMat:'NA',notes:'',msiCost:0.129,stockMgn:2.0,matSetup:400,overagePct:20,edgeTrim:0.875,mkupPct:15,cppPlate:20,plPerSku:1,ccCost:80,nCC:2,mrHrs:0.5,mrBaseHrs:2,mrRate:200,cuHrs:0,cuBaseHrs:2,cuRate:100,dieChg:0,plCost:3,repPct:0,skuCols:1,showMode:'both',qStart:10000,qStep:5000,qRows:1,pouchType:'none',pouchWidthIn:0,pouchHeightIn:0,pouchZipper:false,pouchCRZipper:false,pouchGusset:false,pouchesPerDisplay:0,cartonCols:1,cartonRows:1,cartonStacks:1,displayCostEa:0,masterCostEa:0,displayMaterial:'',displayCoating:'',displayStyle:'',displayColors:'',masterMaterial:'',masterStyle:''};
 const DEFAULT_TERMS=[
 'Quote valid for 30 days from date of issue.',
 'Subject to artwork review and approval.',
@@ -1713,6 +1720,12 @@ function computePricingMatrix(fields, qtys){
   // per tier so larger orders get the volume discount automatically.
   var pouchType=String(f.pouchType||'none').toLowerCase();
   var pouchActive=(pouchType==='sup'||pouchType==='flat') && typeof window!=='undefined' && typeof window.computePouchForming==='function';
+  // ─── Round 67: cartoning (display boxes + master shippers) ────────
+  // When pouchesPerDisplay > 0 and ($/display or $/master) > 0, the
+  // engine adds qty_of_displays × $/display + qty_of_masters × $/master
+  // to each tier. Per-SKU (each SKU gets its own carton run).
+  var ppdRaw=gv('pouchesPerDisplay');
+  var cartoningActive=ppdRaw>0 && typeof window!=='undefined' && typeof window.computeCartoning==='function' && (gv('displayCostEa')>0 || gv('masterCostEa')>0);
   // ─── Per-tier per-SKU pricing ────────────────────────────────────
   var mtx=qList.map(function(qty){
     var nft=(qty*rp/12)/nA;
@@ -1738,7 +1751,20 @@ function computePricingMatrix(fields, qtys){
           pouchSk=pf.total; // perPouch × qty
         }
       }
-      var raw=matSk + baseSetup + sk*perSkuSetup + pouchSk;
+      // Cartoning add per SKU. Each SKU's qty needs its own display boxes
+      // and master shippers, so we multiply qty by 1 inside computeCartoning
+      // (sk multiplier on the total below). Volumes are per-SKU qty since
+      // displays/masters are SKU-specific (different artwork = different cartons).
+      var cartonSk=0;
+      if(cartoningActive){
+        var cf=window.computeCartoning({
+          qty:qty, pouchWidthIn:gv('pouchWidthIn'), pouchesPerDisplay:ppdRaw,
+          cols:gv('cartonCols'), rows:gv('cartonRows'), stacks:gv('cartonStacks'),
+          displayCost:gv('displayCostEa'), masterCost:gv('masterCostEa')
+        });
+        if(cf.active) cartonSk=cf.total;
+      }
+      var raw=matSk + baseSetup + sk*perSkuSetup + pouchSk + sk*cartonSk;
       var base=raw*(1+mu);
       var tot=base*(1+rpct);
       // 2026-06-01 round 65 audit fix: round tot to 2¢ + ppu to 5 dec
@@ -1746,7 +1772,7 @@ function computePricingMatrix(fields, qtys){
       // registry export, portal display) reconcile.
       var tot2=Math.round(tot*100)/100;
       var ppu5=Math.round((tot2/qty)*100000)/100000;
-      row.skus[sk]={tot:tot2,ppu:ppu5,rep:Math.round(base*rpct*100)/100,_matSk:matSk,_tftSk:tftSk,_pouchSk:Math.round(pouchSk*100)/100,_pouchPerPouchSk:pouchPerPouchSk};
+      row.skus[sk]={tot:tot2,ppu:ppu5,rep:Math.round(base*rpct*100)/100,_matSk:matSk,_tftSk:tftSk,_pouchSk:Math.round(pouchSk*100)/100,_pouchPerPouchSk:pouchPerPouchSk,_cartonSk:Math.round(cartonSk*100)/100};
     }
     return row;
   });
@@ -1755,7 +1781,8 @@ function computePricingMatrix(fields, qtys){
     pl:pl, cc:cc, mrPerSku:mrPerSku, mrBase:mrBase, cuPerSku:cuPerSku, cuBase:cuBase,
     perSkuSetup:perSkuSetup, baseSetup:baseSetup, setup:setup,
     mtx:mtx, qtys:qList, sc:sc, f:f, rpct:rpct, nAr:nAr, overage:overage, edgeTrim:edgeTrim,
-    pouchType:pouchType, pouchActive:pouchActive
+    pouchType:pouchType, pouchActive:pouchActive,
+    cartoningActive:cartoningActive
   };
 }
 window.computePricingMatrix=computePricingMatrix;
