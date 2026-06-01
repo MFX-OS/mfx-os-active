@@ -1652,10 +1652,21 @@ var pl=cpp*pps,cc=ccc*ncc,mr=mrH*mrR,cu=cuH*cuR,setup=pl+cc+mr+cu;
 var sc=Math.min(10,Math.max(1,parseInt(f.skuCols)||1));
 var rpct=gv('repPct')/100;
 var qtys=(q.qtys||[]).filter(function(x){return x>0});
+// 2026-06-01 round 63 cylinder-math audit fix: per-SKU material cost.
+// Previously sc_ was computed once outside the sk loop → multi-SKU
+// quotes undercharged by (sk-1)×sc_ per qty row. Now matches the live
+// edCalc engine: each SKU consumes its own web + its own setup waste.
 var pricedQtys=qtys.map(function(qty){
-  var nft=(qty*rp/12)/nA,tft=nft*1.2+ms,sc_=mww*tft*0.012*msi*sm;
+  var nft=(qty*rp/12)/nA;
   var row={qty:qty,skus:{}};
-  for(var sk=1;sk<=sc;sk++){var raw=sc_+sk*setup;var base=raw*(1+mu);var tot=base*(1+rpct);row.skus[sk]={tot:tot,ppu:tot/qty,rep:base*rpct}}
+  for(var sk=1;sk<=sc;sk++){
+    var tftSk=nft*1.2 + sk*ms;
+    var matSk=mww*tftSk*0.012*msi*sm;
+    var raw=matSk + sk*setup;
+    var base=raw*(1+mu);
+    var tot=base*(1+rpct);
+    row.skus[sk]={tot:tot,ppu:tot/qty,rep:base*rpct};
+  }
   row.ppu=row.skus[1].ppu;row.total=row.skus[1].tot;row.setup=setup;
   return row
 });

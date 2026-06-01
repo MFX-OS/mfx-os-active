@@ -223,22 +223,69 @@ function edDQ(i){const all=DB.quotes();const q=all.find(x=>x.id===S.editId);if(!
 function edSeedQ(){saveQ();const q=getQ(S.editId);if(!q)return;const f=q.fields;const qs=Math.max(1,parseInt(f.qStart)||10000),qst=Math.max(1,parseInt(f.qStep)||1000),qr=Math.min(20,Math.max(1,parseInt(f.qRows)||10));const all=DB.quotes();const qx=all.find(x=>x.id===S.editId);qx.qtys=[];for(let i=0;i<qr;i++)qx.qtys.push(qs+i*qst);DB.saveQ(all,S.editId);edRQ();edCalcAll()}
 
 // CALC
+// 2026-06-01 round 63 — fixes from cylinder-math audit:
+//   1. Multi-SKU material undercount: sc_ now multiplied by sk inside loop
+//   2. Web-fit guard: returns {err} when ww > die.blankSize
+//   3. Repeat-fit guard: returns {err} when rp > cylinder true repeat
+//   4. Cylinder tooth display uses die.gearTooth (real) not nA-based guess
+//   5. matSetup multiplied by sk on multi-SKU (each SKU = own makeready)
 function edCalc(){const q=getQ(S.editId);if(!q)return null;const f=q.fields;const gv=k=>parseFloat(f[k])||0;
-const sA=gv('sA'),sar=gv('sar'),nA=Math.max(1,gv('nAcross')),gA=gv('gA'),gar=gv('gar'),oc=gv('offCuts');
+const sA=gv('sA'),sar=gv('sar'),nA=Math.max(1,gv('nAcross')),nAr=Math.max(1,gv('nAround')),gA=gv('gA'),gar=gv('gar'),oc=gv('offCuts');
 const msi=gv('msiCost'),sm=gv('stockMgn'),ms=gv('matSetup'),mu=gv('mkupPct')/100;
 const cpp=gv('cppPlate'),pps=gv('plPerSku'),ccc=gv('ccCost'),ncc=gv('nCC');
 const mrH=gv('mrHrs'),mrR=gv('mrRate'),cuH=gv('cuHrs'),cuR=gv('cuRate');
-const ww=sA*nA+(nA-1)*gA+0.875,mww=ww+oc,rp=sar+gar,cy=rp*nA*8;
+const ww=sA*nA+(nA-1)*gA+0.875,mww=ww+oc,rp=sar+gar;
+// Cylinder teeth: prefer the die's real gearTooth; fall back to derived.
+const gtRaw=gv('gearTooth');
+const cy=gtRaw>0 ? gtRaw : Math.round(rp*nAr*8);
+// True cylinder repeat (if gearTooth is known) for the repeat-fit guard
+const trueRepeat=gtRaw>0 ? (gtRaw*0.125)/Math.max(1,nAr) : 0;
+// Press blank (web max) for the web-fit guard
+const blankRaw=String(f.blankSize||'').replace(/["']/g,'').trim();
+const bs=parseFloat(blankRaw)||0;
+// ─── Fit guards ─────────────────────────────────────────────────────
+// These return early with {err} so edCalcAll renders a red banner and
+// downstream send-paths can refuse to advance status. No pricing is
+// returned for unrunnable jobs — sales must fix the layout first.
+if(bs>0 && ww>bs+0.001){
+  return {err:'Web layout '+ww.toFixed(3)+'" exceeds press blank '+bs+'". Reduce # Across, size, or gap — or pick a different die.', ww, mww, bs, f};
+}
+if(trueRepeat>0 && rp>trueRepeat+0.001){
+  return {err:'Repeat '+rp.toFixed(3)+'" exceeds die cylinder repeat '+trueRepeat.toFixed(3)+'" ('+gtRaw+' teeth × 0.125 ÷ '+nAr+' around). Reduce Size Around or Gap Around.', rp, trueRepeat, f};
+}
 const pl=cpp*pps,cc=ccc*ncc,mr=mrH*mrR,cu=cuH*cuR,setup=pl+cc+mr+cu;
 const sc=Math.min(10,Math.max(1,parseInt(f.skuCols)||1));
 const rpct=gv('repPct')/100;
 const qtys=q.qtys.filter(x=>x>0);
-const mtx=qtys.map(qty=>{const row={qty,skus:{}};const nft=(qty*rp/12)/nA,tft=nft*1.2+ms,sc_=mww*tft*0.012*msi*sm;for(let sk=1;sk<=sc;sk++){const raw=sc_+sk*setup;const base=raw*(1+mu);const tot=base*(1+rpct);row.skus[sk]={tot,ppu:tot/qty,rep:base*rpct}}return row});
-return{ww,mww,oc,rp,cy,pl,cc,mr,cu,setup,mtx,qtys,sc,f,rpct}}
+const mtx=qtys.map(qty=>{
+  const row={qty,skus:{}};
+  // Per-SKU material cost: each SKU is a separate run that consumes its
+  // own web + its own setup waste. Audit fix #1: previously sc_ was
+  // outside the sk loop → multi-SKU jobs undercharged by (sk-1)×sc_.
+  const nft=(qty*rp/12)/nA;
+  for(let sk=1;sk<=sc;sk++){
+    const tftSk=nft*1.2 + sk*ms;        // each SKU adds its own setup waste
+    const matSk=mww*tftSk*0.012*msi*sm;  // per-SKU material cost
+    const raw=matSk + sk*setup;          // setup already scales per-SKU
+    const base=raw*(1+mu);
+    const tot=base*(1+rpct);
+    row.skus[sk]={tot,ppu:tot/qty,rep:base*rpct,_matSk:matSk,_tftSk:tftSk};
+  }
+  return row;
+});
+return{ww,mww,oc,rp,cy,pl,cc,mr,cu,setup,mtx,qtys,sc,f,rpct,trueRepeat,bs,nAr}}
 
 function edCalcAll(){const c=edCalc();if(!c)return;
-const sb=$('specBox');if(sb)sb.innerHTML=`<div class="cbox-t">Computed</div><div class="crow"><span class="clbl">Print WW</span><span class="cval">${c.ww.toFixed(4)}"</span></div><div class="crow"><span class="clbl">Off-Cut</span><span class="cval" style="color:var(--or)">${c.oc>0?'+'+c.oc.toFixed(4)+'"':'0"'}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Material WW</span><span class="cval" style="color:#fff;font-weight:700">${c.mww.toFixed(4)}"</span></div><div class="crow"><span class="clbl">Repeat</span><span class="cval">${c.rp.toFixed(4)}"</span></div><div class="crow"><span class="clbl">Cylinder</span><span class="cval">${c.cy.toFixed(0)} tooth</span></div>`;
-const pb=$('priceBox');if(pb)pb.innerHTML=`<div class="cbox-t">Pricing Formula</div><div style="font-size:9px;color:var(--tx3);padding:4px 0;line-height:1.5">WW = sA×nA + (nA-1)×gA + 0.875<br>MatWW = WW + offCuts<br>NeedFt = (qty×repeat/12)/nA<br>TotalFt = NeedFt×1.2 + setup<br>MatCost = MatWW×TotalFt×0.012×MSI×margin<br>Total = (MatCost + SKU×setup) × (1+MFX%) × (1+Rep%)</div><div class="cdiv"></div><div class="cbox-t">Per-SKU Setup</div><div class="crow"><span class="clbl">Plates</span><span class="cval">${f$(c.pl)}</span></div><div class="crow"><span class="clbl">Color Chg</span><span class="cval">${f$(c.cc)}</span></div><div class="crow"><span class="clbl">MR</span><span class="cval">${f$(c.mr)}</span></div><div class="crow"><span class="clbl">CU</span><span class="cval">${f$(c.cu)}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Total Setup</span><span class="cval" style="color:#fff;font-weight:700">${f$(c.setup)}</span></div>${c.rpct>0?'<div class="crow"><span class="clbl" style="color:var(--or)">Rep Commission</span><span class="cval" style="color:var(--or)">'+(c.rpct*100).toFixed(1)+'%</span></div>':''}`;
+// 2026-06-01 round 63 audit fix #2/3: surface fit errors with a red
+// banner. Sales should not proceed until they fix the layout.
+const sb=$('specBox');
+if(c.err){
+  if(sb)sb.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid #dc2626;border-radius:6px;padding:10px 12px"><div style="font-size:9px;color:#dc2626;font-weight:800;letter-spacing:1.5px;margin-bottom:4px">⚠ LAYOUT DOES NOT FIT</div><div style="font-size:11px;color:#fca5a5;line-height:1.4">'+c.err+'</div></div>';
+  var pbErr=$('priceBox');if(pbErr)pbErr.innerHTML='<div style="font-size:10px;color:var(--tx3);padding:8px;text-align:center">Pricing blocked — resolve the fit error above</div>';
+  return;
+}
+if(sb)sb.innerHTML=`<div class="cbox-t">Computed</div><div class="crow"><span class="clbl">Print WW</span><span class="cval">${c.ww.toFixed(4)}"</span></div><div class="crow"><span class="clbl">Off-Cut</span><span class="cval" style="color:var(--or)">${c.oc>0?'+'+c.oc.toFixed(4)+'"':'0"'}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Material WW</span><span class="cval" style="color:#fff;font-weight:700">${c.mww.toFixed(4)}"</span></div>${c.bs>0?'<div class="crow"><span class="clbl">Press Blank</span><span class="cval" style="color:#22c55e">'+c.bs.toFixed(2)+'" ✓</span></div>':''}<div class="crow"><span class="clbl">Repeat</span><span class="cval">${c.rp.toFixed(4)}"</span></div>${c.trueRepeat>0?'<div class="crow"><span class="clbl">Cyl Max Repeat</span><span class="cval" style="color:#22c55e">'+c.trueRepeat.toFixed(3)+'" ✓</span></div>':''}<div class="crow"><span class="clbl">Cylinder</span><span class="cval">${c.cy.toFixed(0)} tooth</span></div>`;
+const pb=$('priceBox');if(pb)pb.innerHTML=`<div class="cbox-t">Pricing Formula</div><div style="font-size:9px;color:var(--tx3);padding:4px 0;line-height:1.5">WW = sA×nA + (nA-1)×gA + 0.875<br>MatWW = WW + offCuts<br>NeedFt = (qty×repeat/12)/nA<br>TotalFt(per-SKU) = NeedFt×1.2 + SKU×setupFt<br>MatCost(per-SKU) = MatWW × TotalFt × 0.012 × MSI × margin<br>Total = (SKU×MatCost + SKU×setup$) × (1+MFX%) × (1+Rep%)</div><div class="cdiv"></div><div class="cbox-t">Per-SKU Setup</div><div class="crow"><span class="clbl">Plates</span><span class="cval">${f$(c.pl)}</span></div><div class="crow"><span class="clbl">Color Chg</span><span class="cval">${f$(c.cc)}</span></div><div class="crow"><span class="clbl">MR</span><span class="cval">${f$(c.mr)}</span></div><div class="crow"><span class="clbl">CU</span><span class="cval">${f$(c.cu)}</span></div><div class="cdiv"></div><div class="crow"><span class="clbl" style="color:var(--ac);font-weight:700">Total Setup</span><span class="cval" style="color:#fff;font-weight:700">${f$(c.setup)}</span></div>${c.rpct>0?'<div class="crow"><span class="clbl" style="color:var(--or)">Rep Commission</span><span class="cval" style="color:var(--or)">'+(c.rpct*100).toFixed(1)+'%</span></div>':''}`;
 edPreview(c)}
 
 

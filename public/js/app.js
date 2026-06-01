@@ -2514,23 +2514,44 @@ window.suggestMaterials = function(jobType) {
 function selectDie(){const sel=$('ed-die');const panel=$('dieSpecPanel');const grid=$('dieSpecGrid');const notesEl=$('dieSpecNotes');
 if(!sel||!sel.value){if(panel)panel.style.display='none';return}
 const dies=getSpecList('dies');const d=dies.find(x=>x.id===sel.value);if(!d){if(panel)panel.style.display='none';return}
-const fields={sA:'sA',sar:'sAr',nAcross:'nA',nAround:'nAr',gA:'gapA',gar:'gapAr',cRad:'cRad',shapeType:'shape'};
-for(const[field,key]of Object.entries(fields)){const v=d[key];if(!v||v==='-')continue;
-const inp=document.querySelector('[data-field="'+field+'"]');if(inp){if(field==='shapeType'){const found=[...inp.options].find(o=>o.value.toLowerCase().includes(v.toLowerCase()));if(found)inp.value=found.value}else{const n=parseFloat(v);if(!isNaN(n))inp.value=n}}}
+// 2026-06-01 round 63 cylinder-math audit fix: also copy blankSize,
+// gearTooth, repeat so the calc engine can validate web fit + cylinder
+// repeat fit. Without these, sales could quote unrunnable jobs.
+const fields={sA:'sA',sar:'sAr',nAcross:'nA',nAround:'nAr',gA:'gapA',gar:'gapAr',cRad:'cRad',shapeType:'shape',blankSize:'blankSize',gearTooth:'gearTooth',repeat:'repeat'};
+for(const[field,key]of Object.entries(fields)){const v=d[key];if(v==null||v==='-'){
+  // 2026-06-01 audit fix: '-' means "doesn't apply for this die" (e.g.
+  // perf dies have sA='-'). Clear the field instead of leaving the
+  // previous die's value behind.
+  const inp=document.querySelector('[data-field="'+field+'"]');
+  if(inp && field!=='shapeType'){inp.value='';}
+  continue;
+}
+const inp=document.querySelector('[data-field="'+field+'"]');if(inp){if(field==='shapeType'){const found=[...inp.options].find(o=>o.value.toLowerCase().includes(v.toLowerCase()));if(found)inp.value=found.value}else if(field==='blankSize'){// strip the inch-mark suffix
+  const raw=String(v).replace(/["']/g,'').trim(); const n=parseFloat(raw); if(!isNaN(n))inp.value=n;
+}else{const n=parseFloat(v);if(!isNaN(n))inp.value=n}}}
 if(panel&&grid){panel.style.display='block';
-const specs=[['Die #',d.id],['Shape',d.shape],['Size Across',d.sA||'-'],['Size Around',d.sAr||'-'],['Repeat',d.repeat||'-'],['# Across',d.nA||'-'],['# Around',d.nAr||'-'],['Gap Across',d.gapA||'-'],['Gap Around',d.gapAr||'-'],['Corner Radius',d.cRad||'-']];
+// 2026-06-01 audit fix: surface blankSize, gearTooth, and cylinder
+// circumference so operators can sanity-check physically before quoting.
+const _gt=parseFloat(d.gearTooth)||0;
+const _circ=_gt?(_gt*0.125).toFixed(3)+'"':'-';
+const specs=[['Die #',d.id],['Shape',d.shape],['Press Blank',d.blankSize||'-'],['Cylinder Teeth',d.gearTooth||'-'],['Cyl Circumference',_circ],['Size Across',d.sA||'-'],['Size Around',d.sAr||'-'],['Repeat',d.repeat||'-'],['# Across',d.nA||'-'],['# Around',d.nAr||'-'],['Gap Across',d.gapA||'-'],['Gap Around',d.gapAr||'-'],['Corner Radius',d.cRad||'-']];
 grid.innerHTML=specs.map(([l,v])=>`<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--bdr)"><span style="color:var(--tx2)">${l}</span><strong>${v}</strong></div>`).join('');
 notesEl.textContent=d.notes?'Notes: '+d.notes:''}
 if(d.notes){toast(d.id+': '+d.notes,'info')}
-// Auto-calculate copies from nAcross * nAround
-var nA = parseInt(document.querySelector('[data-field="nAcross"]')?.value) || 1;
-var nAr = parseInt(document.querySelector('[data-field="nAround"]')?.value) || 1;
+// Auto-calculate copies from nAcross * nAround. Use parseFloat so a die
+// with nAr=4.25 (AG1575) doesn't truncate to 4.
+var nA = parseFloat(document.querySelector('[data-field="nAcross"]')?.value) || 1;
+var nAr = parseFloat(document.querySelector('[data-field="nAround"]')?.value) || 1;
 var copiesEl = document.querySelector('[data-field="nCopies"]');
-if (copiesEl) { copiesEl.value = nA * nAr; }
-// Auto-calculate plates from colors * copies
+if (copiesEl) { copiesEl.value = Math.floor(nA * nAr); }
+// Auto-calculate plates AND plPerSku from colors. plPerSku is what the
+// matrix actually reads — round 63 fix: previously selectDie only wrote
+// nPlates, so changing color count never updated the matrix plate cost.
 var colors = parseInt(document.querySelector('[data-field="colors"]')?.value) || 0;
 var platesEl = document.querySelector('[data-field="nPlates"]');
 if (platesEl && colors > 0) { platesEl.value = colors; }
+var plPerSkuEl = document.querySelector('[data-field="plPerSku"]');
+if (plPerSkuEl && colors > 0) { plPerSkuEl.value = colors; }
 asave()}
 
 // Coating/varnish picker — modal-based now. Just seed the input value.
