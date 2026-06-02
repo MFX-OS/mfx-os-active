@@ -276,8 +276,15 @@ const firebaseConfig={apiKey:"AIzaSyA5N8V4jVNe4pVt3jmjEdbQEfv1lnKj7PM",authDomai
 firebase.initializeApp(firebaseConfig);
 const fbAuth=firebase.auth();
 const fbDb=firebase.firestore();
-// Use modern cache settings instead of deprecated enablePersistence
-fbDb.settings({cacheSizeBytes:firebase.firestore.CACHE_SIZE_UNLIMITED,merge:true});
+// Use modern cache settings instead of deprecated enablePersistence.
+// 2026-06-02 round 71: ignoreUndefinedProperties:true so any field
+// with value `undefined` gets silently dropped instead of rejecting
+// the entire .set() call. Was the cause of opaque "Save failed" with
+// no helpful error — Firestore's default error for undefined is just
+// "Function DocumentReference.set() called with invalid data." Adding
+// new optional fields (pouchHeightIn, displayMaterial, etc.) where
+// some quotes have them set and others don't was triggering this.
+fbDb.settings({cacheSizeBytes:firebase.firestore.CACHE_SIZE_UNLIMITED,merge:true,ignoreUndefinedProperties:true});
 try{fbDb.enablePersistence({synchronizeTabs:true}).catch(function(e){if(e.code!=='unimplemented'&&e.code!=='failed-precondition')console.warn('persistence:',e.code)});}catch(e){}
 window.fbDb=fbDb;window.fbAuth=fbAuth;
 
