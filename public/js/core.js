@@ -589,7 +589,24 @@ saveQ(quotes,changedId){window.setSaveState('saving');
 var toSave=changedId?quotes.filter(function(q){return q.id===changedId}):quotes;
 var anyFailed=false;
 var settled=0;var total=toSave.length;
-toSave.forEach(q=>{q.updatedBy=getUserName();q.updatedById=getUserId();q.updatedAt=new Date().toISOString();if(!q.createdBy){q.createdBy=getUserName();q.createdById=getUserId()}firestoreRetry(function(){ return fbDb.collection('quotes').doc(q.id).set(q,{merge:true}); }).then(function(){ settled++; if(settled===total && !anyFailed) window.setSaveState('saved'); }).catch(function(e){ console.error('saveQ:',e); anyFailed=true; settled++; if(typeof toast==='function') toast('Save failed — check connection','err'); window.setSaveState('error'); })});_cache.quotes=quotes;},
+toSave.forEach(q=>{q.updatedBy=getUserName();q.updatedById=getUserId();q.updatedAt=new Date().toISOString();if(!q.createdBy){q.createdBy=getUserName();q.createdById=getUserId()}firestoreRetry(function(){ return fbDb.collection('quotes').doc(q.id).set(q,{merge:true}); }).then(function(){ settled++; if(settled===total && !anyFailed) window.setSaveState('saved'); }).catch(function(e){
+  // 2026-06-02 round 69: surface the actual Firestore error so we can
+  // tell whether it's a permissions issue (companyUser rule), a
+  // network issue, or invalid data (NaN, undefined, etc.). Previously
+  // showed only "Save failed — check connection" which masked the
+  // real problem.
+  console.error('saveQ failed for quote',q.id,'quoteNum',q.quoteNum,'error:',e);
+  console.error('saveQ failed payload sample:',{status:q.status,custCo:q&&q.fields&&q.fields.custCo,fieldsCount:q&&q.fields?Object.keys(q.fields).length:0});
+  anyFailed=true; settled++;
+  var msg=String(e&&e.message||e||'');
+  var hint='';
+  if(/permission|insufficient/i.test(msg)) hint=' — your account doesn\'t have write access (need @microflexfilm.com)';
+  else if(/invalid|nan/i.test(msg)) hint=' — invalid number in a pricing field';
+  else if(/quota|limit/i.test(msg)) hint=' — Firestore quota exceeded';
+  else if(/network|offline/i.test(msg)) hint=' — check connection';
+  if(typeof toast==='function') toast('Save failed: '+msg.slice(0,80)+hint,'err');
+  window.setSaveState('error');
+})});_cache.quotes=quotes;},
 saveC(cs,changedId){
   // DATA-14 fix (2026-05-24): if caller passes changedId, write only that
   // doc. Concurrent users editing different customers no longer overwrite
@@ -1787,6 +1804,37 @@ function computePricingMatrix(fields, qtys){
 }
 window.computePricingMatrix=computePricingMatrix;
 
+// 2026-06-02 round 69: NaN sanitizer. Firestore rejects writes that
+// contain NaN/Infinity, so a single divide-by-zero in computePricing
+// silently kills the entire saveQ. Strip them out before persisting.
+function _safeNum(v){var n=Number(v);return (isFinite(n)?n:0);}
+function _sanitizeMtx(mtx){
+  if(!Array.isArray(mtx))return [];
+  return mtx.map(function(row){
+    if(!row||typeof row!=='object')return {qty:0,skus:{}};
+    var clean={qty:_safeNum(row.qty),skus:{}};
+    if(row.skus && typeof row.skus==='object'){
+      Object.keys(row.skus).forEach(function(sk){
+        var s=row.skus[sk]||{};
+        clean.skus[sk]={
+          tot:_safeNum(s.tot),
+          ppu:_safeNum(s.ppu),
+          rep:_safeNum(s.rep)
+        };
+        if(s._matSk!=null)clean.skus[sk]._matSk=_safeNum(s._matSk);
+        if(s._tftSk!=null)clean.skus[sk]._tftSk=_safeNum(s._tftSk);
+        if(s._pouchSk!=null)clean.skus[sk]._pouchSk=_safeNum(s._pouchSk);
+        if(s._pouchPerPouchSk!=null)clean.skus[sk]._pouchPerPouchSk=_safeNum(s._pouchPerPouchSk);
+        if(s._cartonSk!=null)clean.skus[sk]._cartonSk=_safeNum(s._cartonSk);
+      });
+    }
+    if(row.ppu!=null)clean.ppu=_safeNum(row.ppu);
+    if(row.total!=null)clean.total=_safeNum(row.total);
+    if(row.setup!=null)clean.setup=_safeNum(row.setup);
+    return clean;
+  });
+}
+
 function bakePricing(q){
 try{
 var c=computePricingMatrix(q.fields, q.qtys);
@@ -1802,9 +1850,11 @@ var pricedQtys=c.mtx.map(function(row){
   row.setup=c.setup;
   return row;
 });
-q.pricedQtys=pricedQtys;
-q.setupTotal=c.setup;
-q.fixedCharges={die:parseFloat(q.fields.dieChg)||0,plates:c.pl,mr:c.mrPerSku+c.mrBase,cu:c.cuPerSku+c.cuBase,shipping:parseFloat(q.fields.shipping)||0};
+// Round 69: sanitize to drop any NaN/Infinity before persisting —
+// Firestore rejects them and the whole save fails silently.
+q.pricedQtys=_sanitizeMtx(pricedQtys);
+q.setupTotal=_safeNum(c.setup);
+q.fixedCharges={die:_safeNum(q.fields.dieChg),plates:_safeNum(c.pl),mr:_safeNum(c.mrPerSku+c.mrBase),cu:_safeNum(c.cuPerSku+c.cuBase),shipping:_safeNum(q.fields.shipping)};
 console.log('💰 Pricing baked into quote:',q.quoteNum,pricedQtys.length,'quantities');
 }catch(e){console.warn('bakePricing error:',e)}}
 function delQuote(qid) {
@@ -1894,6 +1944,22 @@ try{
 // 2026-06-01 audit fix #2 (LOW): bake pricing on every save so portal
 // + registry never show stale numbers during a sent→draft→edit window.
 if(typeof bakePricing==='function'){ try{ bakePricing(q); }catch(_be){} }
+// 2026-06-02 round 69: scrub NaN/Infinity from q.fields before save.
+// Form inputs that get cleared (e.g. user deletes a number) read as ''
+// and become NaN via parseFloat in math. Firestore rejects NaN writes
+// silently, causing "Save failed" with no visible cause. Convert to
+// the matching FDEF default if the field is in FDEF, else to ''.
+try{
+  if(q.fields){
+    Object.keys(q.fields).forEach(function(k){
+      var v=q.fields[k];
+      if(typeof v==='number' && !isFinite(v)){
+        var d=(typeof FDEF!=='undefined' && FDEF[k]!=null) ? FDEF[k] : 0;
+        q.fields[k]=d;
+      }
+    });
+  }
+}catch(_se){console.warn('[saveQ field scrub] non-fatal',_se.message);}
 DB.saveQ(all,S.editId)}
 
 // ═══════════════════════════════════════════════════════════════
