@@ -3124,10 +3124,28 @@ addToRegistry();}
 },2000);
 notifyTeam('✅ Quote '+q.quoteNum+' approved by CEO - saved to Drive + Registry')}
 function edActions(){const q=getQ(S.editId);openModal(`<div class="modal-title">Actions</div>${q.status==='ready'?`<div style="background:#052e16;border:1px solid #16a34a;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#4ade80;text-align:center">✅ CEO Approved - Ready to Send</div><button class="btn btn-pr" onclick="closeModal();emailQuoteWithPDF()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Email Quote to Client</button><button class="btn btn-ghost" onclick="closeModal();openQuoteSendMenu()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> All Send Options</button>`:``}${q.status==='approval'?`<button class="btn btn-pr" onclick="closeModal();ceoApprove('${q.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> CEO Approve</button>`:``}${q.status==='draft'?`<button class="btn btn-ghost" style="border:1px solid #c4b5fd;color:#c4b5fd" onclick="closeModal();submitForApproval('${q.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Submit for Approval</button><button class="btn btn-pr" onclick="closeModal();markReadyDirect('${q.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Mark Ready (Skip Approval)</button>`:''}${q.status==='approval'?`<button class="btn btn-pr" onclick="closeModal();quickApprove('${q.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Approve</button><button class="btn btn-rd" onclick="closeModal();setQStatus('${q.id}','rejected')">✕ Reject</button>`:''}<button class="btn btn-ghost" onclick="closeModal();dupQuote('${q.id}',true)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> New Revision</button><button class="btn btn-ghost" onclick="closeModal();dupQuote('${q.id}',false)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Duplicate</button><button class="btn btn-ghost" onclick="closeModal();inviteCollaborator()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Invite Collaborator</button><button class="btn btn-ghost" onclick="closeModal();scheduleMeeting(S.editId)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Schedule Meeting</button><button class="btn btn-or" onclick="closeModal();saveTpl()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Save Template</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`)}
-function loadCust(cid){if(!cid)return;const c=DB.customers().find(x=>x.id===cid);if(!c)return;
-const s=(f,v)=>{const e=document.querySelector('[data-field="'+f+'"]');if(e)e.value=v||''};
-// Auto-fill ALL customer fields
-s('custCo',c.company);s('custAttn',c.contact);s('custPhone',c.phone||c.email);s('custEmail',c.email||'');
+function loadCust(cid){
+// 2026-06-02 round 70: customer picker hardening
+//   - log every entry so we can see what's happening in the console
+//   - visible toast on successful load (so user knows the click worked)
+//   - explicit error toast when cid is missing or customer not found
+//   - diagnostics list what fields ended up filled
+if(!cid){console.warn('[loadCust] called with no cid');toast&&toast('No customer selected','err');return}
+const allCust=DB.customers();
+const c=allCust.find(x=>x.id===cid);
+if(!c){
+  console.error('[loadCust] customer not found in DB. cid='+cid+' total='+allCust.length);
+  toast&&toast('Customer record not found (id='+cid+')','err');
+  return;
+}
+console.log('[loadCust] loading',c.company,'id='+cid,c);
+const s=(f,v)=>{const e=document.querySelector('[data-field="'+f+'"]');if(e){e.value=v||'';return true}else{console.warn('[loadCust] no data-field input for '+f);return false}};
+// Auto-fill ALL customer fields, track what filled vs missed
+var ok=[],missed=[];
+if(s('custCo',c.company)){ok.push('Company')}else{missed.push('Company')}
+if(s('custAttn',c.contact)){ok.push('Contact')}else{missed.push('Contact')}
+if(s('custPhone',c.phone||c.email)){ok.push('Phone')}else{missed.push('Phone')}
+if(s('custEmail',c.email||'')){ok.push('Email')}else{missed.push('Email')}
 s('industry',c.industry||'');s('cityState',c.address?c.address.split(',').slice(-2).join(',').trim():'');
 s('shipTo',c.address||'');s('clientCode',c.zohoId?'MFX-'+c.id.replace('c',''):'');
 // Auto-fill payment terms from customer defaults
@@ -3140,8 +3158,11 @@ if (c.accountNum) {
   var acctEl = document.querySelector('[data-field="clientCode"]');
   if (acctEl && (!acctEl.value || acctEl.value === 'MFX-000-00')) { acctEl.value = c.accountNum; }
 }
-const si=$('custSearch');if(si)si.value=c.company;const dd=$('custDD');if(dd)dd.style.display='none';asave();
-// Check data completeness and prompt for points
+const si=$('custSearch');if(si)si.value=c.company;const dd=$('custDD');if(dd)dd.style.display='none';
+// 2026-06-02 round 70: explicit visible feedback
+toast&&toast('✓ Loaded '+c.company+(missed.length?' ('+missed.length+' missing fields)':''),'ok');
+asave();
+// Check data completeness and prompt for points (legacy)
 var filled=0;var total=7;
 if(c.company)filled++;if(c.contact)filled++;if(c.phone)filled++;if(c.email)filled++;if(c.industry)filled++;if(c.address)filled++;if(c.zohoId)filled++;
 if(filled<total){var missing=[];if(!c.contact)missing.push('Contact');if(!c.phone)missing.push('Phone');if(!c.email)missing.push('Email');if(!c.industry)missing.push('Industry');if(!c.address)missing.push('Address');
@@ -3268,7 +3289,24 @@ function saveBulletinEntry(cid){
   DB.saveC(all);closeModal();toast('Posted to bulletin','ok');
   if(mentions)notifyTeam('📌 '+getUserName()+' posted about '+c.company+': '+title+(mentions?' '+mentions:''));
   renderClientMiniDash(c)}
-function filterCustDD(q){const dd=$('custDD');if(!dd)return;const cs=DB.customers();const f=q?cs.filter(c=>(c.company+' '+c.contact+' '+(c.industry||'')).toLowerCase().includes(q.toLowerCase())).slice(0,20):cs.slice(0,20);dd.innerHTML=f.map(c=>`<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--bdr);font-size:12px" onmousedown="loadCust('${c.id}')"><strong>${esc(c.company)}</strong><br><span style="color:var(--tx3);font-size:10px">${esc(c.contact)||''} ${c.industry?'· '+esc(c.industry):''}</span></div>`).join('')+(f.length>=20?'<div style="padding:6px 12px;color:var(--tx3);font-size:10px;text-align:center">Type more to narrow results...</div>':'');dd.style.display='block'}
+function filterCustDD(q){
+  const dd=$('custDD');if(!dd)return;
+  const cs=DB.customers();
+  // 2026-06-02 round 70: previously silent on "no results" → user
+  // couldn't tell if the search was broken or just had no matches.
+  // Now shows an explicit "No customers match" state with a button to
+  // save the typed name as a new customer (uses the existing
+  // saveCustFromQ path once the user types into the company field).
+  const f=q?cs.filter(c=>((c.company||'')+' '+(c.contact||'')+' '+(c.industry||'')+' '+(c.email||'')).toLowerCase().includes(q.toLowerCase())).slice(0,20):cs.slice(0,20);
+  if(!cs.length){
+    dd.innerHTML='<div style="padding:14px 16px;color:var(--tx3);font-size:11px;text-align:center;line-height:1.5">No customers in database yet.<br>Type Company below and click <strong>Save Customer</strong> to add one.</div>';
+  } else if(!f.length){
+    dd.innerHTML='<div style="padding:14px 16px;color:var(--tx3);font-size:11px;text-align:center;line-height:1.5">No customers match <strong>"'+esc(q)+'"</strong>.<br>Try a different search, or type Company below + click <strong>Save Customer</strong>.</div>';
+  } else {
+    dd.innerHTML=f.map(c=>`<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--bdr);font-size:12px" onmousedown="loadCust('${c.id}')" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"><strong>${esc(c.company)}</strong><br><span style="color:var(--tx3);font-size:10px">${esc(c.contact)||''} ${c.industry?'· '+esc(c.industry):''}${c.email?' · '+esc(c.email):''}</span></div>`).join('')+(f.length>=20?'<div style="padding:6px 12px;color:var(--tx3);font-size:10px;text-align:center">Showing top 20 — type more to narrow.</div>':'');
+  }
+  dd.style.display='block';
+}
 document.addEventListener('click',e=>{const dd=$('custDD');const si=$('custSearch');if(dd&&si&&!dd.contains(e.target)&&e.target!==si)dd.style.display='none'})
 function saveCustFromQ(){saveQ();const q=getQ(S.editId);if(!q||!q.fields.custCo){toast('Enter company first','err');return}
 var existing=DB.customers().find(function(x){return x.company.toLowerCase()===q.fields.custCo.toLowerCase()});
